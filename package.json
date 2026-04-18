@@ -1,10 +1,10 @@
 {
   "name": "claude-master-toolkit",
-  "version": "0.1.7THREE",
+  "version": "0.1.7",
   "description": "Operation layer for Claude Code: local dashboard, cost telemetry, context-guardian hooks, persistent memory (Pandorica), model router, MCP server, and a tree-sitter symbol index — all offline.",
   "type": "module",
   "bin": {
-    "ctk": "./bin/ctk.js"
+    "ctk": "bin/ctk.js"
   },
   "files": [
     "dist",
