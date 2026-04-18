@@ -1,0 +1,55 @@
+.wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.head {
+  background: var(--bg-secondary);
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.cell {
+  padding: var(--space-md);
+  text-align: left;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.head .cell {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--text-xs);
+}
+
+.body .cell:last-child {
+  border-bottom: none;
+}
+
+.row:last-child .cell {
+  border-bottom: none;
+}
+
+.left {
+  text-align: left;
+}
+
+.center {
+  text-align: center;
+}
+
+.right {
+  text-align: right;
+}

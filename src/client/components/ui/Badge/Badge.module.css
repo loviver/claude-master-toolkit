@@ -1,0 +1,48 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-full);
+  font-weight: var(--weight-semi);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.sm {
+  padding: 3px 8px;
+  font-size: var(--text-xs);
+}
+
+.md {
+  padding: 4px 10px;
+  font-size: var(--text-sm);
+}
+
+.default {
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+}
+
+.opus          { background: color-mix(in srgb, var(--model-opus)    12%, transparent); color: var(--model-opus); }
+.sonnet        { background: color-mix(in srgb, var(--model-sonnet)  12%, transparent); color: var(--model-sonnet); }
+.haiku         { background: color-mix(in srgb, var(--model-haiku)   14%, transparent); color: var(--model-haiku); }
+.unknown       { background: var(--bg-muted); color: var(--text-muted); }
+
+.exploration   { background: color-mix(in srgb, var(--phase-exploration)    14%, transparent); color: var(--phase-exploration); }
+.implementation{ background: color-mix(in srgb, var(--phase-implementation) 14%, transparent); color: var(--phase-implementation); }
+.testing       { background: color-mix(in srgb, var(--phase-testing)        14%, transparent); color: var(--phase-testing); }
+
+.success { background: color-mix(in srgb, var(--status-success) 14%, transparent); color: var(--status-success); }
+.warning { background: color-mix(in srgb, var(--status-warning) 14%, transparent); color: var(--status-warning); }
+.error   { background: color-mix(in srgb, var(--status-error)   14%, transparent); color: var(--status-error); }
+.info    { background: color-mix(in srgb, var(--status-info)    14%, transparent); color: var(--status-info); }
+
+.sidechain {
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  border: 1px dashed var(--border-strong);
+  padding: 2px 7px;
+}

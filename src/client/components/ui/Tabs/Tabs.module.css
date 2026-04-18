@@ -1,0 +1,35 @@
+.root {
+  width: 100%;
+}
+
+.list {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-lg);
+}
+
+.trigger {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.trigger:hover {
+  color: var(--text-primary);
+}
+
+.trigger[data-state="active"] {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+}
+
+.content {
+  outline: none;
+}

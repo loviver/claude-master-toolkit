@@ -1,0 +1,42 @@
+# Whitelist approach is handled by package.json "files".
+# This file is a safety net: explicitly exclude things that
+# must NEVER ship to npm even if someone edits "files" later.
+
+# Source & dev config
+src/
+node_modules/
+.git/
+.github/
+.vscode/
+.idea/
+
+# Build tooling
+tsconfig*.json
+tsup.config.ts
+vite.config.ts
+vitest.config.ts
+drizzle.config.ts
+
+# Lockfiles & env
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+.env*
+.npmrc
+.nvmrc
+
+# Dev scripts (users get `ctk install claude` instead)
+install.sh
+uninstall.sh
+
+# Experimental/unwired skills (not referenced by the installer)
+claude-dist/revision-skills/
+
+# Local state / caches
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+.claude/
+coverage/
+.DS_Store

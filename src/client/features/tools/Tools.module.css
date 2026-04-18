@@ -1,0 +1,16 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.tool {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.cost {
+  color: var(--accent-amber);
+  font-weight: var(--weight-med);
+}

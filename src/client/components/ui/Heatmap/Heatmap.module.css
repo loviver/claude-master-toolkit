@@ -1,0 +1,40 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+}
+
+.hoursRow,
+.row {
+  display: grid;
+  grid-template-columns: 48px repeat(24, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+
+.hourLabel {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.dowLabel {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding-right: var(--space-2);
+  text-align: right;
+}
+
+.cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  min-height: 14px;
+  cursor: help;
+  transition: transform var(--transition-fast);
+}
+
+.cell:hover {
+  transform: scale(1.12);
+  outline: 1px solid var(--border-focus);
+}

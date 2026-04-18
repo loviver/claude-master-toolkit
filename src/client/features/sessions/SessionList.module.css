@@ -1,0 +1,50 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 400px;
+}
+
+.searchInput {
+  flex: 1;
+}
+
+.project {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.branch {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.modelCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mix {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cost {
+  color: var(--accent-amber);
+  font-weight: var(--weight-med);
+}
+
+.time {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

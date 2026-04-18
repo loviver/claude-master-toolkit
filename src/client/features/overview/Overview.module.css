@@ -1,0 +1,89 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.metrics {
+  margin-top: var(--space-2);
+}
+
+.chartCard {
+  padding: var(--space-4);
+}
+
+.split {
+  margin-top: var(--space-1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+}
+
+.rowLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.rowRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.rowSub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.rowValue {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.phaseCard {
+  padding: var(--space-4);
+}
+
+.phaseRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.phaseCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.phaseValue {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.phaseSub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

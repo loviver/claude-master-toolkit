@@ -1,0 +1,169 @@
+/**
+ * Design tokens — ctk analytics
+ *
+ * Palette: warm off-white (Claude-ish) with a tighter, more muted scale.
+ * Semantic colors map to raw colors so the UI can re-skin without touching components.
+ */
+
+:root {
+  /* ── Raw palette ── */
+  --gray-50:  #fafaf7;
+  --gray-100: #f4f2ed;
+  --gray-150: #ece8e0;
+  --gray-200: #e3ddd2;
+  --gray-300: #cbc5b8;
+  --gray-400: #a39e93;
+  --gray-500: #78736a;
+  --gray-600: #555049;
+  --gray-700: #3a3731;
+  --gray-800: #27251f;
+  --gray-900: #16140f;
+
+  --claude-500: #da7756;   /* brand coral */
+  --claude-600: #b95c3e;
+  --claude-200: #f3c5b3;
+
+  --blue-500:   #6b6af5;
+  --blue-300:   #a7a6fa;
+  --green-500:  #1f9d55;
+  --green-300:  #6dd3a5;
+  --red-500:    #c43a3a;
+  --red-300:    #e99393;
+  --amber-500:  #d49133;
+  --amber-300:  #eec18a;
+  --cyan-500:   #0f8fa6;
+  --cyan-300:   #6dc4d3;
+  --purple-500: #7d3bc4;
+  --purple-300: #c69be8;
+
+  /* ── Surfaces ── */
+  --bg-page:      var(--gray-50);
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #ffffff;
+  --bg-muted:     var(--gray-100);
+  --bg-subtle:    var(--gray-150);
+  --bg-hover:     var(--gray-200);
+  --bg-overlay:   rgba(22, 20, 15, 0.45);
+
+  /* Legacy aliases kept so existing CSS imports don't break mid-refactor */
+  --bg-primary:   var(--bg-page);
+  --bg-secondary: var(--bg-muted);
+  --bg-card:      var(--bg-surface);
+
+  /* ── Borders ── */
+  --border:        var(--gray-200);
+  --border-strong: var(--gray-300);
+  --border-subtle: var(--gray-150);
+  --border-focus:  var(--claude-500);
+
+  /* ── Text ── */
+  --text-primary:   var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-muted:     var(--gray-500);
+  --text-tertiary:  var(--gray-400);
+  --text-disabled:  var(--gray-400);
+  --text-inverse:   var(--gray-50);
+
+  /* ── Accents ── */
+  --accent-claude: var(--claude-500);
+  --accent-blue:   var(--blue-500);
+  --accent-green:  var(--green-500);
+  --accent-red:    var(--red-500);
+  --accent-orange: var(--claude-500);
+  --accent-amber:  var(--amber-500);
+  --accent-cyan:   var(--cyan-500);
+  --accent-purple: var(--purple-500);
+
+  /* ── Semantic model/phase colors (source of truth) ── */
+  --model-opus:    var(--purple-500);
+  --model-sonnet:  var(--blue-500);
+  --model-haiku:   var(--cyan-500);
+  --model-unknown: var(--gray-500);
+
+  --phase-exploration:    var(--cyan-500);
+  --phase-implementation: var(--blue-500);
+  --phase-testing:        var(--green-500);
+  --phase-unknown:        var(--gray-500);
+
+  --status-success: var(--green-500);
+  --status-warning: var(--amber-500);
+  --status-error:   var(--red-500);
+  --status-info:    var(--blue-500);
+
+  /* ── Spacing (4px scale) ── */
+  --space-px:  1px;
+  --space-0:   0;
+  --space-1:   0.25rem;   /* 4  */
+  --space-2:   0.5rem;    /* 8  */
+  --space-3:   0.75rem;   /* 12 */
+  --space-4:   1rem;      /* 16 */
+  --space-5:   1.25rem;   /* 20 */
+  --space-6:   1.5rem;    /* 24 */
+  --space-8:   2rem;      /* 32 */
+  --space-10:  2.5rem;    /* 40 */
+  --space-12:  3rem;      /* 48 */
+
+  /* Legacy aliases */
+  --space-xs: var(--space-1);
+  --space-sm: var(--space-2);
+  --space-md: var(--space-4);
+  --space-lg: var(--space-6);
+  --space-xl: var(--space-8);
+
+  /* ── Radii ── */
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* ── Typography ── */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+
+  --text-xs:   0.7rem;    /* 11.2 */
+  --text-sm:   0.8rem;    /* 12.8 */
+  --text-base: 0.875rem;  /* 14   */
+  --text-md:   1rem;      /* 16   */
+  --text-lg:   1.125rem;  /* 18   */
+  --text-xl:   1.375rem;  /* 22   */
+  --text-2xl:  1.75rem;   /* 28   */
+  --text-3xl:  2.25rem;   /* 36   */
+
+  --leading-tight:  1.25;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-med:     500;
+  --weight-semi:    600;
+  --weight-bold:    700;
+
+  /* ── Elevation ── */
+  --shadow-xs: 0 1px 1px rgba(22, 20, 15, 0.04);
+  --shadow-sm: 0 1px 3px rgba(22, 20, 15, 0.06), 0 1px 2px rgba(22, 20, 15, 0.04);
+  --shadow-md: 0 4px 8px rgba(22, 20, 15, 0.06), 0 2px 4px rgba(22, 20, 15, 0.04);
+  --shadow-lg: 0 10px 24px rgba(22, 20, 15, 0.08), 0 4px 8px rgba(22, 20, 15, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(218, 119, 86, 0.20);
+
+  /* ── Transitions ── */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 120ms var(--ease-in-out);
+  --transition-slow: 240ms var(--ease-in-out);
+
+  /* ── Chart colors (7-step qualitative for categorical data) ── */
+  --chart-1: var(--claude-500);
+  --chart-2: var(--blue-500);
+  --chart-3: var(--green-500);
+  --chart-4: var(--amber-500);
+  --chart-5: var(--cyan-500);
+  --chart-6: var(--purple-500);
+  --chart-7: var(--red-500);
+
+  /* ── Layout ── */
+  --sidebar-width: 232px;
+  --content-max:   1280px;
+  --header-height: 56px;
+}

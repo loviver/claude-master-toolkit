@@ -1,0 +1,35 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: var(--space-1);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  line-height: 1.2;
+}
+
+.icon {
+  font-size: 10px;
+}
+
+.label {
+  font-size: 10px;
+}
+
+.error {
+  background: color-mix(in srgb, var(--color-danger, #dc2626) 12%, var(--bg-muted));
+  border-color: var(--color-danger, #dc2626);
+  color: var(--color-danger, #dc2626);
+  font-weight: var(--weight-semi);
+}

@@ -1,0 +1,40 @@
+.wrapper {
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-xs);
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.value {
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.root {
+  height: 6px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.indicator {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.blue { background: var(--accent-blue); }
+.green { background: var(--accent-green); }
+.orange { background: var(--accent-orange); }
+.red { background: var(--accent-red); }
+.purple { background: var(--accent-purple); }
+.cyan { background: var(--accent-cyan); }

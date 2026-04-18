@@ -1,0 +1,20 @@
+.content {
+  background: var(--gray-800);
+  color: var(--text-inverse);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  box-shadow: var(--shadow-md);
+  max-width: 280px;
+  z-index: 1000;
+  animation: fadeIn 120ms var(--ease-in-out);
+}
+
+.arrow {
+  fill: var(--gray-800);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

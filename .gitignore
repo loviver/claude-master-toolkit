@@ -1,0 +1,28 @@
+node_modules/
+dist/
+
+# Databases (local state)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Claude Code local state
+.claude/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Build & test
+coverage/
+.vite/
+.turbo/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

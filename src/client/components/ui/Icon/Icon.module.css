@@ -1,0 +1,15 @@
+.icon {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.default { color: currentColor; }
+.muted   { color: var(--text-muted); }
+.claude  { color: var(--accent-claude); }
+.blue    { color: var(--accent-blue); }
+.green   { color: var(--accent-green); }
+.red     { color: var(--accent-red); }
+.amber   { color: var(--accent-amber); }
+.cyan    { color: var(--accent-cyan); }
+.purple  { color: var(--accent-purple); }
