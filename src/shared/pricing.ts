@@ -1,4 +1,4 @@
-import type { ModelPricing, TokenUsage } from './types.js';
+import type { ModelPricing, TokenUsage } from './types/index.js';
 
 /**
  * Pricing per 1M tokens (USD) — Claude 4.6 / 4.5 family.

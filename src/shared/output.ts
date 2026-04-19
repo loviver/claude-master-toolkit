@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import type { CliOutput } from "./types.js";
+import type { CliOutput } from "./types/index.js";
 import { c, formatCostColored, formatTokensColored } from "./terminal.js";
 
 const SETTINGS_FILE = join(homedir(), ".claude", "settings.json");

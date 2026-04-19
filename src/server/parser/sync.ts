@@ -13,9 +13,9 @@ import {
   extractFileHistorySnapshots,
   listProjectDirs,
   listSessionFiles,
-} from '../../shared/jsonl-parser.js';
+} from '../../shared/jsonl-parser/index.js';
 import { computeCost } from '../../shared/pricing.js';
-import type { TokenUsage } from '../../shared/types.js';
+import type { TokenUsage } from '../../shared/types/index.js';
 
 export async function syncFile(filePath: string): Promise<void> {
   if (!existsSync(filePath)) return;

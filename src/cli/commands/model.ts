@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from '
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import { output, outputError, readMainModel } from '../../shared/output.js';
-import type { ModelPreference } from '../../shared/types.js';
+import type { ModelPreference } from '../../shared/types/index.js';
 
 const MODEL_PREF_FILE = join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'model-preference');
 

@@ -4,7 +4,7 @@ import {
   parseJsonlFile,
   extractEnrichedTokenEvents,
   extractSessionMeta,
-} from '../jsonl-parser.js';
+} from '../jsonl-parser/index.js';
 import { computeCost, resolveModelKey } from '../pricing.js';
 import type { BenchRun, BenchTurn, IngestOptions } from './types.js';
 

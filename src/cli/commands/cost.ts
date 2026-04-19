@@ -3,7 +3,7 @@ import {
   getLatestSessionFile,
   getSessionTokens,
   getLatestTurnUsage,
-} from '../../shared/jsonl-parser.js';
+} from '../../shared/jsonl-parser/index.js';
 import { computeCost, resolveModelKey } from '../../shared/pricing.js';
 import { output, outputError, isJsonMode, formatTokens, formatCost, readMainModel, formatTokensWithColor, formatCostWithColor } from '../../shared/output.js';
 import { c, padRight } from '../../shared/terminal.js';

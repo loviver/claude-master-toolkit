@@ -3,8 +3,8 @@ import {
   extractToolNames,
   inferSemanticPhase,
   extractEnrichedTokenEvents,
-} from '../jsonl-parser.js';
-import type { SessionEvent } from '../types.js';
+} from '../jsonl-parser/index.js';
+import type { SessionEvent } from '../types/index.js';
 
 // ── extractToolNames ──
 
