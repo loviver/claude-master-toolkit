@@ -63,7 +63,7 @@ import {
   benchImportCommand,
 } from "./commands/bench.js";
 
-const VERSION = "0.1.7";
+const VERSION = "0.1.9";
 const VALID_PANDORICA_TYPES =
   "bugfix|decision|architecture|discovery|pattern|config|preference|session_summary";
 
@@ -101,7 +101,9 @@ uninstall
 
 program
   .command("init")
-  .description("Bootstrap .ctk/ — detect stack, test framework, TDD, conventions")
+  .description(
+    "Bootstrap .ctk/ — detect stack, test framework, TDD, conventions",
+  )
   .action(initCommand);
 
 program
@@ -111,12 +113,16 @@ program
 
 program
   .command("plan <selection>")
-  .description("Resolve topological order for ctk components (comma-sep or 'all')")
+  .description(
+    "Resolve topological order for ctk components (comma-sep or 'all')",
+  )
   .action(planCommand);
 
 program
   .command("orchestrate <selection>")
-  .description("Run pipeline for ctk components (stub runners, Phase 0.3 wires real steps)")
+  .description(
+    "Run pipeline for ctk components (stub runners, Phase 0.3 wires real steps)",
+  )
   .action(orchestrateCommand);
 
 program
@@ -404,13 +410,19 @@ pandorica
 
 const mem = program
   .command("mem")
-  .description("Pandorica v2 memory vault — structured + FTS5 + cost correlation");
+  .description(
+    "Pandorica v2 memory vault — structured + FTS5 + cost correlation",
+  );
 
 mem
   .command("save")
   .description("Save a structured memory")
   .requiredOption("--title <text>", "Short searchable title")
-  .option("--type <type>", "decision|bugfix|architecture|pattern|preference|reference|note|session_summary", "note")
+  .option(
+    "--type <type>",
+    "decision|bugfix|architecture|pattern|preference|reference|note|session_summary",
+    "note",
+  )
   .option("--what <text>", "What happened (one sentence)")
   .option("--why <text>", "Motivation / root cause")
   .option("--where <text>", "Files or paths")
