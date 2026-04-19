@@ -12,16 +12,26 @@ Pandorica is a persistent memory system that survives across sessions and compac
 It is implemented natively in `ctk` (SQLite + MCP tools + CLI).
 This protocol is MANDATORY and ALWAYS ACTIVE.
 
-## Tools disponibles
+## Tools disponibles (Pandorica v2 — `mem_*`)
 
-- `pandorica_save(title, type, content, scope?, topic_key?, project_path?, session_id?)`
-- `pandorica_search(query, limit?, type?, scope?, project_path?)`
-- `pandorica_context(project_path?, session_id?, limit?)` — recover recent state
-- `pandorica_get(id)` — full untruncated content
-- `pandorica_session_summary(content, session_id?, project_path?, title?)`
-- `pandorica_recent(project_path?, limit?)`
+Structured schema + FTS5 + cost-enrichment. 15 verbs:
 
-CLI equivalente: `ctk pandorica save|search|context|recent|get|delete|summary`.
+- `mem_save({ title, type, what, why?, where_?, learned?, topic_key?, scope?, session_id?, project_path?, model?, phase?, tokens_input?, tokens_output?, cache_hit_pct?, cost_usd? })`
+- `mem_update(id, patch)` / `mem_delete(id)` / `mem_get(id)` — full untruncated + increments `access_count`
+- `mem_mark(id, topic_key)` — user-driven topic tagging
+- `mem_recall({ query, limit?, type?, scope?, project_path? })` — FTS5 BM25 rank
+- `mem_context({ topic_key?, project_path?, session_id?, limit? })` — recover recent/topic state
+- `mem_trace({ session_id?, limit? })` — timeline con cost correlation
+- `mem_session({ action: 'start'|'end'|'summary', ... })`
+- `mem_passive(observation)` — capture sin structure
+- `mem_merge(source_id, target_id)`
+- `mem_suggest(text)` — NLP topic_key hints
+- `mem_stats({ project_path? })` — ROI + cost_saved
+- `mem_export({ path })` / `mem_import({ path })`
+
+Legacy alias (backward-compat, ruteado a `mem_*`): `pandorica_save` / `_search` / `_context` / `_get` / `_session_summary` / `_recent`.
+
+CLI: `ctk pandorica save|search|context|recent|get|delete|summary` (sigue funcionando).
 
 ## Proactive Save Triggers
 
@@ -42,17 +52,20 @@ Call `pandorica_save` IMMEDIATELY and WITHOUT BEING ASKED after any of:
 
 Self-check after every task: "Did I make a decision, fix a bug, learn something non-obvious, or establish a convention? If yes → `pandorica_save` NOW."
 
-## pandorica_save Format
+## mem_save Format
 
-- **title**: Verb + what — short, searchable (e.g. "Fixed N+1 query in UserList")
-- **type**: `bugfix` | `decision` | `architecture` | `discovery` | `pattern` | `config` | `preference` | `session_summary`
+- **title**: Verb + what — short, searchable ("Fixed N+1 query in UserList")
+- **type**: `bugfix` | `decision` | `architecture` | `pattern` | `preference` | `reference` | `note` | `session_summary`
 - **scope**: `project` (default) | `personal`
-- **topic_key** (recommended for evolving topics): stable key like `architecture/auth-model`
-- **content**:
-  - **What**: one sentence
-  - **Why**: motivation
-  - **Where**: files or paths
-  - **Learned**: gotchas, surprises (omit if none)
+- **topic_key**: stable slug for evolving topics (`architecture/auth-model`). Upsert automático si coincide.
+- Structured fields (NO concatenar en `what`):
+  - **what**: one sentence — what happened
+  - **why**: motivation / root cause
+  - **where_**: files / paths
+  - **learned**: gotchas, surprises (omit si none)
+- Cost-enrichment (opcional, Phase B los llena el hook automáticamente): `model`, `phase`, `tokens_input`, `tokens_output`, `cache_hit_pct`, `cost_usd`.
+
+Legacy `pandorica_save(text)` → ruteado a `mem_save({ title: first_line(text), what: text, type: 'note' })`. Nuevo código: usar `mem_save` directo.
 
 ## Topic Update Rules
 
@@ -63,9 +76,9 @@ Self-check after every task: "Did I make a decision, fix a bug, learn something 
 ## Search Triggers
 
 On "remember", "recall", "qué hicimos", "acordate", or any reference to past work:
-1. `pandorica_context` — recent session history (fast, cheap)
-2. If not found, `pandorica_search` with relevant keywords
-3. If found, `pandorica_get(id)` for full untruncated content
+1. `mem_context` — recent session / topic state (fast, cheap)
+2. If not found, `mem_recall(query)` — FTS5 BM25 ranking
+3. If hit, `mem_get(id)` — full untruncated + bumps `access_count`
 
 Search proactively when:
 - Starting work that might have been done before
@@ -74,7 +87,7 @@ Search proactively when:
 
 ## Session Close Protocol
 
-Before ending a session or saying "done" / "listo", call `pandorica_session_summary` with:
+Before ending a session or saying "done" / "listo", call `mem_session({ action: 'summary', content })` with:
 
 ```
 ## Goal
@@ -101,6 +114,6 @@ NOT optional. Without this the next session starts blind.
 ## After Compaction
 
 If you see a compaction message or "FIRST ACTION REQUIRED":
-1. IMMEDIATELY call `pandorica_session_summary` with the compacted summary content — persists what was done before compaction
-2. Call `pandorica_context` to recover additional context
+1. IMMEDIATELY `mem_session({ action: 'summary', content })` with compacted summary — persists pre-compaction state
+2. `mem_context` — recover additional context
 3. Only THEN continue working

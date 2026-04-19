@@ -36,6 +36,18 @@ import {
   summaryCommand as pandoricaSummaryCommand,
 } from "./commands/pandorica.js";
 import {
+  memSaveCommand,
+  memRecallCommand,
+  memContextCommand,
+  memTraceCommand,
+  memGetCommand,
+  memDeleteCommand,
+  memSummaryCommand,
+  memStatsCommand,
+  memExportCommand,
+  memImportCommand,
+} from "./commands/mem.js";
+import {
   benchTaskAddCommand,
   benchTaskListCommand,
   benchTaskRemoveCommand,
@@ -365,5 +377,95 @@ pandorica
   .option("--project-path <path>", "Override project path")
   .option("--title <text>", "Override title")
   .action(pandoricaSummaryCommand);
+
+const mem = program
+  .command("mem")
+  .description("Pandorica v2 memory vault — structured + FTS5 + cost correlation");
+
+mem
+  .command("save")
+  .description("Save a structured memory")
+  .requiredOption("--title <text>", "Short searchable title")
+  .option("--type <type>", "decision|bugfix|architecture|pattern|preference|reference|note|session_summary", "note")
+  .option("--what <text>", "What happened (one sentence)")
+  .option("--why <text>", "Motivation / root cause")
+  .option("--where <text>", "Files or paths")
+  .option("--learned <text>", "Gotchas or surprises")
+  .option("--content <text>", "Fallback: body (if --what empty)")
+  .option("--file <path>", "Read body from file")
+  .option("--stdin", "Read body from stdin")
+  .option("--scope <scope>", "project|personal", "project")
+  .option("--topic-key <key>", "Stable key for upsert")
+  .option("--project-path <path>", "Override project path (default: cwd)")
+  .option("--session-id <id>", "Attach to a session")
+  .action(memSaveCommand);
+
+mem
+  .command("recall <query>")
+  .description("FTS5 search with BM25 ranking")
+  .option("--limit <n>", "Max results (default 20)")
+  .option("--type <type>", "Filter by type")
+  .option("--scope <scope>", "Filter by scope")
+  .option("--project-path <path>", "Filter by project path")
+  .action(memRecallCommand);
+
+mem
+  .command("context")
+  .description("Recent memories for project/session")
+  .option("--project-path <path>", "Override project path (default: cwd)")
+  .option("--session-id <id>", "Filter by session")
+  .option("--limit <n>", "Max results (default 10)")
+  .action(memContextCommand);
+
+mem
+  .command("trace")
+  .description("Timeline of memories by creation date")
+  .option("--project-path <path>")
+  .option("--session-id <id>")
+  .option("--limit <n>")
+  .action(memTraceCommand);
+
+mem
+  .command("get <id>")
+  .description("Full untruncated memory (bumps access_count)")
+  .action(memGetCommand);
+
+mem
+  .command("delete <id>")
+  .description("Delete a memory")
+  .action(memDeleteCommand);
+
+mem
+  .command("summary")
+  .description("Persist a session summary")
+  .option("--content <text>")
+  .option("--file <path>")
+  .option("--stdin")
+  .option("--session-id <id>")
+  .option("--project-path <path>")
+  .option("--title <text>")
+  .action(memSummaryCommand);
+
+mem
+  .command("stats")
+  .description("Memory counts, ROI, cost saved, top-accessed")
+  .option("--project-path <path>", "Default: cwd")
+  .option("--all", "All projects (ignores cwd)")
+  .action(memStatsCommand);
+
+mem
+  .command("export")
+  .description("Dump vault to JSON")
+  .option("--project-path <path>")
+  .option("--all", "Export all projects")
+  .option("--out <path>", "Write to file (default: stdout)")
+  .action(memExportCommand);
+
+mem
+  .command("import")
+  .description("Load a previously-exported vault dump")
+  .option("--file <path>")
+  .option("--stdin")
+  .action(memImportCommand);
 
 program.parse();

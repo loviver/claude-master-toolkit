@@ -1,27 +1,46 @@
+// Legacy `ctk pandorica` CLI — thin wrapper over Pandorica v2 (`mem_*`).
+// Kept for backward-compat; prefer `ctk mem <subcmd>`.
 import { readFileSync } from 'fs';
 import { output, outputError } from '../../shared/output.js';
 import {
-  openPandoricaDb,
+  openMemDb,
   save,
-  search,
-  context,
-  recent,
+  recall,
+  context as v2Context,
+  trace,
   getById,
   deleteById,
-  type PandoricaType,
-  type PandoricaScope,
-} from '../../shared/pandorica/db.js';
+  sessionSummary,
+  type MemoryType,
+  type MemoryScope,
+} from '../../shared/memories/v2.js';
 
-const VALID_TYPES: PandoricaType[] = [
+type LegacyType =
+  | 'bugfix' | 'decision' | 'architecture' | 'discovery'
+  | 'pattern' | 'config' | 'preference' | 'session_summary';
+
+const LEGACY_TYPES: LegacyType[] = [
   'bugfix', 'decision', 'architecture', 'discovery',
   'pattern', 'config', 'preference', 'session_summary',
 ];
+
+function mapType(t: LegacyType): MemoryType {
+  if (t === 'discovery') return 'note';
+  if (t === 'config') return 'reference';
+  return t as MemoryType;
+}
 
 function readContent(opts: { content?: string; file?: string; stdin?: boolean }): string {
   if (opts.content) return opts.content;
   if (opts.file) return readFileSync(opts.file, 'utf-8');
   if (opts.stdin) return readFileSync(0, 'utf-8');
   outputError('pandorica: provide --content, --file or --stdin');
+  return '';
+}
+
+function withDb<T>(fn: (db: ReturnType<typeof openMemDb>) => T): T {
+  const db = openMemDb();
+  try { return fn(db); } finally { db.close(); }
 }
 
 export function saveCommand(opts: {
@@ -36,26 +55,23 @@ export function saveCommand(opts: {
   sessionId?: string;
 }): void {
   if (!opts.title) outputError('save: --title required');
-  if (!opts.type || !VALID_TYPES.includes(opts.type as PandoricaType)) {
-    outputError(`save: --type must be one of ${VALID_TYPES.join('|')}`);
+  if (!opts.type || !LEGACY_TYPES.includes(opts.type as LegacyType)) {
+    outputError(`save: --type must be one of ${LEGACY_TYPES.join('|')}`);
   }
   const content = readContent(opts);
-  const db = openPandoricaDb();
-  try {
+  withDb((db) => {
     const row = save(db, {
       title: opts.title!,
-      type: opts.type as PandoricaType,
-      content,
-      scope: opts.scope as PandoricaScope | undefined,
+      type: mapType(opts.type as LegacyType),
+      what: content,
+      scope: opts.scope as MemoryScope | undefined,
       topicKey: opts.topicKey,
       projectPath: opts.projectPath ?? process.cwd(),
       sessionId: opts.sessionId,
     });
     output({ saved: true, id: row.id, topic_key: row.topic_key });
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }
 
 export function searchCommand(query: string, opts: {
@@ -64,13 +80,14 @@ export function searchCommand(query: string, opts: {
   scope?: string;
   projectPath?: string;
 }): void {
-  const db = openPandoricaDb();
-  try {
-    const rows = search(db, {
+  withDb((db) => {
+    const legacy = opts.type as LegacyType | undefined;
+    const type: MemoryType | undefined = legacy ? mapType(legacy) : undefined;
+    const rows = recall(db, {
       query,
       limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
-      type: opts.type as PandoricaType | undefined,
-      scope: opts.scope as PandoricaScope | undefined,
+      type,
+      scope: opts.scope as MemoryScope | undefined,
       projectPath: opts.projectPath,
     });
     output({
@@ -80,39 +97,32 @@ export function searchCommand(query: string, opts: {
         title: r.title,
         type: r.type,
         topic_key: r.topic_key,
-        updated_at: new Date(r.updated_at).toISOString(),
-        preview: r.content.slice(0, 200),
+        updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : null,
+        preview: (r.what ?? '').slice(0, 200),
       })),
     });
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }
 
 export function contextCommand(opts: { projectPath?: string; sessionId?: string; limit?: string }): void {
-  const db = openPandoricaDb();
-  try {
-    const rows = context(db, {
+  withDb((db) => {
+    const rows = v2Context(db, {
       projectPath: opts.projectPath ?? process.cwd(),
       sessionId: opts.sessionId,
       limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
     });
     output({ count: rows.length, memories: rows });
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }
 
 export function recentCommand(opts: { limit?: string; all?: boolean }): void {
-  const db = openPandoricaDb();
-  try {
-    const rows = recent(
-      db,
-      opts.all ? undefined : process.cwd(),
-      opts.limit ? parseInt(opts.limit, 10) : 10,
-    );
+  withDb((db) => {
+    const rows = trace(db, {
+      projectPath: opts.all ? undefined : process.cwd(),
+      limit: opts.limit ? parseInt(opts.limit, 10) : 10,
+    });
     output({
       count: rows.length,
       memories: rows.map((r) => ({
@@ -122,34 +132,26 @@ export function recentCommand(opts: { limit?: string; all?: boolean }): void {
         created_at: new Date(r.created_at).toISOString(),
       })),
     });
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }
 
 export function getCommand(id: string): void {
-  const db = openPandoricaDb();
-  try {
+  withDb((db) => {
     const row = getById(db, id);
     if (!row) outputError(`pandorica: memory '${id}' not found`);
     output(row);
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }
 
 export function deleteCommand(id: string): void {
-  const db = openPandoricaDb();
-  try {
+  withDb((db) => {
     const ok = deleteById(db, id);
     if (!ok) outputError(`pandorica: memory '${id}' not found`);
     output({ deleted: true, id });
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }
 
 export function summaryCommand(opts: {
@@ -161,20 +163,15 @@ export function summaryCommand(opts: {
   title?: string;
 }): void {
   const content = readContent(opts);
-  const db = openPandoricaDb();
-  try {
-    const row = save(db, {
-      title: opts.title ?? `Session summary ${new Date().toISOString()}`,
-      type: 'session_summary',
+  const sid = opts.sessionId ?? `cli-${Date.now()}`;
+  withDb((db) => {
+    const row = sessionSummary(db, {
+      sessionId: sid,
       content,
-      scope: 'project',
-      topicKey: opts.sessionId ? `session/${opts.sessionId}` : undefined,
+      title: opts.title,
       projectPath: opts.projectPath ?? process.cwd(),
-      sessionId: opts.sessionId,
     });
     output({ saved: true, id: row.id });
-  } finally {
-    db.close();
-    process.exit(0);
-  }
+  });
+  process.exit(0);
 }

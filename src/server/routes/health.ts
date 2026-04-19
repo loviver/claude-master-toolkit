@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/db.js';
-import { sessions, tokenEvents, memories } from '../db/schema.js';
+import { sessions, tokenEvents, memoriesV2 as memories } from '../db/schema.js';
 
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async (_req, reply) => {

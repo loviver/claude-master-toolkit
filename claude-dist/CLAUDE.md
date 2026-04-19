@@ -60,7 +60,9 @@ Pandorica is the native ctk memory vault (SQLite + MCP tools + CLI). Su SessionS
 
 **SAVE PROACTIVELY** after any decision, bug fix, convention, discovery, preference, or non-obvious pattern. Do not wait to be asked. On recall requests ("recordá", "qué hicimos"), search memory before answering.
 
-Tools: `pandorica_save` / `pandorica_search` / `pandorica_context` / `pandorica_session_summary` / `pandorica_get` / `pandorica_recent`. CLI equivalente: `ctk pandorica <subcmd>`.
+Tools v2 (`mem_*`, 15 verbs, FTS5 + cost correlation): `mem_save` / `mem_update` / `mem_delete` / `mem_get` / `mem_mark` / `mem_recall` / `mem_context` / `mem_trace` / `mem_session` / `mem_passive` / `mem_merge` / `mem_suggest` / `mem_stats` / `mem_export` / `mem_import`.
+
+Legacy aliases (`pandorica_save` / `_search` / `_context` / `_get` / `_session_summary` / `_recent`) ruteados a `mem_*`. CLI: `ctk pandorica <subcmd>`.
 
 Full rules and templates live in the `pandorica-protocol` skill if you ever need to re-read them.
 
@@ -88,8 +90,8 @@ Installed into `~/.claude/hooks/` and registered in `settings.json` via `ctk ins
 - **UserPromptSubmit** — warns once per threshold crossing (70 / 85 / 95%). Dynamic context limit per model (overridable with `$CLAUDE_CONTEXT_WINDOW`).
 - **PreToolUse `Bash`** — blocks `git commit` invocations that embed AI attribution (`Co-Authored-By`, `Generated with [Claude Code]`, `🤖`, `noreply@anthropic.com`).
 - **PreToolUse `Agent`** — hints (non-blocking) when a sub-agent is launched without the `/delegate` brief preamble. Set `CTK_HOOK_AGENT_STRICT=1` to escalate to hard block.
-- **Stop** — if the turn had ≥3 Edits/Writes with zero `pandorica_save` / `ctk_record` calls, emits a one-shot reminder. Never blocks.
-- **PreCompact** — injects a reminder to call `pandorica_session_summary` before the window is compressed.
+- **Stop** — if the turn had ≥3 Edits/Writes with zero `mem_save` / `pandorica_save` / `ctk_record` calls, emits a one-shot reminder. Never blocks.
+- **PreCompact** — injects a reminder to call `mem_session({ action: 'summary' })` (o legacy `pandorica_session_summary`) before the window is compressed.
 
 On any window-threshold warning, recommend:
 

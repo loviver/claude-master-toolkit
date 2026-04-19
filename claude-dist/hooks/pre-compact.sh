@@ -14,6 +14,6 @@ INPUT="$(cat 2>/dev/null || echo '{}')"
 REASON="$(echo "$INPUT" | jq -r '.compaction_reason // "unknown"')"
 
 jq -n --arg reason "$REASON" '{
-  systemMessage: ("⏳ Compaction (" + $reason + ") imminent. Call pandorica_session_summary NOW to persist this session before the window is compressed.")
+  systemMessage: ("⏳ Compaction (" + $reason + ") imminent. Call mem_session({ action: \"summary\", content }) NOW (or legacy pandorica_session_summary) to persist this session before the window is compressed.")
 }'
 exit 0

@@ -3,16 +3,13 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { openDb } from "../shared/indexer/db-raw.js";
-import {
-  openPandoricaDb,
-  save as pandoricaSave,
-  search as pandoricaSearch,
-  context as pandoricaContext,
-  getById as pandoricaGetById,
-  recent as pandoricaRecent,
-  type PandoricaType,
-  type PandoricaScope,
-} from "../shared/pandorica/db.js";
+import { memHandlers } from "./mem-tools.js";
+import type { MemoryType, MemoryScope } from "../shared/memories/v2.js";
+// Legacy pandorica type aliases kept for backward-compat shim signatures
+type PandoricaType =
+  | 'bugfix' | 'decision' | 'architecture' | 'discovery'
+  | 'pattern' | 'config' | 'preference' | 'session_summary';
+type PandoricaScope = 'project' | 'personal';
 import {
   findSymbol,
   getDeps,
@@ -29,6 +26,11 @@ import type {
   RecallOpts,
   FindOpts,
 } from "../shared/indexer/types.js";
+
+function mapPandoricaType(t: PandoricaType): MemoryType {
+  if (t === 'config' || t === 'discovery') return 'note';
+  return t as MemoryType;
+}
 
 function withDb<T>(fn: (db: ReturnType<typeof openDb>) => T): T {
   const db = openDb();
@@ -221,21 +223,15 @@ export const handlers = {
     project_path?: string;
     session_id?: string;
   }) {
-    const db = openPandoricaDb();
-    try {
-      const row = pandoricaSave(db, {
-        title: args.title,
-        type: args.type,
-        content: args.content,
-        scope: args.scope,
-        topicKey: args.topic_key,
-        projectPath: args.project_path ?? PROJECT_PATH(),
-        sessionId: args.session_id ?? process.env["CLAUDE_SESSION_ID"],
-      });
-      return jsonResult({ saved: true, id: row.id, topic_key: row.topic_key, updated: row.created_at !== row.updated_at });
-    } finally {
-      db.close();
-    }
+    return memHandlers.mem_save({
+      title: args.title,
+      type: mapPandoricaType(args.type),
+      what: args.content,
+      scope: args.scope,
+      topic_key: args.topic_key,
+      project_path: args.project_path,
+      session_id: args.session_id,
+    });
   },
 
   pandorica_search(args: {
@@ -245,74 +241,47 @@ export const handlers = {
     scope?: PandoricaScope;
     project_path?: string;
   }) {
-    const db = openPandoricaDb();
-    try {
-      const results = pandoricaSearch(db, {
-        query: args.query,
-        limit: args.limit,
-        type: args.type,
-        scope: args.scope,
-        projectPath: args.project_path,
-      });
-      return jsonResult({ count: results.length, results: results.map((r) => ({ id: r.id, title: r.title, type: r.type, topic_key: r.topic_key, updated_at: r.updated_at, preview: r.content.slice(0, 240) })) });
-    } finally {
-      db.close();
-    }
+    return memHandlers.mem_recall({
+      query: args.query,
+      limit: args.limit,
+      type: args.type ? mapPandoricaType(args.type) : undefined,
+      scope: args.scope,
+      project_path: args.project_path,
+    });
   },
 
   pandorica_context(args: { project_path?: string; session_id?: string; limit?: number }) {
-    const db = openPandoricaDb();
-    try {
-      const rows = pandoricaContext(db, {
-        projectPath: args.project_path ?? PROJECT_PATH(),
-        sessionId: args.session_id,
-        limit: args.limit,
-      });
-      return jsonResult({ count: rows.length, memories: rows });
-    } finally {
-      db.close();
-    }
+    return memHandlers.mem_context(args);
   },
 
   pandorica_get(args: { id: string }) {
-    const db = openPandoricaDb();
-    try {
-      const row = pandoricaGetById(db, args.id);
-      if (!row) return errorResult(`pandorica: memory '${args.id}' not found`);
-      return jsonResult(row);
-    } finally {
-      db.close();
-    }
+    return memHandlers.mem_get(args);
   },
 
-  pandorica_session_summary(args: { content: string; session_id?: string; project_path?: string; title?: string }) {
-    const db = openPandoricaDb();
-    try {
-      const sid = args.session_id ?? process.env["CLAUDE_SESSION_ID"];
-      const row = pandoricaSave(db, {
-        title: args.title ?? `Session summary ${new Date().toISOString()}`,
-        type: "session_summary",
-        content: args.content,
-        scope: "project",
-        topicKey: sid ? `session/${sid}` : undefined,
-        projectPath: args.project_path ?? PROJECT_PATH(),
-        sessionId: sid,
-      });
-      return jsonResult({ saved: true, id: row.id });
-    } finally {
-      db.close();
-    }
+  pandorica_session_summary(args: {
+    content: string;
+    session_id?: string;
+    project_path?: string;
+    title?: string;
+  }) {
+    const sid = args.session_id ?? process.env["CLAUDE_SESSION_ID"] ?? randomSessionId();
+    return memHandlers.mem_session({
+      sub: 'summary',
+      session_id: sid,
+      content: args.content,
+      project_path: args.project_path,
+      title: args.title,
+    });
   },
 
   pandorica_recent(args: { project_path?: string; limit?: number }) {
-    const db = openPandoricaDb();
-    try {
-      const rows = pandoricaRecent(db, args.project_path ?? PROJECT_PATH(), args.limit ?? 10);
-      return jsonResult({ count: rows.length, memories: rows });
-    } finally {
-      db.close();
-    }
+    return memHandlers.mem_trace({
+      project_path: args.project_path ?? PROJECT_PATH(),
+      limit: args.limit ?? 10,
+    });
   },
+
+  ...memHandlers,
 
   ctk_git_changed(args: { cwd?: string }) {
     const cwd = args.cwd ?? process.cwd();

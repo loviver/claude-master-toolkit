@@ -53,19 +53,6 @@ export function migrate(): void {
       cost_usd REAL NOT NULL DEFAULT 0
     );
 
-    CREATE TABLE IF NOT EXISTS memories (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      type TEXT NOT NULL,
-      scope TEXT NOT NULL DEFAULT 'project',
-      topic_key TEXT,
-      content TEXT NOT NULL,
-      project_path TEXT,
-      session_id TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS sync_state (
       file_path TEXT PRIMARY KEY,
       last_byte_offset INTEGER NOT NULL DEFAULT 0,
@@ -76,9 +63,6 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_token_events_timestamp ON token_events(timestamp);
     CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_path);
     CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
-    CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
-    CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(topic_key);
-    CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_path);
   `);
 
   // v2: Enriched token_events columns + turn_content table
@@ -92,12 +76,6 @@ export function migrate(): void {
   addColumnSafe('token_events', 'parent_uuid', 'TEXT');
   addColumnSafe('token_events', 'semantic_phase', 'TEXT');
   addColumnSafe('token_events', 'agent_role', 'TEXT');
-
-  // v3: Memory tracking columns
-  addColumnSafe('memories', 'description', 'TEXT');
-  addColumnSafe('memories', 'file_path', 'TEXT');
-  addColumnSafe('memories', 'access_count', 'INTEGER NOT NULL DEFAULT 0');
-  addColumnSafe('memories', 'last_accessed_at', 'INTEGER');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS turn_content (
@@ -256,6 +234,114 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_token_events_uuid ON token_events(uuid);
     CREATE INDEX IF NOT EXISTS idx_token_events_message_id ON token_events(message_id);
   `);
+
+  // v8: Pandorica v2 — unified memories_v2 + FTS5 + memory_searches
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memories_v2 (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      title TEXT NOT NULL,
+      type TEXT,
+      what TEXT,
+      why TEXT,
+      where_ TEXT,
+      learned TEXT,
+      topic_key TEXT,
+      model TEXT,
+      phase TEXT,
+      tokens_input INTEGER,
+      tokens_output INTEGER,
+      cache_hit_pct REAL,
+      cost_usd REAL,
+      access_count INTEGER NOT NULL DEFAULT 0,
+      cost_saved_usd REAL NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER,
+      accessed_at INTEGER,
+      scope TEXT NOT NULL DEFAULT 'project',
+      project_path TEXT,
+      description TEXT,
+      file_path TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memories_v2_session ON memories_v2(session_id);
+    CREATE INDEX IF NOT EXISTS idx_memories_v2_topic ON memories_v2(topic_key);
+    CREATE INDEX IF NOT EXISTS idx_memories_v2_type ON memories_v2(type);
+    CREATE INDEX IF NOT EXISTS idx_memories_v2_created ON memories_v2(created_at);
+    CREATE INDEX IF NOT EXISTS idx_memories_v2_project ON memories_v2(project_path);
+
+    CREATE TABLE IF NOT EXISTS memory_searches (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      memory_id TEXT,
+      query TEXT NOT NULL,
+      rank REAL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memory_searches_session ON memory_searches(session_id);
+    CREATE INDEX IF NOT EXISTS idx_memory_searches_memory ON memory_searches(memory_id);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+      title, what, why, where_, learned,
+      content='memories_v2',
+      content_rowid='rowid'
+    );
+
+    CREATE TRIGGER IF NOT EXISTS memories_v2_ai AFTER INSERT ON memories_v2 BEGIN
+      INSERT INTO memories_fts(rowid, title, what, why, where_, learned)
+      VALUES (new.rowid, new.title, new.what, new.why, new.where_, new.learned);
+    END;
+    CREATE TRIGGER IF NOT EXISTS memories_v2_ad AFTER DELETE ON memories_v2 BEGIN
+      INSERT INTO memories_fts(memories_fts, rowid, title, what, why, where_, learned)
+      VALUES ('delete', old.rowid, old.title, old.what, old.why, old.where_, old.learned);
+    END;
+    CREATE TRIGGER IF NOT EXISTS memories_v2_au AFTER UPDATE ON memories_v2 BEGIN
+      INSERT INTO memories_fts(memories_fts, rowid, title, what, why, where_, learned)
+      VALUES ('delete', old.rowid, old.title, old.what, old.why, old.where_, old.learned);
+      INSERT INTO memories_fts(rowid, title, what, why, where_, learned)
+      VALUES (new.rowid, new.title, new.what, new.why, new.where_, new.learned);
+    END;
+  `);
+
+  // v8 backfill: copy legacy memories → memories_v2 (idempotent via INSERT OR IGNORE on id)
+  const legacyTables = ['memories', 'pandorica_memories'] as const;
+  for (const t of legacyTables) {
+    const exists = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(t);
+    if (!exists) continue;
+    const cols = db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[];
+    const has = (c: string) => cols.some((x) => x.name === c);
+    const pick = (c: string, fallback = 'NULL') => (has(c) ? c : fallback);
+    const titleExpr = has('title') ? 'title' : has('topic_key') ? 'topic_key' : `'(untitled)'`;
+    const whatExpr = has('content') ? 'content' : has('what') ? 'what' : has('description') ? 'description' : 'NULL';
+    const createdExpr = has('created_at') ? 'created_at' : `${Date.now()}`;
+    db.exec(`
+      INSERT OR IGNORE INTO memories_v2
+        (id, session_id, title, type, what, topic_key, description,
+         project_path, file_path, scope, access_count, cost_saved_usd,
+         created_at, updated_at, accessed_at)
+      SELECT
+        ${pick('id', "lower(hex(randomblob(16)))")},
+        ${pick('session_id')},
+        ${titleExpr},
+        ${pick('type')},
+        ${whatExpr},
+        ${pick('topic_key')},
+        ${pick('description')},
+        ${pick('project_path')},
+        ${pick('file_path')},
+        COALESCE(${pick('scope', "'project'")}, 'project'),
+        COALESCE(${pick('access_count', '0')}, 0),
+        0,
+        ${createdExpr},
+        ${pick('updated_at')},
+        ${pick('last_accessed_at', pick('accessed_at'))}
+      FROM ${t};
+      DROP TABLE ${t};
+    `);
+  }
 
   db.close();
 }

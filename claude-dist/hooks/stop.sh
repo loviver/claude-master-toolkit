@@ -27,8 +27,8 @@ EDITS="$(grep -cE '"name":"(Edit|Write|MultiEdit|NotebookEdit)"' "$TRANSCRIPT" 2
 EDITS="${EDITS//[^0-9]/}"
 EDITS="${EDITS:-0}"
 
-# Check if any pandorica_save was called this session.
-PANDORICA_SAVES="$(grep -cE '"name":"pandorica_save"' "$TRANSCRIPT" 2>/dev/null || echo 0)"
+# Check if any mem_save / pandorica_save was called this session.
+PANDORICA_SAVES="$(grep -cE '"name":"(mem_save|pandorica_save)"' "$TRANSCRIPT" 2>/dev/null || echo 0)"
 PANDORICA_SAVES="${PANDORICA_SAVES//[^0-9]/}"
 PANDORICA_SAVES="${PANDORICA_SAVES:-0}"
 
@@ -52,9 +52,9 @@ if (( PANDORICA_SAVES == 0 && CTK_RECORDS == 0 )); then
   touch "$NAG_FILE"
   cat >&2 <<EOF
 
-↪  Session hint: $EDITS edit(s) this session but 0 pandorica_save / 0 ctk_record calls.
+↪  Session hint: $EDITS edit(s) this session but 0 mem_save / 0 ctk_record calls.
    If any edit represents a decision, bugfix, discovery, or convention:
-     • pandorica_save — survives across sessions (persistent memory vault)
+     • mem_save — structured, cost-aware memory (Pandorica v2, FTS5)
      • ctk_record — shared finding pool for sub-agents
    Skip this reminder next time with: touch $NAG_FILE
 EOF

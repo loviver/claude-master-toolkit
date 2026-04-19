@@ -55,8 +55,8 @@ ctk_reminder() {
 pandorica_reminder() {
   command -v ctk >/dev/null 2>&1 || return 0
   local recent
-  recent="$(ctk --json pandorica recent --limit 3 2>/dev/null || true)"
-  echo "Pandorica active — persistent memory vault. Tools: pandorica_save / _search / _context / _session_summary / _recent. SAVE PROACTIVELY after decisions, bugfixes, non-obvious discoveries."
+  recent="$(ctk --json mem trace --limit 3 2>/dev/null || ctk --json pandorica recent --limit 3 2>/dev/null || true)"
+  echo "Pandorica v2 active — mem_* tools (FTS5 + cost correlation): mem_save / mem_recall / mem_context / mem_trace / mem_session / mem_stats. Legacy aliases: pandorica_save/_search/_context/_session_summary/_recent. SAVE PROACTIVELY after decisions, bugfixes, non-obvious discoveries."
   if [[ -n "$recent" ]]; then
     printf '   Recent memories (this project): %s\n' "$(echo "$recent" | head -c 300)"
   fi

@@ -100,23 +100,51 @@ export const turnContent = sqliteTable('turn_content', {
   byteSize: integer('byte_size').notNull(),
 });
 
-// ── Pandorica Memories ──
+// ── Pandorica v2 Memories (mem_* tools) ──
 
-export const memories = sqliteTable('memories', {
+export const memoriesV2 = sqliteTable('memories_v2', {
   id: text('id').primaryKey(),
-  title: text('title').notNull(),
-  type: text('type').notNull(), // bugfix | decision | architecture | discovery | pattern | config | preference
-  scope: text('scope').notNull().default('project'), // project | personal
-  topicKey: text('topic_key'),
-  description: text('description'),
-  content: text('content').notNull(),
-  projectPath: text('project_path'),
-  filePath: text('file_path'),
   sessionId: text('session_id'),
+
+  // Engram-compatible core
+  title: text('title').notNull(),
+  type: text('type'),        // decision | bugfix | architecture | pattern | preference | reference | note | session_summary
+  what: text('what'),
+  why: text('why'),
+  where_: text('where_'),    // `where` is reserved
+  learned: text('learned'),
+  topicKey: text('topic_key'),
+
+  // CTK cost-correlation enrichment
+  model: text('model'),
+  phase: text('phase'),
+  tokensInput: integer('tokens_input'),
+  tokensOutput: integer('tokens_output'),
+  cacheHitPct: real('cache_hit_pct'),
+  costUsd: real('cost_usd'),
+
+  // Reuse / ROI tracking
   accessCount: integer('access_count').notNull().default(0),
-  lastAccessedAt: integer('last_accessed_at'),
+  costSavedUsd: real('cost_saved_usd').notNull().default(0),
+
   createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  updatedAt: integer('updated_at'),
+  accessedAt: integer('accessed_at'),
+
+  // Legacy-preserving columns (REST API compatibility)
+  scope: text('scope').notNull().default('project'),  // project | personal
+  projectPath: text('project_path'),
+  description: text('description'),
+  filePath: text('file_path'),
+});
+
+export const memorySearches = sqliteTable('memory_searches', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id'),
+  memoryId: text('memory_id'),
+  query: text('query').notNull(),
+  rank: real('rank'),
+  createdAt: integer('created_at').notNull(),
 });
 
 // ── Sync State (track JSONL parse progress) ──
