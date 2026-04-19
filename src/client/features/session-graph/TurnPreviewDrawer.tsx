@@ -121,7 +121,7 @@ function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraph
         </div>
       )}
 
-      {(ae.slug || ae.requestId || ae.permissionMode) && (
+      {(ae.slug || ae.requestId || ae.permissionMode || ae.cwd || ae.gitBranch || ae.isMeta || ae.isCompactSummary) && (
         <div className={styles.idChips}>
           {ae.slug && (
             <span className={styles.idChip} title="slug">🏷 {ae.slug}</span>
@@ -129,6 +129,14 @@ function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraph
           {ae.permissionMode && (
             <span className={styles.idChip} title="permission mode">🔒 {ae.permissionMode}</span>
           )}
+          {ae.gitBranch && (
+            <span className={styles.idChip} title="git branch">⎇ {ae.gitBranch}</span>
+          )}
+          {ae.cwd && (
+            <span className={styles.idChip} title={`cwd: ${ae.cwd}`}>📁 {ae.cwd.split('/').slice(-2).join('/')}</span>
+          )}
+          {ae.isMeta && <span className={styles.idChip} title="meta turn">ℹ meta</span>}
+          {ae.isCompactSummary && <span className={styles.idChip} title="compact summary turn">🗜 compact</span>}
           {ae.requestId && (
             <span
               className={styles.idChip}
@@ -138,7 +146,22 @@ function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraph
               🆔 {ae.requestId.slice(0, 14)}…
             </span>
           )}
+          {ae.promptId && (
+            <span className={styles.idChip} title={`promptId: ${ae.promptId}`}>📝 {ae.promptId.slice(0, 8)}…</span>
+          )}
+          {typeof ae.parentEventId === 'number' && (
+            <span className={styles.idChip} title="parent turn event id">↖ parent #{ae.parentEventId}</span>
+          )}
         </div>
+      )}
+
+      {ae.thinkingText && (
+        <Section title={`Thinking (${ae.thinkingText.length.toLocaleString()} chars)`}>
+          <details className={styles.thinkingDetails}>
+            <summary>🧠 reasoning (click to expand)</summary>
+            <pre className={styles.preSmall}>{ae.thinkingText}</pre>
+          </details>
+        </Section>
       )}
 
       {pair.userEvent && (
@@ -177,7 +200,53 @@ function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraph
         </Section>
       )}
 
-      {ae.toolCalls.length > 0 && (
+      {ae.toolCallsStructured && ae.toolCallsStructured.length > 0 && (
+        <Section title={`Tool calls (${ae.toolCallsStructured.length})`}>
+          {ae.toolCallsStructured.map((tc) => (
+            <details key={tc.toolUseId} className={styles.toolCall} open={tc.resultIsError === true}>
+              <summary className={styles.toolHead}>
+                <Badge variant={tc.resultIsError ? 'danger' as any : 'default'}>{tc.toolName}</Badge>
+                <div className={styles.toolBadges}>
+                  {tc.resultIsError && <span className={`${styles.toolBadge} ${styles.toolBadgeError}`}>error</span>}
+                  {typeof tc.resultExitCode === 'number' && (
+                    <span
+                      className={`${styles.toolBadge} ${tc.resultExitCode !== 0 ? styles.toolBadgeError : ''}`}
+                      title="exit code"
+                    >exit:{tc.resultExitCode}</span>
+                  )}
+                  <span className={styles.toolBadge} title={`tool_use_id: ${tc.toolUseId}`}>#{tc.toolUseId.slice(-6)}</span>
+                </div>
+              </summary>
+              {tc.inputJson && (
+                <div>
+                  <div className={styles.subLabel}>input</div>
+                  <pre className={styles.preSmall}>{tryFormatJson(tc.inputJson)}</pre>
+                </div>
+              )}
+              {tc.resultStdout && (
+                <div>
+                  <div className={styles.subLabel}>stdout</div>
+                  <pre className={styles.preSmall}>{tc.resultStdout}</pre>
+                </div>
+              )}
+              {tc.resultStderr && (
+                <div>
+                  <div className={styles.subLabel}>stderr</div>
+                  <pre className={`${styles.preSmall} ${styles.toolBadgeError}`}>{tc.resultStderr}</pre>
+                </div>
+              )}
+              {tc.resultContent && (
+                <div>
+                  <div className={styles.subLabel}>result</div>
+                  <pre className={styles.preSmall}>{tc.resultContent}</pre>
+                </div>
+              )}
+            </details>
+          ))}
+        </Section>
+      )}
+
+      {(!ae.toolCallsStructured || ae.toolCallsStructured.length === 0) && ae.toolCalls.length > 0 && (
         <Section title={`Tools (${ae.toolCalls.length})`}>
           {ae.toolCalls.map((tc, i) => (
             <div key={i} className={styles.toolCall}>
@@ -286,6 +355,10 @@ function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraph
       </div>
     </div>
   );
+}
+
+function tryFormatJson(raw: string): string {
+  try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

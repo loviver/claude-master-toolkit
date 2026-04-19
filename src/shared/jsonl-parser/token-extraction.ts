@@ -122,13 +122,30 @@ export function extractSessionMeta(events: SessionEvent[]): {
   }
   const fallback = new Date().toISOString();
 
+  // Scan ALL events for first populated cwd/gitBranch/version (first event may lack them).
+  let cwd: string | undefined;
+  let gitBranch: string | undefined;
+  let version: string | undefined;
+  for (const e of events) {
+    if (!cwd && typeof (e as { cwd?: string }).cwd === 'string' && (e as { cwd?: string }).cwd) {
+      cwd = (e as { cwd: string }).cwd;
+    }
+    if (!gitBranch && typeof (e as { gitBranch?: string }).gitBranch === 'string' && (e as { gitBranch?: string }).gitBranch) {
+      gitBranch = (e as { gitBranch: string }).gitBranch;
+    }
+    if (!version && typeof (e as { version?: string }).version === 'string') {
+      version = (e as { version: string }).version;
+    }
+    if (cwd && gitBranch && version) break;
+  }
+
   return {
     sessionId: first?.sessionId ?? basename(first?.uuid ?? 'unknown'),
     startedAt: minTs ?? fallback,
     lastActiveAt: maxTs ?? minTs ?? fallback,
-    cwd: first?.cwd ?? '',
-    gitBranch: first?.gitBranch,
-    version: first?.version,
+    cwd: cwd ?? '',
+    gitBranch,
+    version,
     primaryModel,
     turnCount,
   };

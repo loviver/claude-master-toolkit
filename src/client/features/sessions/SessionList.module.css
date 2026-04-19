@@ -1,24 +1,136 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
-.searchRow {
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.toolbar > :global(.FilterBar),
+.toolbar > div:first-child {
+  margin-bottom: 0 !important;
+}
+
+.toolbarRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.searchBox {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: 400px;
+  flex: 1 1 280px;
+  max-width: 420px;
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-muted);
+  border-radius: var(--radius-sm);
 }
 
 .searchInput {
   flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  outline: none;
+  padding: var(--space-1) 0;
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.emptyToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.colPickerWrap {
+  position: relative;
+}
+
+.colPickerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.colPickerBtn:hover { color: var(--text-primary); }
+
+.colPickerMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 160px;
+  padding: var(--space-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.colPickerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+.colPickerItem:hover { background: var(--bg-muted); border-radius: var(--radius-sm); }
+
+.count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.errCell {
+  color: var(--accent-red, #d48a8a);
+  font-weight: var(--weight-semi);
+}
+
+.rowEmpty {
+  opacity: 0.55;
+  font-style: italic;
 }
 
 .project {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .branch {

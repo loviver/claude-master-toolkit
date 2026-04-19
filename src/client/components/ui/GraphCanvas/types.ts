@@ -28,6 +28,12 @@ export interface TurnNodeData extends Record<string, unknown> {
   permissionMode?: string | null;
   slug?: string | null;
   requestId?: string | null;
+  // v9
+  isMeta?: boolean;
+  isCompactSummary?: boolean;
+  toolsErrorCount?: number;
+  cwd?: string | null;
+  gitBranch?: string | null;
 }
 
 export interface ClusterNodeData extends Record<string, unknown> {

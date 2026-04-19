@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import { Network } from 'lucide-react';
-import { useSessionGraph } from '../../hooks/queries/useSessions';
+import { useSessionGraphLive } from '../../hooks/queries/useSessions';
 import { Card, CardContent, EmptyState, Skeleton, GraphCanvas, Button } from '../../components/ui';
 import type { SessionGraph as SessionGraphType, SessionGraphNode } from '../../lib/types';
 import type { GraphNodeData, TurnNodeData, ClusterNodeData } from '../../components/ui/GraphCanvas/types';
@@ -46,6 +46,11 @@ function turnToData(n: SessionGraphNode): TurnNodeData {
     permissionMode: n.permissionMode ?? null,
     slug: n.slug ?? null,
     requestId: n.requestId ?? null,
+    isMeta: !!n.isMeta,
+    isCompactSummary: !!n.isCompactSummary,
+    toolsErrorCount: n.toolsErrorCount ?? 0,
+    cwd: n.cwd ?? null,
+    gitBranch: n.gitBranch ?? null,
   };
 }
 
@@ -182,7 +187,7 @@ function buildLayout(
 }
 
 export function SessionGraph({ sessionId }: Props) {
-  const { data, isLoading } = useSessionGraph(sessionId);
+  const { data, isLoading } = useSessionGraphLive(sessionId);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [clusteringOn, setClusteringOn] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);

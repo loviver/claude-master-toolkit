@@ -54,6 +54,9 @@ function TurnNodeImpl({ data, selected }: NodeProps<Node<TurnNodeData, 'turn'>>)
         filesChangedCount={data.filesChangedCount}
         isApiError={data.isApiError}
         apiErrorStatus={data.apiErrorStatus}
+        toolsErrorCount={data.toolsErrorCount}
+        isMeta={data.isMeta}
+        isCompactSummary={data.isCompactSummary}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
         <TurnNodePhase phase={data.phase} stopReason={data.stopReason} />

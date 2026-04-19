@@ -59,7 +59,11 @@ export function formatDate(ms: number, withTime = false): string {
 }
 
 export function formatProjectName(path: string): string {
-  return path.split('/').filter(Boolean).at(-1) ?? path;
+  if (path.includes('/')) {
+    return path.split('/').filter(Boolean).at(-1) ?? path;
+  }
+  const segs = path.split('-').filter(Boolean);
+  return segs.at(-1) ?? path;
 }
 
 export function shortModel(model: string): string {

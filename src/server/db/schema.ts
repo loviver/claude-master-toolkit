@@ -57,6 +57,33 @@ export const tokenEvents = sqliteTable('token_events', {
   durationMs: integer('duration_ms'),
   permissionMode: text('permission_mode'),
   hasThinking: integer('has_thinking', { mode: 'boolean' }).default(false),
+  // v9: richer drawer/graph surface
+  thinkingText: text('thinking_text'),
+  thinkingSignature: text('thinking_signature'),
+  promptId: text('prompt_id'),
+  cwd: text('cwd'),
+  gitBranch: text('git_branch'),
+  isMeta: integer('is_meta', { mode: 'boolean' }).default(false),
+  isCompactSummary: integer('is_compact_summary', { mode: 'boolean' }).default(false),
+  userType: text('user_type'),
+});
+
+// ── Structured tool_use/tool_result per turn (v9) ──
+
+export const turnToolCalls = sqliteTable('turn_tool_calls', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id')
+    .notNull()
+    .references(() => tokenEvents.id, { onDelete: 'cascade' }),
+  toolUseId: text('tool_use_id').notNull(),
+  toolName: text('tool_name').notNull(),
+  orderIdx: integer('order_idx').notNull().default(0),
+  inputJson: text('input_json'),         // raw JSON, may be truncated
+  resultIsError: integer('result_is_error', { mode: 'boolean' }),
+  resultContent: text('result_content'), // truncated ~4KB
+  resultStderr: text('result_stderr'),
+  resultStdout: text('result_stdout'),
+  resultExitCode: integer('result_exit_code'),
 });
 
 // ── Hook attachments (session-level, optionally tied to a turn) ──
@@ -145,6 +172,14 @@ export const memorySearches = sqliteTable('memory_searches', {
   query: text('query').notNull(),
   rank: real('rank'),
   createdAt: integer('created_at').notNull(),
+});
+
+// ── Settings (generic key/value) ──
+
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at').notNull(),
 });
 
 // ── Sync State (track JSONL parse progress) ──

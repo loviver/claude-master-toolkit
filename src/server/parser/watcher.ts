@@ -15,8 +15,9 @@ export function startWatcher(callback?: WatcherCallback) {
   const watcher = watch(join(CLAUDE_PROJECTS_DIR, '**', '*.jsonl'), {
     persistent: true,
     ignoreInitial: true,
+    usePolling: false,
     awaitWriteFinish: {
-      stabilityThreshold: 500,
+      stabilityThreshold: 300,
       pollInterval: 100,
     },
   });

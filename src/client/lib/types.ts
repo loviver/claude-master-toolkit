@@ -13,6 +13,7 @@ export type {
   TurnContentDTO,
   TurnPairDTO,
   TurnToolCall,
+  ToolCallStructuredDTO,
 } from '../../shared/api-types';
 import type {
   ModelKey,
@@ -42,6 +43,13 @@ export interface SessionSummary {
   models: Array<{ model: string; modelKey: ModelKey; turns: number; costUsd: number }>;
   tokens: TokenTotals;
   costUsd: number;
+  // v9 list enrichment
+  cacheHitPct?: number;
+  durationMs?: number;
+  thinkingTurns?: number;
+  apiErrorTurns?: number;
+  toolErrorCount?: number;
+  isEmpty?: boolean;
 }
 
 export interface TokenEvent {

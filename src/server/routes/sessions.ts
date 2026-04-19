@@ -2,10 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { desc, eq, sql } from 'drizzle-orm';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, join } from 'path';
+import { homedir } from 'os';
+import { syncFile, syncSession } from '../parser/sync.js';
 import { getDb } from '../db/db.js';
-import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges } from '../db/schema.js';
+import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
+import { sessionBus, type SessionBusEvent } from '../events/bus.js';
 import type {
   SessionGraphDTO,
   SessionGraphNodeDTO,
@@ -14,6 +17,7 @@ import type {
   TurnToolCall,
   ThinkingBlockDTO,
   TurnHookDTO,
+  ToolCallStructuredDTO,
 } from '../../shared/api-types.js';
 
 interface ListQuery {
@@ -96,6 +100,27 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
       GROUP BY session_id, semantic_phase
     `);
 
+    // v9 enrichment — thinking / api errors / tool errors per session
+    const enrichRows = db.all<{ session_id: string; thinking_turns: number; api_errors: number; started_at: number; ended_at: number }>(sql`
+      SELECT session_id,
+             SUM(CASE WHEN has_thinking = 1 THEN 1 ELSE 0 END) AS thinking_turns,
+             SUM(CASE WHEN is_api_error = 1 THEN 1 ELSE 0 END) AS api_errors,
+             MIN(timestamp) AS started_at,
+             MAX(timestamp) AS ended_at
+      FROM token_events
+      WHERE session_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})
+      GROUP BY session_id
+    `);
+
+    const toolErrRows = db.all<{ session_id: string; n: number }>(sql`
+      SELECT te.session_id AS session_id, COUNT(*) AS n
+      FROM turn_tool_calls tt
+      JOIN token_events te ON te.id = tt.event_id
+      WHERE tt.result_is_error = 1
+        AND te.session_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})
+      GROUP BY te.session_id
+    `);
+
     const modelsBySession = new Map<string, Array<{ model: string; modelKey: string; turns: number; costUsd: number }>>();
     for (const r of modelRows) {
       const arr = modelsBySession.get(r.session_id) ?? [];
@@ -110,6 +135,8 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
 
     const sidechainBySession = new Map(sidechainRows.map((r) => [r.session_id, r.count]));
     const toolsBySession = new Map(toolRows.map((r) => [r.session_id, r.tool_count]));
+    const enrichBySession = new Map(enrichRows.map((r) => [r.session_id, r]));
+    const toolErrBySession = new Map(toolErrRows.map((r) => [r.session_id, r.n]));
 
     const phaseBySession = new Map<string, string>();
     const phaseAgg = new Map<string, Map<string, number>>();
@@ -130,6 +157,13 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
     let data = sessionRows.map((r) => {
       const modelList = modelsBySession.get(r.id) ?? [];
       modelList.sort((a, b) => b.turns - a.turns);
+      const enr = enrichBySession.get(r.id);
+      const cacheRead = r.total_cache_read_tokens ?? 0;
+      const input = r.total_input_tokens ?? 0;
+      const cacheCreate = r.total_cache_creation_tokens ?? 0;
+      const denom = cacheRead + input + cacheCreate;
+      const cacheHitPct = denom > 0 ? Math.round((cacheRead / denom) * 100) : 0;
+      const durationMs = enr ? (enr.ended_at - enr.started_at) : Math.max(0, r.last_active_at - r.started_at);
       return {
         id: r.id,
         projectPath: r.project_path,
@@ -150,6 +184,12 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
           cacheCreationTokens: r.total_cache_creation_tokens,
         },
         costUsd: r.total_cost_usd,
+        cacheHitPct,
+        durationMs,
+        thinkingTurns: enr?.thinking_turns ?? 0,
+        apiErrorTurns: enr?.api_errors ?? 0,
+        toolErrorCount: toolErrBySession.get(r.id) ?? 0,
+        isEmpty: (r.turn_count ?? 0) === 0,
       };
     });
 
@@ -158,6 +198,28 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.send(data);
+  });
+
+  // ── SSE: global session list stream ──
+  app.get('/sessions/stream', async (req, reply) => {
+    openSseStream(reply, req, (evt) => {
+      if (evt.type === 'session:created' || evt.type === 'session:updated') {
+        writeSseEvent(reply, evt.type, { sessionId: evt.sessionId, at: evt.at });
+      }
+    });
+  });
+
+  // ── SSE: per-session stream ──
+  app.get<{ Params: { id: string } }>('/sessions/:id/stream', async (req, reply) => {
+    const sid = req.params.id;
+    openSseStream(reply, req, (evt) => {
+      if (evt.sessionId !== sid) return;
+      writeSseEvent(reply, evt.type, {
+        sessionId: evt.sessionId,
+        at: evt.at,
+        ...(evt.type === 'turn:appended' ? { eventId: evt.eventId } : {}),
+      });
+    });
   });
 
   // ── Session detail ──
@@ -297,6 +359,22 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
       fileCounts.set(row.event_id, row.n);
     }
 
+    // Per-event tool error counts (from turn_tool_calls)
+    const toolErrorCounts = new Map<number, number>();
+    for (const row of db.all<{ event_id: number; n: number }>(sql`
+      SELECT tt.event_id AS event_id, COUNT(*) AS n
+      FROM turn_tool_calls tt
+      JOIN token_events te ON te.id = tt.event_id
+      WHERE te.session_id = ${req.params.id} AND tt.result_is_error = 1
+      GROUP BY tt.event_id
+    `)) {
+      toolErrorCounts.set(row.event_id, row.n);
+    }
+
+    // Parent event_id lookup: map parent_uuid → event_id for same session
+    const uuidToEventId = new Map<string, number>();
+    for (const e of events) if (e.uuid) uuidToEventId.set(e.uuid, e.id);
+
     const nodes: SessionGraphNodeDTO[] = events.map((e, idx) => {
       const cacheRead = e.cacheReadTokens ?? 0;
       const input = e.inputTokens ?? 0;
@@ -338,6 +416,11 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
         hasThinking: !!(e as any).hasThinking,
         hooksCount: hookCounts.get(e.id) ?? 0,
         filesChangedCount: fileCounts.get(e.id) ?? 0,
+        isMeta: !!(e as any).isMeta,
+        isCompactSummary: !!(e as any).isCompactSummary,
+        toolsErrorCount: toolErrorCounts.get(e.id) ?? 0,
+        cwd: (e as any).cwd ?? null,
+        gitBranch: (e as any).gitBranch ?? null,
       };
     });
 
@@ -368,6 +451,35 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
 
       const payload = extractTurnContent(assistantRow.content, 'assistant');
       const assistantEvent = db.select().from(tokenEvents).where(eq(tokenEvents.id, eventId)).get();
+
+      // Structured tool calls (v9) — full payloads, not preview-truncated
+      const toolCallRows = db.select().from(turnToolCalls)
+        .where(eq(turnToolCalls.eventId, eventId))
+        .all();
+      const toolCallsStructured: ToolCallStructuredDTO[] = toolCallRows
+        .sort((a, b) => a.orderIdx - b.orderIdx)
+        .map((r) => ({
+          toolUseId: r.toolUseId,
+          toolName: r.toolName,
+          orderIdx: r.orderIdx,
+          inputJson: r.inputJson ?? null,
+          resultIsError: r.resultIsError ?? null,
+          resultContent: r.resultContent ?? null,
+          resultStderr: r.resultStderr ?? null,
+          resultStdout: r.resultStdout ?? null,
+          resultExitCode: r.resultExitCode ?? null,
+        }));
+
+      // Resolve parent event id for clickable link
+      let parentEventId: number | null = null;
+      if (assistantEvent?.parentUuid && assistantEvent.sessionId) {
+        const parentRow = db.all<{ id: number }>(sql`
+          SELECT id FROM token_events
+          WHERE session_id = ${assistantEvent.sessionId} AND uuid = ${assistantEvent.parentUuid}
+          LIMIT 1
+        `)[0];
+        parentEventId = parentRow?.id ?? null;
+      }
 
       // Enrich toolCalls with toolUseResult from persisted tool_result rows for this turn.
       const toolResultRows = rows.filter((r) => r.role === 'tool_result');
@@ -422,6 +534,14 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
           slug: (assistantEvent as any)?.slug ?? null,
           apiErrorStatus: (assistantEvent as any)?.apiErrorStatus ?? null,
           isApiError: !!(assistantEvent as any)?.isApiError,
+          thinkingText: (assistantEvent as any)?.thinkingText ?? null,
+          cwd: (assistantEvent as any)?.cwd ?? null,
+          gitBranch: (assistantEvent as any)?.gitBranch ?? null,
+          promptId: (assistantEvent as any)?.promptId ?? null,
+          isMeta: !!(assistantEvent as any)?.isMeta,
+          isCompactSummary: !!(assistantEvent as any)?.isCompactSummary,
+          parentEventId,
+          toolCallsStructured: toolCallsStructured.length ? toolCallsStructured : undefined,
         },
       };
       return reply.send(dto);
@@ -471,6 +591,69 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(empty);
     }
   });
+
+  // ── Manual sync trigger (called from hooks after each turn) ──
+  app.post<{ Body: { sessionId?: string; filePath?: string } }>('/sessions/sync', async (req, reply) => {
+    const { sessionId, filePath } = req.body ?? {};
+
+    let target = filePath;
+
+    if (!target && sessionId) {
+      const db = getDb();
+      const row = db.select({ jsonlFile: sessions.jsonlFile }).from(sessions)
+        .where(eq(sessions.id, sessionId)).get();
+      target = row?.jsonlFile ?? undefined;
+    }
+
+    if (!target) {
+      return reply.status(400).send({ error: 'Provide sessionId or filePath' });
+    }
+
+    if (!existsSync(target)) {
+      return reply.status(404).send({ error: 'File not found', path: target });
+    }
+
+    try {
+      await syncFile(target);
+      return reply.send({ ok: true, path: target });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+}
+
+function writeSseEvent(reply: any, event: string, data: unknown): void {
+  reply.raw.write(`event: ${event}\n`);
+  reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+  if (typeof reply.raw.flush === 'function') reply.raw.flush();
+}
+
+function openSseStream(
+  reply: any,
+  req: any,
+  onEvent: (evt: SessionBusEvent) => void,
+): void {
+  reply.raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  reply.raw.flushHeaders();
+  reply.raw.write(': connected\n\n');
+
+  const unsubscribe = sessionBus.subscribe(onEvent);
+  const keepalive = setInterval(() => {
+    try { reply.raw.write(': keepalive\n\n'); } catch {}
+  }, 15_000);
+
+  const close = () => {
+    clearInterval(keepalive);
+    unsubscribe();
+    try { reply.raw.end(); } catch {}
+  };
+  req.raw.on('close', close);
+  req.raw.on('error', close);
 }
 
 function safeParseArray(s: string): string[] {
@@ -482,7 +665,7 @@ function safeParseArray(s: string): string[] {
   }
 }
 
-const PREVIEW_CHARS = 600;
+const PREVIEW_CHARS = 8000;
 
 function truncate(s: string, n = PREVIEW_CHARS): string {
   if (!s) return '';
@@ -508,8 +691,8 @@ function extractTurnContent(
   const thinkingBlocks: ThinkingBlockDTO[] = [];
 
   if (typeof parsed === 'string') {
-    if (role === 'assistant') assistantText = truncate(parsed);
-    else userPrompt = truncate(parsed);
+    if (role === 'assistant') assistantText = parsed;
+    else userPrompt = parsed;
   }
 
   for (const b of blocks) {
@@ -524,9 +707,9 @@ function extractTurnContent(
     }
     if (type === 'text' && typeof b.text === 'string') {
       if (role === 'assistant') {
-        assistantText = (assistantText ? assistantText + '\n\n' : '') + truncate(b.text);
+        assistantText = (assistantText ? assistantText + '\n\n' : '') + b.text;
       } else {
-        userPrompt = (userPrompt ? userPrompt + '\n\n' : '') + truncate(b.text);
+        userPrompt = (userPrompt ? userPrompt + '\n\n' : '') + b.text;
       }
     } else if (type === 'tool_use') {
       toolCalls.push({

@@ -64,3 +64,12 @@
   padding: var(--space-10);
   color: var(--text-muted);
 }
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  color: var(--text-primary);
+}

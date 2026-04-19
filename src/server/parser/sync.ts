@@ -2,7 +2,8 @@ import { statSync, existsSync } from 'fs';
 import { basename, dirname } from 'path';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/db.js';
-import { sessions, tokenEvents, turnContent, syncState, turnHooks, turnFileChanges } from '../db/schema.js';
+import { sessions, tokenEvents, turnContent, syncState, turnHooks, turnFileChanges, turnToolCalls } from '../db/schema.js';
+import { sessionBus } from '../events/bus.js';
 import {
   parseJsonlFile,
   extractTokenEvents,
@@ -45,7 +46,24 @@ export async function syncFile(filePath: string): Promise<void> {
     0,
   );
 
-  const projectPath = meta.cwd || basename(dirname(filePath));
+  const projectPath = meta.cwd || decodeProjectDir(basename(dirname(filePath)));
+
+  const priorSession = db.select().from(sessions).where(eq(sessions.id, meta.sessionId)).get();
+  const priorUuids = new Set<string>();
+  const existingUuidToId = new Map<string, number>();
+  const existingMessageIdToId = new Map<string, number>();
+  if (priorSession) {
+    for (const row of db.select({ id: tokenEvents.id, uuid: tokenEvents.uuid, messageId: tokenEvents.messageId })
+      .from(tokenEvents)
+      .where(eq(tokenEvents.sessionId, meta.sessionId))
+      .all()) {
+      if (row.uuid) {
+        priorUuids.add(row.uuid);
+        existingUuidToId.set(row.uuid, row.id);
+      }
+      if (row.messageId) existingMessageIdToId.set(row.messageId, row.id);
+    }
+  }
 
   db.insert(sessions)
     .values({
@@ -79,7 +97,8 @@ export async function syncFile(filePath: string): Promise<void> {
     })
     .run();
 
-  db.delete(tokenEvents).where(eq(tokenEvents.sessionId, meta.sessionId)).run();
+  // Incremental: keep token_events, only append new ones by uuid.
+  // turn_hooks / turn_file_changes are re-derived from whole JSONL (small tables, cheap).
   db.delete(turnHooks).where(eq(turnHooks.sessionId, meta.sessionId)).run();
   db.delete(turnFileChanges).where(eq(turnFileChanges.sessionId, meta.sessionId)).run();
 
@@ -88,10 +107,13 @@ export async function syncFile(filePath: string): Promise<void> {
   const hooks = extractHookAttachments(allEvents);
   const snapshots = extractFileHistorySnapshots(allEvents);
 
-  const uuidToEventId = new Map<string, number>();
-  const messageIdToEventId = new Map<string, number>();
+  const uuidToEventId = new Map<string, number>(existingUuidToId);
+  const messageIdToEventId = new Map<string, number>(existingMessageIdToId);
+  const newEventIds = new Set<number>();
 
   for (const evt of enrichedEvts) {
+    // Skip token_events insert for already-ingested turns (immutable).
+    if (evt.uuid && priorUuids.has(evt.uuid)) continue;
     const cost = computeCost(evt.model, evt.usage);
     const agentRole = extractAgentRole(evt.content ?? null);
     const durationMs = evt.uuid ? durationByUuid.get(evt.uuid) ?? null : null;
@@ -127,13 +149,44 @@ export async function syncFile(filePath: string): Promise<void> {
         durationMs,
         permissionMode: evt.permissionMode,
         hasThinking: !!evt.hasThinking,
+        thinkingText: evt.thinkingText ?? null,
+        thinkingSignature: evt.thinkingSignature ?? null,
+        promptId: evt.promptId ?? null,
+        cwd: evt.cwd ?? null,
+        gitBranch: evt.gitBranch ?? null,
+        isMeta: !!evt.isMeta,
+        isCompactSummary: !!evt.isCompactSummary,
+        userType: evt.userType ?? null,
       })
       .returning({ id: tokenEvents.id })
       .get();
 
     if (inserted) {
+      newEventIds.add(inserted.id);
       if (evt.uuid) uuidToEventId.set(evt.uuid, inserted.id);
       if (evt.messageId) messageIdToEventId.set(evt.messageId, inserted.id);
+      sessionBus.emitEvent({
+        type: 'turn:appended',
+        sessionId: meta.sessionId,
+        eventId: inserted.id,
+        at: Date.now(),
+      });
+      if (evt.toolCalls && evt.toolCalls.length) {
+        for (const tc of evt.toolCalls) {
+          db.insert(turnToolCalls).values({
+            eventId: inserted.id,
+            toolUseId: tc.toolUseId,
+            toolName: tc.toolName,
+            orderIdx: tc.orderIdx,
+            inputJson: tc.inputJson,
+            resultIsError: tc.resultIsError ?? undefined,
+            resultContent: tc.resultContent,
+            resultStderr: tc.resultStderr,
+            resultStdout: tc.resultStdout,
+            resultExitCode: tc.resultExitCode,
+          }).run();
+        }
+      }
       if (evt.content) {
         db.insert(turnContent)
           .values({
@@ -178,7 +231,7 @@ export async function syncFile(filePath: string): Promise<void> {
 
     if (ev.sourceToolAssistantUUID) {
       const evId = uuidToEventId.get(ev.sourceToolAssistantUUID);
-      if (evId) {
+      if (evId && newEventIds.has(evId)) {
         db.insert(turnContent).values({
           eventId: evId,
           role: 'tool_result',
@@ -195,7 +248,7 @@ export async function syncFile(filePath: string): Promise<void> {
       const nxt = allEvents[j];
       if (nxt.type !== 'assistant') continue;
       const evId = nxt.uuid ? uuidToEventId.get(nxt.uuid) : undefined;
-      if (evId) {
+      if (evId && newEventIds.has(evId)) {
         db.insert(turnContent).values({
           eventId: evId,
           role: 'user',
@@ -225,17 +278,26 @@ export async function syncFile(filePath: string): Promise<void> {
   }
 
   db.insert(syncState)
-    .values({ filePath, lastByteOffset: 0, lastModified: stat.mtimeMs })
+    .values({ filePath, lastByteOffset: stat.size, lastModified: stat.mtimeMs })
     .onConflictDoUpdate({
       target: syncState.filePath,
-      set: { lastByteOffset: 0, lastModified: stat.mtimeMs },
+      set: { lastByteOffset: stat.size, lastModified: stat.mtimeMs },
     })
     .run();
+
+  sessionBus.emitEvent({
+    type: priorSession ? 'session:updated' : 'session:created',
+    sessionId: meta.sessionId,
+    at: Date.now(),
+  });
 }
 
-/**
- * Full sync: scan all project directories and sync all JSONL files.
- */
+// Reverse Claude Code's cwd encoding: `-home-user-dir` → `/home/user/dir`.
+function decodeProjectDir(encoded: string): string {
+  if (!encoded.startsWith('-')) return encoded;
+  return '/' + encoded.slice(1).replace(/-/g, '/');
+}
+
 function extractAgentRole(content: string | null): string | null {
   if (!content) return null;
   const agentPatterns = [
@@ -255,9 +317,6 @@ function extractAgentRole(content: string | null): string | null {
   return null;
 }
 
-/**
- * Full sync: scan all project directories and sync all JSONL files.
- */
 export async function syncAll(): Promise<{ files: number; sessions: number }> {
   const projectDirs = listProjectDirs();
   let fileCount = 0;
@@ -274,4 +333,23 @@ export async function syncAll(): Promise<{ files: number; sessions: number }> {
   const sessionCount = db.select().from(sessions).all().length;
 
   return { files: fileCount, sessions: sessionCount };
+}
+
+export async function syncSession(sessionId: string): Promise<void> {
+  const projectDirs = listProjectDirs();
+  for (const dir of projectDirs) {
+    const files = listSessionFiles(dir);
+    for (const file of files) {
+      const stat = statSync(file);
+      const existing = getDb().select().from(syncState).where(eq(syncState.filePath, file)).get();
+      if (existing?.lastModified === stat.mtimeMs) continue;
+
+      const allEvents = await parseJsonlFile(file);
+      const meta = extractSessionMeta(allEvents);
+      if (meta.sessionId === sessionId) {
+        await syncFile(file);
+        return;
+      }
+    }
+  }
 }

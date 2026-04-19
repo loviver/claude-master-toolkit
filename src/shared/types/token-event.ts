@@ -32,6 +32,28 @@ export interface EnrichedTokenEventData {
   iterationsCount?: number;
   hasThinking?: boolean;
   permissionMode?: string;
+  // v9
+  thinkingText?: string;
+  thinkingSignature?: string;
+  promptId?: string;
+  cwd?: string;
+  gitBranch?: string;
+  isMeta?: boolean;
+  isCompactSummary?: boolean;
+  userType?: string;
+  toolCalls?: ToolCallData[];
+}
+
+export interface ToolCallData {
+  toolUseId: string;
+  toolName: string;
+  orderIdx: number;
+  inputJson: string | null;
+  resultIsError: boolean | null;
+  resultContent: string | null;
+  resultStderr: string | null;
+  resultStdout: string | null;
+  resultExitCode: number | null;
 }
 
 // ── Token event for client/UI consumption ──

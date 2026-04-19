@@ -13,7 +13,7 @@ export type {
 } from './session-event.js';
 
 // ── Token event types ──
-export type { SemanticPhase, EnrichedTokenEventData, TokenEvent } from './token-event.js';
+export type { SemanticPhase, EnrichedTokenEventData, TokenEvent, ToolCallData } from './token-event.js';
 
 // ── Memory types ──
 export type { MemoryType, Memory } from './memory.js';

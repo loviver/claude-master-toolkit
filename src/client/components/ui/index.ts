@@ -3,6 +3,7 @@ export { StatCard } from './StatCard/StatCard';
 export { Badge, modelBadgeVariant, phaseBadgeVariant, modelKeyBadgeVariant } from './Badge/Badge';
 export type { BadgeVariant } from './Badge/Badge';
 export { DataTable } from './DataTable/DataTable';
+export type { Column as DataTableColumn } from './DataTable/DataTable';
 export { Sidebar } from './Sidebar/Sidebar';
 export { Tabs } from './Tabs/Tabs';
 export { Progress } from './Progress/Progress';

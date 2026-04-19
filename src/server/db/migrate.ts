@@ -235,6 +235,45 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_token_events_message_id ON token_events(message_id);
   `);
 
+  // v9: Enriched drawer fields + structured tool_calls table
+  addColumnSafe('token_events', 'thinking_text', 'TEXT');
+  addColumnSafe('token_events', 'thinking_signature', 'TEXT');
+  addColumnSafe('token_events', 'prompt_id', 'TEXT');
+  addColumnSafe('token_events', 'cwd', 'TEXT');
+  addColumnSafe('token_events', 'git_branch', 'TEXT');
+  addColumnSafe('token_events', 'is_meta', 'INTEGER DEFAULT 0');
+  addColumnSafe('token_events', 'is_compact_summary', 'INTEGER DEFAULT 0');
+  addColumnSafe('token_events', 'user_type', 'TEXT');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS turn_tool_calls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL REFERENCES token_events(id) ON DELETE CASCADE,
+      tool_use_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      order_idx INTEGER NOT NULL DEFAULT 0,
+      input_json TEXT,
+      result_is_error INTEGER,
+      result_content TEXT,
+      result_stderr TEXT,
+      result_stdout TEXT,
+      result_exit_code INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_turn_tool_calls_event ON turn_tool_calls(event_id);
+    CREATE INDEX IF NOT EXISTS idx_turn_tool_calls_use_id ON turn_tool_calls(tool_use_id);
+    CREATE INDEX IF NOT EXISTS idx_turn_tool_calls_name ON turn_tool_calls(tool_name);
+  `);
+
+  // v10: Settings (generic key/value)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
   // v8: Pandorica v2 — unified memories_v2 + FTS5 + memory_searches
   db.exec(`
     CREATE TABLE IF NOT EXISTS memories_v2 (

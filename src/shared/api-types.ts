@@ -51,6 +51,24 @@ export interface SessionGraphNodeDTO {
   hasThinking?: boolean;
   hooksCount?: number;
   filesChangedCount?: number;
+  // v9
+  isMeta?: boolean;
+  isCompactSummary?: boolean;
+  toolsErrorCount?: number;
+  cwd?: string | null;
+  gitBranch?: string | null;
+}
+
+export interface ToolCallStructuredDTO {
+  toolUseId: string;
+  toolName: string;
+  orderIdx: number;
+  inputJson: string | null;
+  resultIsError: boolean | null;
+  resultContent: string | null;
+  resultStderr: string | null;
+  resultStdout: string | null;
+  resultExitCode: number | null;
 }
 
 export interface SessionGraphEdgeDTO {
@@ -126,5 +144,14 @@ export interface TurnPairDTO {
     slug?: string | null;
     apiErrorStatus?: string | null;
     isApiError?: boolean;
+    // v9
+    thinkingText?: string | null;
+    cwd?: string | null;
+    gitBranch?: string | null;
+    promptId?: string | null;
+    isMeta?: boolean;
+    isCompactSummary?: boolean;
+    parentEventId?: number | null;
+    toolCallsStructured?: ToolCallStructuredDTO[];
   };
 }

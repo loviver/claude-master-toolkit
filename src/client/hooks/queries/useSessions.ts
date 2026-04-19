@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchApi, toQueryString } from './api';
+import { useSessionStream } from '../useSessionStream';
 import type { FilterState } from '../../lib/filters';
 import type {
   SessionSummary, SessionDetail, GitStats, SessionGraph, TurnContentDTO, TurnPairDTO,
@@ -42,6 +44,26 @@ export function useSessionGraph(id: string | undefined) {
     queryFn: () => fetchApi<SessionGraph>(`/sessions/${id}/graph`),
     enabled: !!id,
   });
+}
+
+export function useSessionGraphLive(id: string | undefined) {
+  const query = useSessionGraph(id);
+  const queryClient = useQueryClient();
+  const onEvent = useCallback((type: string) => {
+    if (type !== 'turn:appended' && type !== 'session:updated') return;
+    queryClient.invalidateQueries({ queryKey: ['sessions', id, 'graph'] });
+    queryClient.invalidateQueries({ queryKey: ['sessions', id], exact: true });
+  }, [queryClient, id]);
+  useSessionStream(id ? `/sessions/${id}/stream` : null, onEvent);
+  return query;
+}
+
+export function useSessionsListLive(): void {
+  const queryClient = useQueryClient();
+  const onEvent = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+  }, [queryClient]);
+  useSessionStream('/sessions/stream', onEvent);
 }
 
 export function useTurnContent(sessionId: string | undefined, eventId: number | null) {

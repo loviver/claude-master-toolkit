@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PKG_ROOT = path.resolve(__dirname, "..");
+const PKG_ROOT = path.resolve(__dirname, "../../..");
 const CLAUDE_DIST = path.join(PKG_ROOT, "claude-dist");
 const CLAUDE_DIR = path.join(os.homedir(), ".claude");
 

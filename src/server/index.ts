@@ -11,6 +11,7 @@ import { sessionsRoutes } from "./routes/sessions.js";
 import { statsRoutes } from "./routes/stats.js";
 import { memoriesRoutes } from "./routes/memories.js";
 import { healthRoutes } from "./routes/health.js";
+import { settingsRoutes } from "./routes/settings.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,7 @@ export async function startServer(port: number = 3200): Promise<void> {
   await app.register(statsRoutes, { prefix: "/api" });
   await app.register(memoriesRoutes, { prefix: "/api" });
   await app.register(healthRoutes, { prefix: "/api" });
+  await app.register(settingsRoutes, { prefix: "/api" });
 
   // SPA fallback: serve index.html for non-API routes
   app.setNotFoundHandler((_req, reply) => {

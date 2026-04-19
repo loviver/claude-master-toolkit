@@ -9,11 +9,29 @@ interface Props {
   filesChangedCount?: number;
   isApiError?: boolean;
   apiErrorStatus?: string | null;
+  toolsErrorCount?: number;
+  isMeta?: boolean;
+  isCompactSummary?: boolean;
 }
 
 export function TurnNodeMiniBadges(p: Props) {
   const badges: Array<{ key: string; icon: string; label: string; title: string; cls?: string }> = [];
 
+  if ((p.toolsErrorCount ?? 0) > 0) {
+    badges.push({
+      key: 'toolerr',
+      icon: '❌',
+      label: String(p.toolsErrorCount),
+      title: `${p.toolsErrorCount} tool call(s) errored`,
+      cls: styles.error,
+    });
+  }
+  if (p.isMeta) {
+    badges.push({ key: 'meta', icon: 'ℹ', label: 'meta', title: 'Meta turn' });
+  }
+  if (p.isCompactSummary) {
+    badges.push({ key: 'compact', icon: '🗜', label: 'compact', title: 'Compact-summary turn' });
+  }
   if (p.isApiError) {
     badges.push({
       key: 'err',

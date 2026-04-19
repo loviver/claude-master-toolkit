@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Settings as SettingsIcon, CheckCircle2 } from 'lucide-react';
 import {
   PageHeader, Card, CardHeader, CardTitle, CardContent, Button, Select, FormGroup,
   Table, TableHead, TableBody, TableRow, TableCell, Icon,
 } from '../../components/ui';
+import { useSettings, useUpdateSetting } from '../../hooks/queries/useSettings';
 import styles from './Settings.module.css';
 
 const PREF_OPTIONS = [
@@ -34,24 +34,11 @@ const CLI_COMMANDS = [
 ];
 
 export function Settings() {
-  const [pref, setPref] = useState('inherit');
-  const [saved, setSaved] = useState(false);
+  const { data: settings } = useSettings();
+  const updateSetting = useUpdateSetting();
 
-  const handleSave = async () => {
-    try {
-      const res = await fetch('/api/settings/model-pref', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preference: pref }),
-      });
-      if (res.ok) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
-    } catch {
-      alert(`Run in terminal: ctk model-pref set ${pref}`);
-    }
-  };
+  const pref = (settings?.modelPref as string) ?? 'inherit';
+  const saved = updateSetting.isSuccess && !updateSetting.isPending;
 
   return (
     <div className={styles.page}>
@@ -64,13 +51,18 @@ export function Settings() {
             <Select
               label="Preference"
               value={pref}
-              onChange={(e) => setPref(e.target.value)}
+              onChange={(e) => updateSetting.mutate({ key: 'modelPref', value: e.target.value })}
               options={PREF_OPTIONS}
               helperText={PREF_HELP[pref]}
             />
-            <Button onClick={handleSave}>
-              {saved ? <><Icon icon={CheckCircle2} size="sm" /> Saved</> : 'Save Preference'}
-            </Button>
+            {updateSetting.isError && (
+              <Button variant="secondary" disabled>Error — retry</Button>
+            )}
+            {saved && (
+              <Button variant="secondary" disabled>
+                <Icon icon={CheckCircle2} size="sm" /> Saved
+              </Button>
+            )}
           </FormGroup>
         </CardContent>
       </Card>
