@@ -63,7 +63,7 @@ import {
   benchImportCommand,
 } from "./commands/bench.js";
 
-const VERSION = "0.1.9";
+const VERSION = "0.1.10";
 const VALID_PANDORICA_TYPES =
   "bugfix|decision|architecture|discovery|pattern|config|preference|session_summary";
 
