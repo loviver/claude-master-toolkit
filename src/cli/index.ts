@@ -12,6 +12,10 @@ import { testSummaryCommand } from "./commands/test.js";
 import { dashboardCommand } from "./commands/dashboard.js";
 import { installClaudeCommand } from "./commands/install.js";
 import { uninstallClaudeCommand } from "./commands/uninstall.js";
+import { initCommand } from "./commands/init.js";
+import { skillRegistryCommand } from "./commands/skill-registry.js";
+import { planCommand } from "./commands/plan.js";
+import { orchestrateCommand } from "./commands/orchestrate.js";
 import {
   indexBuildCommand,
   indexFindCommand,
@@ -94,6 +98,26 @@ uninstall
   .description("Uninstall Claude Code stack from ~/.claude (restore backup)")
   .option("--remove-caveman", "Also uninstall caveman plugin")
   .action(uninstallClaudeCommand);
+
+program
+  .command("init")
+  .description("Bootstrap .ctk/ — detect stack, test framework, TDD, conventions")
+  .action(initCommand);
+
+program
+  .command("skill-registry")
+  .description("Scan skill sources, write .ctk/skill-registry.md index")
+  .action(skillRegistryCommand);
+
+program
+  .command("plan <selection>")
+  .description("Resolve topological order for ctk components (comma-sep or 'all')")
+  .action(planCommand);
+
+program
+  .command("orchestrate <selection>")
+  .description("Run pipeline for ctk components (stub runners, Phase 0.3 wires real steps)")
+  .action(orchestrateCommand);
 
 program
   .command("slice <file> <symbol>")

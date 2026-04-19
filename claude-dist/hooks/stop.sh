@@ -37,8 +37,11 @@ CTK_RECORDS="$(grep -cE '"name":"ctk_record"' "$TRANSCRIPT" 2>/dev/null || echo 
 CTK_RECORDS="${CTK_RECORDS//[^0-9]/}"
 CTK_RECORDS="${CTK_RECORDS:-0}"
 
+THRESHOLD="${CTK_HOOK_SAVE_THRESHOLD:-3}"
+STRICT="${CTK_HOOK_SAVE_STRICT:-0}"
+
 # Silent if nothing happened worth remembering.
-if (( EDITS < 3 )); then
+if (( EDITS < THRESHOLD )); then
   exit 0
 fi
 
@@ -50,9 +53,21 @@ NAG_FILE="$STATE_DIR/${SESSION_ID:-unknown}.nagged"
 # Craft reminder only if both persistence mechanisms were neglected.
 if (( PANDORICA_SAVES == 0 && CTK_RECORDS == 0 )); then
   touch "$NAG_FILE"
+  REASON="$EDITS edit(s) this session but 0 mem_save / 0 ctk_record calls (threshold=$THRESHOLD)."
+  if [[ "$STRICT" == "1" ]]; then
+    cat >&2 <<EOF
+
+✗ Blocked Stop: $REASON
+   Save context before ending the turn:
+     • mem_save — structured, cost-aware memory (Pandorica v2, FTS5)
+     • ctk_record — shared finding pool for sub-agents
+   Override once: rm $NAG_FILE  (or CTK_HOOK_SAVE_STRICT=0)
+EOF
+    exit 2
+  fi
   cat >&2 <<EOF
 
-↪  Session hint: $EDITS edit(s) this session but 0 mem_save / 0 ctk_record calls.
+↪  Session hint: $REASON
    If any edit represents a decision, bugfix, discovery, or convention:
      • mem_save — structured, cost-aware memory (Pandorica v2, FTS5)
      • ctk_record — shared finding pool for sub-agents

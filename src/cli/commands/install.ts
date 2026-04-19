@@ -150,12 +150,32 @@ export async function installClaudeCommand(opts: any) {
       "dir",
     );
   }
+  const agents = [
+    "sdd-orchestrator",
+    "sdd-init",
+    "sdd-onboard",
+    "sdd-explore",
+    "sdd-propose",
+    "sdd-spec",
+    "sdd-design",
+    "sdd-tasks",
+    "sdd-apply",
+    "sdd-verify",
+    "sdd-archive",
+  ];
+  for (const agent of agents) {
+    linkForce(
+      path.join(CLAUDE_DIST, "agents", `${agent}.md`),
+      path.join(CLAUDE_DIR, "agents", `${agent}.md`),
+      "file",
+    );
+  }
   linkForce(
-    path.join(CLAUDE_DIST, "agents", "sdd-orchestrator.md"),
-    path.join(CLAUDE_DIR, "agents", "sdd-orchestrator.md"),
+    path.join(CLAUDE_DIST, "persona.md"),
+    path.join(CLAUDE_DIR, "persona.md"),
     "file",
   );
-  say(`linked skills (${skills.length}) + agents (1)`);
+  say(`linked skills (${skills.length}) + agents (${agents.length}) + persona`);
 
   head("4. Merge settings.json");
   const patchPath = path.join(CLAUDE_DIST, "settings.patch.json");

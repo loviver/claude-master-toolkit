@@ -8,6 +8,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
+# --- SDD Init Guard ---------------------------------------------------------
+# If prompt invokes an sdd-* command and .ctk/init.marker is missing, inject a
+# system message hint. Non-blocking — orchestrator's SDD Init Guard completes
+# the flow.
+INPUT_JSON="$(cat 2>/dev/null || true)"
+if [[ -n "$INPUT_JSON" ]] && command -v jq >/dev/null 2>&1; then
+  USER_PROMPT="$(echo "$INPUT_JSON" | jq -r '.prompt // ""' 2>/dev/null || echo "")"
+  if echo "$USER_PROMPT" | grep -qE '^/?sdd-(new|ff|continue|explore|propose|spec|design|tasks|apply|verify|archive|onboard)\b'; then
+    if ! ctk_lib_init_done "${CLAUDE_PROJECT_DIR:-$PWD}"; then
+      jq -n '{
+        hookSpecificOutput: {
+          hookEventName: "UserPromptSubmit",
+          additionalContext: "⚠ ctk init required — .ctk/init.marker missing for this project. Run `ctk init` (or let sdd-orchestrator run sdd-init) before continuing."
+        }
+      }'
+      exit 0
+    fi
+  fi
+fi
+
 SESSION_FILE="$(ctk_lib_session_file)"
 [[ -n "$SESSION_FILE" ]] || exit 0
 

@@ -22,7 +22,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash|Agent",
+        "matcher": "Bash|Agent|Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",

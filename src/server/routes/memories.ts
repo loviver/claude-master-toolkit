@@ -5,6 +5,11 @@ import { writeFileSync, existsSync } from 'fs';
 import { getDb } from '../db/db.js';
 import { memoriesV2 as memories } from '../db/schema.js';
 
+type MemoryRow = typeof memories.$inferSelect;
+function projectMemory(row: MemoryRow): MemoryRow & { content: string } {
+  return { ...row, content: row.what ?? '' };
+}
+
 export async function memoriesRoutes(app: FastifyInstance): Promise<void> {
   // List all memories
   app.get<{ Querystring: { type?: string; search?: string; project?: string } }>(
@@ -31,7 +36,7 @@ export async function memoriesRoutes(app: FastifyInstance): Promise<void> {
         .orderBy(desc(memories.updatedAt))
         .all();
 
-      return reply.send(rows);
+      return reply.send(rows.map(projectMemory));
     },
   );
 
@@ -53,7 +58,7 @@ export async function memoriesRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(memories.id, req.params.id))
       .run();
 
-    return reply.send(memory);
+    return reply.send(projectMemory(memory));
   });
 
   // Create memory

@@ -16,7 +16,8 @@ INPUT="$(cat)"
 TOOL_NAME="$(echo "$INPUT" | jq -r '.tool_name // ""')"
 
 case "$TOOL_NAME" in
-  Bash)  exec bash "$SCRIPT_DIR/guards/bash-guard.sh" <<< "$INPUT" ;;
-  Agent) exec bash "$SCRIPT_DIR/guards/agent-guard.sh" <<< "$INPUT" ;;
-  *)     exit 0 ;;
+  Bash)                             exec bash "$SCRIPT_DIR/guards/bash-guard.sh" <<< "$INPUT" ;;
+  Agent)                            exec bash "$SCRIPT_DIR/guards/agent-guard.sh" <<< "$INPUT" ;;
+  Edit|Write|MultiEdit)             exec bash "$SCRIPT_DIR/guards/edit-guard.sh" <<< "$INPUT" ;;
+  *)                                exit 0 ;;
 esac

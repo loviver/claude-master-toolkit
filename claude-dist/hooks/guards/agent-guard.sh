@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 # claude-master-toolkit: Agent PreToolUse guard
-# Enforces the /delegate brief protocol. Emits a hint (not a block) when a
-# general-purpose sub-agent is launched without the ctk brief preamble.
+# Responsibilities:
+#   1. Enforce /delegate brief protocol (hint or block per CTK_HOOK_AGENT_STRICT)
+#   2. Inject persona block (~/.claude/persona.md) into sub-agent context
+#   3. Inject skill-registry pointer (.ctk/skill-registry.md) into sub-agent context
 #
-# Trusted subagent types (skip check):
+# Trusted subagent types (skip /delegate check, still inject persona/registry):
 #   Explore, Plan, claude-code-guide, statusline-setup, sdd-orchestrator
 #
-# Policy: non-blocking by default. To block instead, set
-#   CTK_HOOK_AGENT_STRICT=1 in ~/.claude/settings.json.env (or your shell env).
+# Toggles:
+#   CTK_HOOK_AGENT_STRICT=1      block instead of hint on missing brief
+#   CTK_HOOK_PERSONA_INJECT=0    skip persona injection
+#   CTK_HOOK_REGISTRY_INJECT=0   skip registry injection
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib.sh
+source "$SCRIPT_DIR/../lib.sh"
 
 INPUT="$(cat)"
 SUBAGENT="$(echo "$INPUT" | jq -r '.tool_input.subagent_type // ""')"
@@ -17,37 +25,49 @@ PROMPT="$(echo "$INPUT" | jq -r '.tool_input.prompt // ""')"
 MODEL="$(echo "$INPUT" | jq -r '.tool_input.model // ""')"
 
 TRUSTED="Explore|Plan|claude-code-guide|statusline-setup|sdd-orchestrator"
+IS_TRUSTED=0
 if echo "$SUBAGENT" | grep -qE "^($TRUSTED)$"; then
-  exit 0
+  IS_TRUSTED=1
 fi
 
-# Heuristic: the delegate flow injects a "ctk_brief_read" marker into the prompt.
 HAS_BRIEF=0
 if echo "$PROMPT" | grep -qE 'ctk_brief_read\(id='; then
   HAS_BRIEF=1
 fi
 
-# If everything is fine, allow silently.
-if [[ "$HAS_BRIEF" -eq 1 && -n "$MODEL" ]]; then
-  exit 0
-fi
-
-build_reason() {
-  local msg=""
-  if [[ "$HAS_BRIEF" -eq 0 ]]; then
-    msg+="missing brief preamble (ctk_brief_read marker not found)"
+# Build injection block (persona + registry pointer).
+build_injection() {
+  local block=""
+  if [[ "${CTK_HOOK_PERSONA_INJECT:-1}" != "0" ]]; then
+    local persona
+    persona="$(ctk_lib_read_persona)"
+    if [[ -n "$persona" ]]; then
+      block+="[ctk-persona]"$'\n'"$persona"$'\n\n'
+    fi
   fi
-  if [[ -z "$MODEL" ]]; then
-    [[ -n "$msg" ]] && msg+="; "
-    msg+="model param omitted"
+  if [[ "${CTK_HOOK_REGISTRY_INJECT:-1}" != "0" ]]; then
+    local registry
+    registry="$(ctk_lib_read_skill_registry)"
+    if [[ -n "$registry" ]]; then
+      block+="[ctk-skills] registry at .ctk/skill-registry.md"$'\n'"$registry"$'\n'
+    fi
   fi
-  echo "$msg"
+  printf '%s' "$block"
 }
 
-REASON="$(build_reason)"
+INJECTION="$(build_injection)"
 
-if [[ "${CTK_HOOK_AGENT_STRICT:-0}" == "1" ]]; then
-  cat >&2 <<EOF
+# Strict-mode block path: only for non-trusted agents missing brief/model.
+if [[ "$IS_TRUSTED" -eq 0 && ( "$HAS_BRIEF" -eq 0 || -z "$MODEL" ) ]]; then
+  REASON=""
+  [[ "$HAS_BRIEF" -eq 0 ]] && REASON="missing brief preamble (ctk_brief_read marker not found)"
+  if [[ -z "$MODEL" ]]; then
+    [[ -n "$REASON" ]] && REASON+="; "
+    REASON+="model param omitted"
+  fi
+
+  if [[ "${CTK_HOOK_AGENT_STRICT:-0}" == "1" ]]; then
+    cat >&2 <<EOF
 ✗ Blocked Agent call: $REASON.
 
 Use /delegate <phase> <description> instead. It:
@@ -58,15 +78,32 @@ Use /delegate <phase> <description> instead. It:
 
 Skill reference: ~/.claude/skills/delegate/SKILL.md
 EOF
-  exit 2
+    exit 2
+  fi
+
+  CONTEXT_MSG="Agent launched without /delegate protocol ($REASON). Next time prefer /delegate so the brief + model preamble is injected. Non-blocking."
+  if [[ -n "$INJECTION" ]]; then
+    CONTEXT_MSG+=$'\n\n'"$INJECTION"
+  fi
+  jq -n --arg ctx "$CONTEXT_MSG" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: $ctx
+    }
+  }'
+  exit 0
 fi
 
-# Non-strict: allow + warn via additionalContext (shown to Claude, not user).
-jq -n --arg reason "$REASON" '{
-  hookSpecificOutput: {
-    hookEventName: "PreToolUse",
-    permissionDecision: "allow",
-    additionalContext: ("Agent launched without /delegate protocol (" + $reason + "). Next time prefer /delegate so the brief + model preamble is injected. Non-blocking.")
-  }
-}'
-exit 0
+# Trusted path OR brief+model present: allow. Still inject persona/registry.
+if [[ -n "$INJECTION" ]]; then
+  jq -n --arg ctx "$INJECTION" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: $ctx
+    }
+  }'
+else
+  exit 0
+fi

@@ -76,6 +76,61 @@ ctk_lib_state_dir() {
   echo "$d"
 }
 
+# Read persona block from ~/.claude/persona.md (or $CTK_PERSONA_FILE override).
+# Echoes contents; empty string if missing.
+ctk_lib_read_persona() {
+  local f="${CTK_PERSONA_FILE:-$HOME/.claude/persona.md}"
+  [[ -f "$f" ]] || { echo ""; return 0; }
+  cat "$f"
+}
+
+# Read skill registry summary from .ctk/skill-registry.md for the current project.
+# Echoes contents; empty string if missing.
+ctk_lib_read_skill_registry() {
+  local project="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+  local f="$project/.ctk/skill-registry.md"
+  [[ -f "$f" ]] || { echo ""; return 0; }
+  cat "$f"
+}
+
+# True if .ctk/init.marker exists for the project.
+ctk_lib_init_done() {
+  local project="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+  [[ -f "$project/.ctk/init.marker" ]]
+}
+
+# Session-scoped counter file. Args: <name>. Echoes path.
+ctk_lib_counter_file() {
+  local name="$1"
+  local sid="${CLAUDE_SESSION_ID:-default}"
+  local dir
+  dir="$(ctk_lib_state_dir)/$sid"
+  mkdir -p "$dir"
+  echo "$dir/$name"
+}
+
+ctk_lib_counter_inc() {
+  local f
+  f="$(ctk_lib_counter_file "$1")"
+  local cur=0
+  [[ -f "$f" ]] && cur="$(cat "$f" 2>/dev/null || echo 0)"
+  cur=$(( cur + 1 ))
+  echo "$cur" > "$f"
+  echo "$cur"
+}
+
+ctk_lib_counter_get() {
+  local f
+  f="$(ctk_lib_counter_file "$1")"
+  [[ -f "$f" ]] && cat "$f" 2>/dev/null || echo 0
+}
+
+ctk_lib_counter_reset() {
+  local f
+  f="$(ctk_lib_counter_file "$1")"
+  rm -f "$f"
+}
+
 # Purge stale state files older than N days (default 7).
 ctk_lib_purge_stale_state() {
   local days="${1:-7}" dir
