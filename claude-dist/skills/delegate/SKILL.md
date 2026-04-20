@@ -1,11 +1,19 @@
 ---
 name: delegate
-description: Wrapper para el tool Agent. Enforza ctk model selection, brief protocol, context budget, y MCP toolkit preference. Usar SIEMPRE en vez de Agent crudo para delegar — cuando el usuario pida delegá, explorá, investigá, revisá, analizá, implementá, or says delegate/explore/investigate/review/analyze/implement. Also triggers on: "lanzá un sub-agent", "corré en paralelo", "sub-agente", "sub-agent".
+description: Wrapper para el tool Agent. Enforza ctk model selection, brief protocol, context budget, y MCP toolkit preference. Triggers on delegation verbs (Spanish + English, con/sin tildes, todas las variantes LATAM): "delega(r)/delegá/delegate", "explora(r)/explorá/explore", "investiga(r)/investigá/investigate", "revisa(r)/revisá/review", "analiza(r)/analizá/analyze", "implementa(r)/implementá/implement", "chequea(r)/chequeá/check", "valida(r)/validá/validate", "refactoriza(r)/refactorizá/refactor", "testea(r)/testeá/test". Also: "lanza(r) un sub-agent/lanzá un sub-agent", "corre(r) en paralelo/corré en paralelo/run in parallel", "sub-agente/sub-agent", "en background/in background", "busca(r)/buscá/find", "verifica(r)/verificá/verify". Variantes regionales: vos/tú/usted + imperativo/infinitivo todos OK.
 ---
 
 # /delegate
 
-Launch a sub-agent with enforced model selection (`ctk model`), a strict task brief, and MCP toolkit preference.
+Launch a sub-agent with enforced model selection (`ctk model`), strict task brief, and MCP toolkit preference.
+
+Triggers on:
+- **Explicit** — `/delegate <phase> <task>`
+- **Implicit** — natural language with delegation verbs (Spanish/English mix OK, con/sin tildes: "explorá" / "explora", "investigate" / "investiga", "revisá un PR", "validate the types", etc.)
+- **Parallel** — "corré en paralelo" / "corre en paralelo" / "run in parallel" auto-launches multiple agents
+- **Regional** — vos/tú/usted imperativo, infinitivo, todo funciona igual
+
+No need to prefix with `/` — the skill recognizes delegation intent naturally. Works across all Latin American Spanish variants and English.
 
 ## Usage
 
@@ -91,11 +99,43 @@ After agent returns, relay concisely. Do NOT dump raw output.
 
 ## Examples
 
+### Explicit `/delegate` syntax
 ```
 /delegate explore Investigate how auth middleware handles session tokens
 /delegate sdd-propose Design the new caching layer for API responses
 /delegate review Review changes in src/services/ for correctness
 /delegate general Refactor the test suite to use fixtures
+```
+
+### Natural language triggers (auto-recognizes delegation intent)
+
+**Español con tilde (vos/tú/usted):**
+```
+Explorá el middleware de autenticación y cómo maneja tokens de sesión
+Investiga por qué el cache miss rate está aumentando (infinitivo)
+Revisá los cambios en src/services/ para asegurar que sean correctos
+Analizá el rendimiento de la consulta en dashboard
+Validá que los cambios no rompan la integración con Auth0
+Corré en paralelo: explorá el memory system y diseñá el proposal
+```
+
+**Español sin tilde (tú/usted formal, regional):**
+```
+Explora el middleware de autenticacion y como maneja tokens de sesion
+Investiga por que el cache miss rate esta aumentando
+Revisa los cambios en src/services/ para asegurar que sean correctos
+Valida que los cambios no rompan la integracion con Auth0
+Verifica que los tipos esten bien alineados en el reducer
+En background, busca donde se usan las variables deprecadas
+Corre en paralelo: explora el memory system y diseña el proposal
+```
+
+**English + Spanish mix:**
+```
+Explora el auth flow y investigate por qué el token expiry está mal
+Revisar los tipos en el reducer, validate que todo sea correcto
+Check el manejo de errores, analizá el performance en prod
+Run in parallel: explorá el cache system y reviewá la API design
 ```
 
 ## Why this exists
