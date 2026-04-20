@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { migrate } from "./db/migrate.js";
 import { syncAll } from "./parser/sync.js";
+import { refreshPricingFromLiteLLM } from "../shared/pricing.js";
 import { startWatcher } from "./parser/watcher.js";
 import { sessionsRoutes } from "./routes/sessions.js";
 import { statsRoutes } from "./routes/stats.js";
@@ -18,6 +19,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export async function startServer(port: number = 3200): Promise<void> {
   // Run migrations
   migrate();
+
+  // Fire-and-forget — falls back to hardcoded if fetch fails
+  refreshPricingFromLiteLLM().catch(() => undefined);
 
   const app = Fastify({ logger: false });
 
