@@ -57,6 +57,8 @@ export interface SessionGraphNodeDTO {
   toolsErrorCount?: number;
   cwd?: string | null;
   gitBranch?: string | null;
+  // v10 — sub-agent lineage
+  agentRole?: string | null;
 }
 
 export interface ToolCallStructuredDTO {

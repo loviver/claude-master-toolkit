@@ -1,7 +1,7 @@
 import { watch } from 'chokidar';
 import { join } from 'path';
 import { homedir } from 'os';
-import { syncFile } from './sync.js';
+import { syncFile } from './index.js';
 
 const CLAUDE_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 

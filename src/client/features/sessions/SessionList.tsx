@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ListOrdered, Search, Inbox, SlidersHorizontal } from 'lucide-react';
-import { useSessions, useSessionsListLive } from '../../hooks/queries/useSessions';
+import { useSessions } from '../../hooks/queries/useSessions';
 import { useProjects } from '../../hooks/queries/useStats';
 import { useFilters } from '../../lib/filters';
 import {
@@ -89,7 +89,6 @@ export function SessionList() {
   const [visible, setVisible] = useState<Set<ColKey>>(() => new Set(DEFAULT_VISIBLE));
   const [showColPicker, setShowColPicker] = useState(false);
   const { data, isLoading } = useSessions({ ...filters, q: q || undefined, limit: 200 });
-  useSessionsListLive();
   const navigate = useNavigate();
 
   const rows = (data ?? []).filter((s) => !hideEmpty || !s.isEmpty);

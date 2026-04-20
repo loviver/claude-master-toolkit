@@ -1,0 +1,1 @@
+export { GitStatsPanel } from './GitStatsPanel';

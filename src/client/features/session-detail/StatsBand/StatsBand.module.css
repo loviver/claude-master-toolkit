@@ -1,0 +1,25 @@
+.band {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2.5fr);
+  gap: var(--space-4);
+}
+
+.hero {
+  display: flex;
+}
+
+.hero > * {
+  flex: 1;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 768px) {
+  .band {
+    grid-template-columns: 1fr;
+  }
+}

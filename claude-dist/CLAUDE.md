@@ -88,6 +88,7 @@ Installed into `~/.claude/hooks/` and registered in `settings.json` via `ctk ins
 
 - **SessionStart** — warns if prior session in this cwd used >60% of the window; reminds of ctk MCP tools; purges stale state >7 days.
 - **UserPromptSubmit** — warns once per threshold crossing (70 / 85 / 95%). Dynamic context limit per model (overridable with `$CLAUDE_CONTEXT_WINDOW`).
+- **UserPromptSubmit `/task <name>`** — explicit task-switch. Blocks when git is dirty, otherwise persists the task name in `.ctk/current-task.txt`. Prevents mid-context drift without consolidating prior work.
 - **PreToolUse `Bash`** — blocks `git commit` invocations that embed AI attribution (`Co-Authored-By`, `Generated with [Claude Code]`, `🤖`, `noreply@anthropic.com`).
 - **PreToolUse `Agent`** — hints (non-blocking) when a sub-agent is launched without the `/delegate` brief preamble. Set `CTK_HOOK_AGENT_STRICT=1` to escalate to hard block.
 - **Stop** — if the turn had ≥3 Edits/Writes with zero `mem_save` / `pandorica_save` / `ctk_record` calls, emits a one-shot reminder. Never blocks.

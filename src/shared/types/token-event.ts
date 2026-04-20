@@ -42,6 +42,9 @@ export interface EnrichedTokenEventData {
   isCompactSummary?: boolean;
   userType?: string;
   toolCalls?: ToolCallData[];
+  // v10 event-level extras
+  eventSubtype?: string;
+  eventLevel?: string;
 }
 
 export interface ToolCallData {

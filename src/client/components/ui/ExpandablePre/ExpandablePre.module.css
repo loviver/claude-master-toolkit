@@ -1,0 +1,124 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.count {
+  margin-right: auto;
+}
+
+.btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  gap: 3px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btnActive {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.ok {
+  color: var(--color-success, #16a34a) !important;
+}
+
+.pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  padding: var(--space-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.preNoWrap {
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+}
+
+.tree {
+  padding: var(--space-2);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.collapseHint {
+  padding: var(--space-2);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  cursor: pointer;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-top: 1px dashed var(--border);
+  width: 100%;
+  font-family: var(--font-mono);
+}
+
+.collapseHint:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.modalBody {
+  padding: 0;
+}
+
+.modalPre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-muted);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 75vh;
+  overflow: auto;
+}
+
+.modalTree {
+  background: var(--bg-muted);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  max-height: 75vh;
+  overflow: auto;
+}

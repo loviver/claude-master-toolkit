@@ -3,7 +3,7 @@ import { QueryProvider } from './providers/QueryProvider';
 import { Layout } from './components/Layout';
 import { Overview } from './features/overview/Overview';
 import { SessionList } from './features/sessions/SessionList';
-import { SessionDetail } from './features/session-detail/SessionDetail';
+import { SessionDetail } from './features/session-detail/SessionDetail/SessionDetail';
 import { Models } from './features/models/Models';
 import { Tools } from './features/tools/Tools';
 import { Phases } from './features/phases/Phases';

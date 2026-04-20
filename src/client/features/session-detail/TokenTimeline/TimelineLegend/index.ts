@@ -1,0 +1,1 @@
+export { TimelineLegend } from './TimelineLegend';

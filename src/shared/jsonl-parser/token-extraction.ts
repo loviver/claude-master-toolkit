@@ -97,6 +97,9 @@ export function extractSessionMeta(events: SessionEvent[]): {
   version?: string;
   primaryModel: string;
   turnCount: number;
+  customTitle?: string;
+  lastPrompt?: string;
+  entrypoint?: string;
 } {
   const first = events[0];
 
@@ -139,6 +142,34 @@ export function extractSessionMeta(events: SessionEvent[]): {
     if (cwd && gitBranch && version) break;
   }
 
+  let customTitle: string | undefined;
+  let lastPrompt: string | undefined;
+  const entrypoint = typeof (first as { entrypoint?: string })?.entrypoint === 'string'
+    ? (first as { entrypoint: string }).entrypoint
+    : undefined;
+
+  for (const e of events) {
+    const rec = e as Record<string, unknown>;
+    if (!customTitle) {
+      const ct = typeof rec.customTitle === 'string' ? rec.customTitle
+        : (rec.type === 'summary' && typeof rec.summary === 'string') ? rec.summary
+        : undefined;
+      if (ct) customTitle = ct;
+    }
+    if (rec.type === 'user' && rec.message) {
+      const msg = rec.message as { content?: unknown };
+      if (typeof msg.content === 'string') {
+        lastPrompt = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        const text = msg.content
+          .filter((b): b is { type: string; text: string } =>
+            typeof b === 'object' && b !== null && (b as any).type === 'text' && typeof (b as any).text === 'string')
+          .map((b) => b.text).join('\n');
+        if (text) lastPrompt = text;
+      }
+    }
+  }
+
   return {
     sessionId: first?.sessionId ?? basename(first?.uuid ?? 'unknown'),
     startedAt: minTs ?? fallback,
@@ -148,5 +179,8 @@ export function extractSessionMeta(events: SessionEvent[]): {
     version,
     primaryModel,
     turnCount,
+    customTitle,
+    lastPrompt,
+    entrypoint,
   };
 }

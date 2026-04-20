@@ -5,7 +5,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { migrate } from "./db/migrate.js";
-import { syncAll } from "./parser/sync.js";
+import { syncAll } from "./parser/index.js";
 import { refreshPricingFromLiteLLM } from "../shared/pricing.js";
 import { startWatcher } from "./parser/watcher.js";
 import { sessionsRoutes } from "./routes/sessions.js";

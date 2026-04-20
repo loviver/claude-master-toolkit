@@ -1,3 +1,14 @@
+import {
+  AlertTriangle,
+  Brain,
+  FileEdit,
+  Globe,
+  Info,
+  Package,
+  RefreshCw,
+  Webhook,
+  XOctagon,
+} from 'lucide-react';
 import styles from './TurnNodeMiniBadges.module.css';
 
 interface Props {
@@ -14,40 +25,48 @@ interface Props {
   isCompactSummary?: boolean;
 }
 
+type BadgeDef = {
+  key: string;
+  Icon: React.ComponentType<{ size?: number }>;
+  label: string;
+  title: string;
+  tone?: 'error' | 'warn' | 'info';
+};
+
 export function TurnNodeMiniBadges(p: Props) {
-  const badges: Array<{ key: string; icon: string; label: string; title: string; cls?: string }> = [];
+  const badges: BadgeDef[] = [];
 
   if ((p.toolsErrorCount ?? 0) > 0) {
     badges.push({
       key: 'toolerr',
-      icon: '❌',
-      label: String(p.toolsErrorCount),
+      Icon: XOctagon,
+      label: `${p.toolsErrorCount} err`,
       title: `${p.toolsErrorCount} tool call(s) errored`,
-      cls: styles.error,
+      tone: 'error',
     });
-  }
-  if (p.isMeta) {
-    badges.push({ key: 'meta', icon: 'ℹ', label: 'meta', title: 'Meta turn' });
-  }
-  if (p.isCompactSummary) {
-    badges.push({ key: 'compact', icon: '🗜', label: 'compact', title: 'Compact-summary turn' });
   }
   if (p.isApiError) {
     badges.push({
-      key: 'err',
-      icon: '⚠',
-      label: p.apiErrorStatus ? String(p.apiErrorStatus) : 'err',
+      key: 'apierr',
+      Icon: AlertTriangle,
+      label: p.apiErrorStatus ? String(p.apiErrorStatus) : 'api',
       title: `API error${p.apiErrorStatus ? `: ${p.apiErrorStatus}` : ''}`,
-      cls: styles.error,
+      tone: 'error',
     });
   }
+  if (p.isMeta) {
+    badges.push({ key: 'meta', Icon: Info, label: 'meta', title: 'Meta turn', tone: 'info' });
+  }
+  if (p.isCompactSummary) {
+    badges.push({ key: 'compact', Icon: Package, label: 'compact', title: 'Compact summary turn' });
+  }
   if (p.hasThinking) {
-    badges.push({ key: 'think', icon: '🧠', label: 'think', title: 'Thinking block present' });
+    badges.push({ key: 'think', Icon: Brain, label: 'thinking', title: 'Thinking block present' });
   }
   if ((p.iterationsCount ?? 0) > 1) {
     badges.push({
       key: 'iter',
-      icon: '🔁',
+      Icon: RefreshCw,
       label: `×${p.iterationsCount}`,
       title: `${p.iterationsCount} internal iterations`,
     });
@@ -56,7 +75,7 @@ export function TurnNodeMiniBadges(p: Props) {
   if (web > 0) {
     badges.push({
       key: 'web',
-      icon: '🌐',
+      Icon: Globe,
       label: String(web),
       title: `web_search=${p.webSearchCount ?? 0}, web_fetch=${p.webFetchCount ?? 0}`,
     });
@@ -64,7 +83,7 @@ export function TurnNodeMiniBadges(p: Props) {
   if ((p.hooksCount ?? 0) > 0) {
     badges.push({
       key: 'hook',
-      icon: '🪝',
+      Icon: Webhook,
       label: String(p.hooksCount),
       title: `${p.hooksCount} hook(s) fired`,
     });
@@ -72,7 +91,7 @@ export function TurnNodeMiniBadges(p: Props) {
   if ((p.filesChangedCount ?? 0) > 0) {
     badges.push({
       key: 'files',
-      icon: '📝',
+      Icon: FileEdit,
       label: String(p.filesChangedCount),
       title: `${p.filesChangedCount} file(s) changed`,
     });
@@ -82,8 +101,12 @@ export function TurnNodeMiniBadges(p: Props) {
   return (
     <div className={styles.row}>
       {badges.map((b) => (
-        <span key={b.key} className={`${styles.badge} ${b.cls ?? ''}`} title={b.title}>
-          <span className={styles.icon}>{b.icon}</span>
+        <span
+          key={b.key}
+          className={`${styles.badge} ${b.tone === 'error' ? styles.error : ''} ${b.tone === 'info' ? styles.info : ''}`}
+          title={b.title}
+        >
+          <b.Icon size={10} />
           <span className={styles.label}>{b.label}</span>
         </span>
       ))}

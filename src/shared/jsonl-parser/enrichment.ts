@@ -282,6 +282,8 @@ export function extractEnrichedTokenEvents(events: SessionEvent[]): EnrichedToke
       isMeta: typeof evRec.isMeta === 'boolean' ? evRec.isMeta : undefined,
       isCompactSummary: typeof evRec.isCompactSummary === 'boolean' ? evRec.isCompactSummary : undefined,
       userType: typeof evRec.userType === 'string' ? evRec.userType : undefined,
+      eventSubtype: typeof evRec.subtype === 'string' ? evRec.subtype : undefined,
+      eventLevel: typeof evRec.level === 'string' ? evRec.level : undefined,
       toolCalls,
     });
   }

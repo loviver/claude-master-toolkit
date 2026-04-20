@@ -42,11 +42,27 @@
 .tokens {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 10px;
   font-family: var(--font-mono);
   color: var(--text-secondary);
   flex-wrap: wrap;
+}
+
+.tokens > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-left: var(--space-1);
 }
 
 .tokenIn { color: var(--color-info, #3b82f6); }
@@ -69,6 +85,20 @@
 .sidechain {
   border-style: dashed;
   background: var(--bg-muted);
+}
+
+.errorGlow {
+  box-shadow:
+    0 0 0 1px var(--color-danger, #ef4444),
+    0 0 12px 2px color-mix(in srgb, var(--color-danger, #ef4444) 35%, transparent),
+    var(--shadow-xs);
+}
+
+.errorGlow:hover {
+  box-shadow:
+    0 0 0 1px var(--color-danger, #ef4444),
+    0 0 16px 4px color-mix(in srgb, var(--color-danger, #ef4444) 45%, transparent),
+    var(--shadow-sm);
 }
 
 .nodeHeader {
@@ -128,13 +158,6 @@
   font-family: var(--font-mono);
 }
 
-.cost {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  margin-left: var(--space-1);
-}
-
 .cacheRow {
   display: flex;
   align-items: center;
@@ -162,6 +185,22 @@
   color: var(--text-muted);
   min-width: 28px;
   text-align: right;
+}
+
+.roleRow {
+  display: flex;
+  align-items: center;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semi);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: -2px;
+  margin-bottom: 2px;
+}
+
+.roleLabel {
+  line-height: 1;
 }
 
 .handle {

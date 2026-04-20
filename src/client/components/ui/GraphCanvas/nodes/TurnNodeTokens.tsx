@@ -1,3 +1,4 @@
+import { ArrowDown, ArrowUp, Database } from 'lucide-react';
 import { formatTokens } from '../lib/formatters';
 import styles from '../GraphCanvas.module.css';
 
@@ -11,13 +12,13 @@ export function TurnNodeTokens({ input, output, cacheRead }: Props) {
   return (
     <div className={styles.tokens}>
       <span className={styles.tokenIn} title={`Input: ${input.toLocaleString()}`}>
-        ↓ {formatTokens(input)}
+        <ArrowDown size={10} /> {formatTokens(input)}
       </span>
       <span className={styles.tokenOut} title={`Output: ${output.toLocaleString()}`}>
-        ↑ {formatTokens(output)}
+        <ArrowUp size={10} /> {formatTokens(output)}
       </span>
       <span className={styles.tokenCache} title={`Cache read: ${cacheRead.toLocaleString()}`}>
-        ◈ {formatTokens(cacheRead)}
+        <Database size={10} /> {formatTokens(cacheRead)}
       </span>
     </div>
   );

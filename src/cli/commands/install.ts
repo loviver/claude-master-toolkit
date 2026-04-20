@@ -7,7 +7,19 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PKG_ROOT = path.resolve(__dirname, "../../..");
-const CLAUDE_DIST = path.join(PKG_ROOT, "claude-dist");
+
+const candidates = [
+  path.join(process.cwd(), "claude-dist"),
+  path.join(__dirname, "../claude-dist"),
+  path.join(__dirname, "../../claude-dist"),
+];
+
+const CLAUDE_DIST = candidates.find((p) => fs.existsSync(p));
+
+if (!CLAUDE_DIST) {
+  throw new Error("claude-dist not found in any known location");
+}
+
 const CLAUDE_DIR = path.join(os.homedir(), ".claude");
 
 function say(msg: string) {
@@ -51,7 +63,9 @@ function deepMerge(...sources: Record<string, any>[]): Record<string, any> {
 }
 
 function findCtkBinariesOnPath(): string[] {
-  const pathDirs = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  const pathDirs = (process.env.PATH || "")
+    .split(path.delimiter)
+    .filter(Boolean);
   const found = new Set<string>();
   for (const dir of pathDirs) {
     const candidate = path.join(dir, "ctk");
@@ -71,10 +85,14 @@ function warnOnConflict(pkgRoot: string) {
   const pkgRootReal = fs.realpathSync(pkgRoot);
   const mismatched = bins.filter((b) => !b.startsWith(pkgRootReal));
   if (mismatched.length === 0) return;
-  console.warn(`\n⚠  Multiple ctk binaries on PATH resolve to different packages:`);
+  console.warn(
+    `\n⚠  Multiple ctk binaries on PATH resolve to different packages:`,
+  );
   for (const b of bins) console.warn(`     ${b}`);
   console.warn(`   This install will use: ${pkgRootReal}`);
-  console.warn(`   Remove the duplicates or run 'npm link' from the repo you want to use.\n`);
+  console.warn(
+    `   Remove the duplicates or run 'npm link' from the repo you want to use.\n`,
+  );
 }
 
 export async function installClaudeCommand(opts: any) {
@@ -96,7 +114,10 @@ export async function installClaudeCommand(opts: any) {
   fs.mkdirSync(backupDir, { recursive: true });
 
   const claudeMdPath = path.join(CLAUDE_DIR, "CLAUDE.md");
-  if (fs.existsSync(claudeMdPath) && !fs.lstatSync(claudeMdPath).isSymbolicLink()) {
+  if (
+    fs.existsSync(claudeMdPath) &&
+    !fs.lstatSync(claudeMdPath).isSymbolicLink()
+  ) {
     fs.copyFileSync(claudeMdPath, path.join(backupDir, "CLAUDE.md"));
     say("backed up CLAUDE.md");
   }
@@ -124,7 +145,9 @@ export async function installClaudeCommand(opts: any) {
           walk(srcPath, dstPath);
         } else if (entry.isFile()) {
           if (srcPath.endsWith(".sh")) {
-            try { fs.chmodSync(srcPath, 0o755); } catch {}
+            try {
+              fs.chmodSync(srcPath, 0o755);
+            } catch {}
           }
           linkForce(srcPath, dstPath, "file");
           count++;
@@ -142,7 +165,14 @@ export async function installClaudeCommand(opts: any) {
   say(`linked CLAUDE.md + hooks (${hookCount})`);
 
   head("3. Symlink skills + agents");
-  const skills = ["sdd-new", "sdd-ff", "sdd-continue", "pandorica-protocol", "delegate", "ctk-toolkit"];
+  const skills = [
+    "sdd-new",
+    "sdd-ff",
+    "sdd-continue",
+    "pandorica-protocol",
+    "delegate",
+    "ctk-toolkit",
+  ];
   for (const skill of skills) {
     linkForce(
       path.join(CLAUDE_DIST, "skills", skill),
@@ -218,7 +248,9 @@ export async function installClaudeCommand(opts: any) {
     try {
       execSync("command -v claude", { stdio: "ignore" });
       try {
-        execSync("claude plugin marketplace add JuliusBrussee/caveman", { stdio: "ignore" });
+        execSync("claude plugin marketplace add JuliusBrussee/caveman", {
+          stdio: "ignore",
+        });
         execSync("claude plugin install caveman@caveman", { stdio: "ignore" });
         say("caveman plugin configured");
       } catch {

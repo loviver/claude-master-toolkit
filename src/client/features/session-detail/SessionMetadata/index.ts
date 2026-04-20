@@ -1,0 +1,1 @@
+export { SessionMetadata } from './SessionMetadata';

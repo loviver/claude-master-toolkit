@@ -23,11 +23,11 @@ export function GraphCanvas({ nodes, edges, onNodeClick, height = 600, focusId }
     if (!target) return;
     instanceRef.current.fitView({
       nodes: [{ id: focusId }],
-      duration: 400,
-      padding: 0.6,
-      maxZoom: 1.2,
+      duration: 300,
+      padding: 0.4,
+      maxZoom: 1.1,
     });
-  }, [focusId, nodes]);
+  }, [focusId]);
 
   return (
     <div className={styles.canvas} style={{ height }}>
@@ -36,6 +36,9 @@ export function GraphCanvas({ nodes, edges, onNodeClick, height = 600, focusId }
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
+        fitViewOptions={{ padding: 0.2, duration: 0 }}
+        onlyRenderVisibleElements
+        minZoom={0.15}
         proOptions={{ hideAttribution: true }}
         onInit={(inst) => { instanceRef.current = inst; }}
         onNodeClick={(_, n) => onNodeClick?.(n.id, n.data as GraphNodeData)}

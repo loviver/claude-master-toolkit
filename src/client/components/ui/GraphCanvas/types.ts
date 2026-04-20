@@ -34,6 +34,10 @@ export interface TurnNodeData extends Record<string, unknown> {
   toolsErrorCount?: number;
   cwd?: string | null;
   gitBranch?: string | null;
+  // v10 lineage + visual encoding
+  agentRole?: string | null;
+  importance?: number;          // [0,1] normalized within session
+  hasErrors?: boolean;          // tool or API error flag
 }
 
 export interface ClusterNodeData extends Record<string, unknown> {

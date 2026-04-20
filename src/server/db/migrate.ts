@@ -233,6 +233,7 @@ export function migrate(): void {
 
     CREATE INDEX IF NOT EXISTS idx_token_events_uuid ON token_events(uuid);
     CREATE INDEX IF NOT EXISTS idx_token_events_message_id ON token_events(message_id);
+    CREATE INDEX IF NOT EXISTS idx_token_events_session_timestamp ON token_events(session_id, timestamp);
   `);
 
   // v9: Enriched drawer fields + structured tool_calls table
@@ -244,6 +245,15 @@ export function migrate(): void {
   addColumnSafe('token_events', 'is_meta', 'INTEGER DEFAULT 0');
   addColumnSafe('token_events', 'is_compact_summary', 'INTEGER DEFAULT 0');
   addColumnSafe('token_events', 'user_type', 'TEXT');
+
+  // v10: session-level JSONL extras
+  addColumnSafe('sessions', 'custom_title', 'TEXT');
+  addColumnSafe('sessions', 'last_prompt', 'TEXT');
+  addColumnSafe('sessions', 'entrypoint', 'TEXT');
+
+  // v10: event-level JSONL extras (per turn)
+  addColumnSafe('token_events', 'event_subtype', 'TEXT');
+  addColumnSafe('token_events', 'event_level', 'TEXT');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS turn_tool_calls (

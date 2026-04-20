@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { resolve, join } from 'path';
 import { homedir } from 'os';
-import { syncFile, syncSession } from '../parser/sync.js';
+import { syncFile, syncSession } from '../parser/index.js';
 import { getDb } from '../db/db.js';
 import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
@@ -317,6 +317,9 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
       gitBranch: session.gitBranch,
       version: session.version,
       turnCount: session.turnCount,
+      customTitle: session.customTitle ?? null,
+      lastPrompt: session.lastPrompt ?? null,
+      entrypoint: session.entrypoint ?? null,
       sidechainTurns,
       toolCount: toolSet.size,
       dominantPhase,
@@ -397,7 +400,11 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
         cacheHitPct,
         stopReason: e.stopReason ?? null,
         costUsd: e.costUsd,
-        parentId: e.parentUuid ?? null,
+        parentId: (() => {
+          if (!e.parentUuid) return null;
+          const eid = uuidToEventId.get(e.parentUuid);
+          return eid != null ? String(eid) : null;
+        })(),
         timestamp: e.timestamp,
         requestId: (e as any).requestId ?? null,
         slug: (e as any).slug ?? null,
@@ -421,6 +428,7 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
         toolsErrorCount: toolErrorCounts.get(e.id) ?? 0,
         cwd: (e as any).cwd ?? null,
         gitBranch: (e as any).gitBranch ?? null,
+        agentRole: (e as any).agentRole ?? null,
       };
     });
 
@@ -563,26 +571,39 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
     if (!existsSync(projectPath)) return reply.send(empty);
 
     try {
-      const startISO = new Date(session.startedAt).toISOString();
-      const endISO = new Date(session.lastActiveAt + 5 * 60_000).toISOString();
-      const output = execSync(
-        `git -C "${projectPath}" log --numstat --format="" --after="${startISO}" --before="${endISO}"`,
-        { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
-      );
+      execSync(`git -C "${projectPath}" rev-parse --git-dir`, { stdio: 'pipe', timeout: 2000 });
+
+      const startISO = new Date(session.startedAt - 2 * 60_000).toISOString();
+      const endISO = new Date(session.lastActiveAt + 30 * 60_000).toISOString();
 
       let insertions = 0, deletions = 0;
       const filesChanged = new Set<string>();
-      for (const line of output.split('\n')) {
-        const parts = line.trim().split('\t');
-        if (parts.length >= 3) {
-          const ins = parseInt(parts[0], 10);
-          const dels = parseInt(parts[1], 10);
-          if (!isNaN(ins) && !isNaN(dels)) {
-            insertions += ins; deletions += dels;
-            if (parts[2]) filesChanged.add(parts[2]);
+
+      const absorb = (output: string) => {
+        for (const line of output.split('\n')) {
+          const parts = line.trim().split('\t');
+          if (parts.length >= 3) {
+            const ins = parseInt(parts[0], 10);
+            const dels = parseInt(parts[1], 10);
+            if (!isNaN(ins) && !isNaN(dels)) {
+              insertions += ins; deletions += dels;
+              if (parts[2]) filesChanged.add(parts[2]);
+            }
           }
         }
-      }
+      };
+
+      absorb(execSync(
+        `git -C "${projectPath}" log --numstat --format="" --after="${startISO}" --before="${endISO}"`,
+        { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
+      ));
+
+      try {
+        absorb(execSync(
+          `git -C "${projectPath}" diff --numstat HEAD`,
+          { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
+        ));
+      } catch { /* HEAD may not exist on empty repo */ }
 
       const data = { insertions, deletions, filesChanged: filesChanged.size, available: true };
       gitStatsCache.set(req.params.id, { at: Date.now(), data });

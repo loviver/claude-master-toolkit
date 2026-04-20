@@ -1,0 +1,52 @@
+.node {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-secondary);
+  padding: 1px 0;
+  list-style: revert;
+}
+
+.summary::-webkit-details-marker {
+  color: var(--text-muted);
+}
+
+.children {
+  padding-left: 14px;
+  border-left: 1px dashed var(--border);
+  margin-left: 4px;
+}
+
+.leaf {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.key {
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
+.bracket {
+  color: var(--text-muted);
+}
+
+.count {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin: 0 4px;
+  font-style: italic;
+}
+
+.string { color: #16a34a; }
+.number { color: #2563eb; }
+.boolean { color: #9333ea; }
+.null { color: var(--text-muted); font-style: italic; }
+.empty { color: var(--text-muted); }

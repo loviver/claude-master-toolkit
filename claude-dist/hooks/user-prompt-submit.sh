@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # claude-master-toolkit: UserPromptSubmit hook
-# Warns once per threshold crossing (70 / 85 / 95 %) during live session.
+# - Task switch guard: /task <name> requires clean git
+# - SDD init guard: /sdd-* requires .ctk/init.marker
+# - Context warnings: 70/85/95% thresholds
 
 set -euo pipefail
 
@@ -8,13 +10,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-# --- SDD Init Guard ---------------------------------------------------------
-# If prompt invokes an sdd-* command and .ctk/init.marker is missing, inject a
-# system message hint. Non-blocking — orchestrator's SDD Init Guard completes
-# the flow.
+# Read stdin ONCE, reuse via variables (stdin cannot be re-read)
 INPUT_JSON="$(cat 2>/dev/null || true)"
+USER_PROMPT=""
 if [[ -n "$INPUT_JSON" ]] && command -v jq >/dev/null 2>&1; then
   USER_PROMPT="$(echo "$INPUT_JSON" | jq -r '.prompt // ""' 2>/dev/null || echo "")"
+fi
+
+# --- Task Switch Guard ------------------------------------------------------
+if [[ -n "$USER_PROMPT" ]] && echo "$USER_PROMPT" | grep -qE '^/task\s+'; then
+  TASK_NAME="$(echo "$USER_PROMPT" | sed -E 's|^/task\s+||' | head -c 200)"
+  if git status --porcelain 2>/dev/null | grep -q .; then
+    printf '\n❌ Task switch blocked: git dirty\n' >&2
+    printf '   Commit current work antes de /task\n\n' >&2
+    exit 1
+  fi
+  mkdir -p .ctk
+  echo "$TASK_NAME" > .ctk/current-task.txt
+  printf '\n✓ Task: %s\n\n' "$TASK_NAME"
+  exit 0
+fi
+
+# --- SDD Init Guard ---------------------------------------------------------
+# If prompt invokes an sdd-* command and .ctk/init.marker is missing, inject
+# a hint. Non-blocking — orchestrator's SDD Init Guard completes the flow.
+if [[ -n "$USER_PROMPT" ]] && command -v jq >/dev/null 2>&1; then
   if echo "$USER_PROMPT" | grep -qE '^/?sdd-(new|ff|continue|explore|propose|spec|design|tasks|apply|verify|archive|onboard)\b'; then
     if ! ctk_lib_init_done "${CLAUDE_PROJECT_DIR:-$PWD}"; then
       jq -n '{
@@ -28,6 +48,7 @@ if [[ -n "$INPUT_JSON" ]] && command -v jq >/dev/null 2>&1; then
   fi
 fi
 
+# --- Context Window Warnings ------------------------------------------------
 SESSION_FILE="$(ctk_lib_session_file)"
 [[ -n "$SESSION_FILE" ]] || exit 0
 

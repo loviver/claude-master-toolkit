@@ -1,0 +1,17 @@
+.strip {
+  display: flex;
+  height: 10px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--border-subtle);
+}
+
+.seg {
+  opacity: 0.88;
+  transition: opacity var(--transition-fast);
+  cursor: help;
+}
+
+.seg:hover {
+  opacity: 1;
+}

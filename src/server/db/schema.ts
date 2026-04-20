@@ -17,6 +17,9 @@ export const sessions = sqliteTable('sessions', {
   totalCacheCreationTokens: integer('total_cache_creation_tokens').notNull().default(0),
   totalCostUsd: real('total_cost_usd').notNull().default(0),
   jsonlFile: text('jsonl_file').notNull(),
+  customTitle: text('custom_title'),
+  lastPrompt: text('last_prompt'),
+  entrypoint: text('entrypoint'),
 });
 
 // ── Token Events (per assistant turn) ──
@@ -66,6 +69,9 @@ export const tokenEvents = sqliteTable('token_events', {
   isMeta: integer('is_meta', { mode: 'boolean' }).default(false),
   isCompactSummary: integer('is_compact_summary', { mode: 'boolean' }).default(false),
   userType: text('user_type'),
+  // v10: event-level JSONL extras (populated when present on assistant event)
+  eventSubtype: text('event_subtype'),
+  eventLevel: text('event_level'),
 });
 
 // ── Structured tool_use/tool_result per turn (v9) ──

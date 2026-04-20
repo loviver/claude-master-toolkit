@@ -1,3 +1,4 @@
+import { Clock } from 'lucide-react';
 import styles from '../GraphCanvas.module.css';
 
 interface Props {
@@ -16,7 +17,7 @@ export function TurnNodeDuration({ durationMs }: Props) {
   if (!durationMs || durationMs <= 0) return null;
   return (
     <span className={styles.cost} title={`Turn duration: ${durationMs}ms`}>
-      ⏱ {fmt(durationMs)}
+      <Clock size={10} /> {fmt(durationMs)}
     </span>
   );
 }

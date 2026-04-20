@@ -81,6 +81,9 @@ export interface ModelBreakdownEntry {
 
 export interface SessionDetail extends SessionSummary {
   version?: string | null;
+  customTitle?: string | null;
+  lastPrompt?: string | null;
+  entrypoint?: string | null;
   events: TokenEvent[];
   modelBreakdown: Record<string, ModelBreakdownEntry>;
 }

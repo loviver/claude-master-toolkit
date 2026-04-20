@@ -1,0 +1,52 @@
+import type { EnrichedTokenEventData } from '../../../shared/types/token-event.js';
+import { computeCost } from '../../../shared/pricing.js';
+import { extractAgentRole } from '../extractors/agent-role.js';
+
+export function eventToTokenRow(
+  evt: EnrichedTokenEventData,
+  sessionId: string,
+  durationMs: number | null,
+) {
+  return {
+    sessionId,
+    timestamp: new Date(evt.timestamp).getTime(),
+    model: evt.model,
+    inputTokens: evt.usage.inputTokens,
+    outputTokens: evt.usage.outputTokens,
+    cacheReadTokens: evt.usage.cacheReadTokens,
+    cacheCreationTokens: evt.usage.cacheCreationTokens,
+    costUsd: computeCost(evt.model, evt.usage),
+    toolsUsed: JSON.stringify(evt.toolsUsed),
+    stopReason: evt.stopReason,
+    isSidechain: evt.isSidechain,
+    parentUuid: evt.parentUuid,
+    semanticPhase: evt.semanticPhase,
+    agentRole: extractAgentRole(evt.content ?? null),
+    uuid: evt.uuid,
+    messageId: evt.messageId,
+    requestId: evt.requestId,
+    slug: evt.slug,
+    apiErrorStatus: evt.apiErrorStatus,
+    isApiError: !!evt.isApiError,
+    serviceTier: evt.serviceTier,
+    speed: evt.speed,
+    cache1hTokens: evt.cache1h ?? 0,
+    cache5mTokens: evt.cache5m ?? 0,
+    webSearchCount: evt.webSearchCount ?? 0,
+    webFetchCount: evt.webFetchCount ?? 0,
+    iterationsCount: evt.iterationsCount ?? 0,
+    durationMs,
+    permissionMode: evt.permissionMode,
+    hasThinking: !!evt.hasThinking,
+    thinkingText: evt.thinkingText ?? null,
+    thinkingSignature: evt.thinkingSignature ?? null,
+    promptId: evt.promptId ?? null,
+    cwd: evt.cwd ?? null,
+    gitBranch: evt.gitBranch ?? null,
+    isMeta: !!evt.isMeta,
+    isCompactSummary: !!evt.isCompactSummary,
+    userType: evt.userType ?? null,
+    eventSubtype: evt.eventSubtype ?? null,
+    eventLevel: evt.eventLevel ?? null,
+  };
+}

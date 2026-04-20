@@ -33,3 +33,13 @@
   color: var(--color-danger, #dc2626);
   font-weight: var(--weight-semi);
 }
+
+.info {
+  background: color-mix(in srgb, var(--color-info, #3b82f6) 10%, var(--bg-muted));
+  border-color: var(--color-info, #3b82f6);
+  color: var(--color-info, #3b82f6);
+}
+
+.badge svg {
+  flex-shrink: 0;
+}
