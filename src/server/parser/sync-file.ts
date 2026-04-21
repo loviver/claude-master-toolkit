@@ -1,8 +1,8 @@
 import { statSync, existsSync } from 'fs';
 import { basename, dirname } from 'path';
 import { eq } from 'drizzle-orm';
-import { getDb } from '../db/db.js';
-import { sessions, syncState } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { sessions, syncState } from '../../shared/db/schema.js';
 import {
   parseJsonlFile,
   extractEnrichedTokenEvents,

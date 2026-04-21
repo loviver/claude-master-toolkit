@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { getDb } from '../db/db.js';
-import { settings } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { settings } from '../../shared/db/schema.js';
 
 const ALLOWED_KEYS = new Set([
   'modelPref',

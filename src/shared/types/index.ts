@@ -16,7 +16,8 @@ export type {
 export type { SemanticPhase, EnrichedTokenEventData, TokenEvent, ToolCallData } from './token-event.js';
 
 // ── Memory types ──
-export type { MemoryType, Memory } from './memory.js';
+// Single source of truth: src/shared/memories/types.ts
+export type { MemoryType, MemoryScope, MemoryRow } from '../memories/types.js';
 
 // ── Model pricing types ──
 export type { ModelAlias, ModelPreference, ModelPricing, CostBreakdown } from './models.js';

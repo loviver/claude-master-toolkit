@@ -2,6 +2,7 @@ import { output, outputError } from '../../shared/output.js';
 import { openDb } from '../../shared/indexer/db-raw.js';
 import { recordFinding, recallFindings } from '../../shared/indexer/queries.js';
 import type { FindingType, RecallOpts } from '../../shared/indexer/types.js';
+import type { RecordFindingOpts, RecallFindingsOpts } from '../types/findings-opts.js';
 
 const VALID_TYPES: FindingType[] = ['bug', 'assumption', 'decision', 'deadend', 'pattern'];
 
@@ -14,14 +15,7 @@ function parseSince(s: string | undefined): number | undefined {
   return n * mul;
 }
 
-export function recordCommand(opts: {
-  type?: string;
-  symbol?: string;
-  file?: string;
-  finding?: string;
-  confidence?: string;
-  role?: string;
-}): void {
+export function recordCommand(opts: RecordFindingOpts): void {
   if (!opts.type || !VALID_TYPES.includes(opts.type as FindingType)) {
     outputError(`record: --type must be one of ${VALID_TYPES.join('|')}`);
   }
@@ -44,12 +38,7 @@ export function recordCommand(opts: {
   }
 }
 
-export function recallCommand(opts: {
-  type?: string;
-  symbol?: string;
-  session?: string;
-  since?: string;
-}): void {
+export function recallCommand(opts: RecallFindingsOpts): void {
   const db = openDb();
   try {
     const ropts: RecallOpts = {

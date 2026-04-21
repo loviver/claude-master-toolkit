@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { tokenEvents, sessions } from '../../db/schema.js';
+import { tokenEvents, sessions } from '../../../shared/db/schema.js';
 import type { RefMaps } from '../types.js';
 
 export function loadRefMaps(db: BetterSQLite3Database, sessionId: string): RefMaps {

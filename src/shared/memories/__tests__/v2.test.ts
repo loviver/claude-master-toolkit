@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { migrate } from '../../../server/db/migrate.js';
+import { migrate } from '../../db/migrate.js';
 import {
   openMemDb, save, update, deleteById, mark, recall, context, trace, getById,
   sessionStart, sessionEnd, sessionSummary, passive, merge, suggest, stats,

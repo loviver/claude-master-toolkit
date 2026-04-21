@@ -4,7 +4,7 @@ import fastifyStatic from "@fastify/static";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
-import { migrate } from "./db/migrate.js";
+import { migrate } from "../shared/db/migrate.js";
 import { syncAll } from "./parser/index.js";
 import { refreshPricingFromLiteLLM } from "../shared/pricing.js";
 import { startWatcher } from "./parser/watcher.js";

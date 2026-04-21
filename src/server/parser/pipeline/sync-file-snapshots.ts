@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { turnFileChanges } from '../../db/schema.js';
+import { turnFileChanges } from '../../../shared/db/schema.js';
 import { snapshotToRows } from '../mappers/snapshot-to-rows.js';
 import type { SyncContext, RefMaps } from '../types.js';
 

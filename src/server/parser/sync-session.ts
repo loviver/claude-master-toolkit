@@ -1,7 +1,7 @@
 import { statSync } from 'fs';
 import { eq } from 'drizzle-orm';
-import { getDb } from '../db/db.js';
-import { syncState } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { syncState } from '../../shared/db/schema.js';
 import { listProjectDirs, listSessionFiles, parseJsonlFile, extractSessionMeta } from '../../shared/jsonl-parser/index.js';
 import { syncFile } from './sync-file.js';
 

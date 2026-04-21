@@ -12,6 +12,13 @@ import { importFromSql } from '../../shared/bench/import_.js';
 import { compareTask } from '../../shared/bench/compare.js';
 import { readGitProvenance } from '../../shared/bench/provenance.js';
 import type { BenchVariant } from '../../shared/bench/types.js';
+import type {
+  BenchTaskAddOpts,
+  BenchIngestOpts,
+  BenchListOpts,
+  BenchCompareOpts,
+  BenchExportOpts,
+} from '../types/bench-opts.js';
 
 function dbPath(): string {
   return (
@@ -41,7 +48,7 @@ function requireVariant(v: string | undefined): BenchVariant {
 
 export async function benchTaskAddCommand(
   id: string,
-  opts: { name?: string; description?: string; oracle?: string },
+  opts: BenchTaskAddOpts,
 ): Promise<void> {
   if (!opts.name) return outputError('bench task add: --name is required');
   const db = openDb();
@@ -98,13 +105,7 @@ export function benchTaskRemoveCommand(id: string): void {
 
 export async function benchIngestCommand(
   jsonlPath: string,
-  opts: {
-    task?: string;
-    variant?: string;
-    model?: string;
-    notes?: string;
-    success?: string;
-  },
+  opts: BenchIngestOpts,
 ): Promise<void> {
   if (!opts.task) return outputError('bench ingest: --task is required');
   const variant = requireVariant(opts.variant);
@@ -147,7 +148,7 @@ export async function benchIngestCommand(
 
 // ── list / show ──
 
-export function benchListCommand(opts: { task?: string; variant?: string }): void {
+export function benchListCommand(opts: BenchListOpts): void {
   const db = openDb();
   try {
     const variant = opts.variant ? requireVariant(opts.variant) : undefined;
@@ -188,7 +189,7 @@ export function benchShowCommand(runId: string): void {
 
 // ── compare ──
 
-export function benchCompareCommand(opts: { task?: string }): void {
+export function benchCompareCommand(opts: BenchCompareOpts): void {
   if (!opts.task) return outputError('bench compare: --task is required');
   const db = openDb();
   try {
@@ -234,11 +235,7 @@ export function benchCompareCommand(opts: { task?: string }): void {
 
 // ── export / import ──
 
-export async function benchExportCommand(opts: {
-  task?: string;
-  out?: string;
-  includePaths?: boolean;
-}): Promise<void> {
+export async function benchExportCommand(opts: BenchExportOpts): Promise<void> {
   const db = openDb();
   try {
     const sql = exportToSql(db, { taskId: opts.task, includePaths: opts.includePaths });

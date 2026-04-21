@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { tokenEvents, sessions } from '../../../server/db/schema.js';
+import { tokenEvents, sessions } from '../../../shared/db/schema.js';
 import { loadRefMaps } from '../builders/ref-maps.js';
 
 function makeDb() {

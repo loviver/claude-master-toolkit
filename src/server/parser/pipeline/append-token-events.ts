@@ -1,5 +1,5 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { tokenEvents, turnToolCalls, turnContent } from '../../db/schema.js';
+import { tokenEvents, turnToolCalls, turnContent } from '../../../shared/db/schema.js';
 import { sessionBus } from '../../events/bus.js';
 import { eventToTokenRow } from '../mappers/event-to-token-row.js';
 import { eventToToolCalls } from '../mappers/event-to-tool-calls.js';

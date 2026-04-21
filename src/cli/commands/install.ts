@@ -4,21 +4,31 @@ import os from "os";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PKG_ROOT = path.resolve(__dirname, "../../..");
+function findPackageRoot(): string {
+  let current = path.dirname(fileURLToPath(import.meta.url));
+  while (current !== path.dirname(current)) {
+    if (fs.existsSync(path.join(current, "package.json"))) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  throw new Error("package.json not found — cannot resolve PKG_ROOT");
+}
+
+const PKG_ROOT = findPackageRoot();
 
 const candidates = [
+  path.join(PKG_ROOT, "claude-dist"),
   path.join(process.cwd(), "claude-dist"),
-  path.join(__dirname, "../claude-dist"),
-  path.join(__dirname, "../../claude-dist"),
 ];
 
-const CLAUDE_DIST = candidates.find((p) => fs.existsSync(p));
+const CLAUDE_DIST_FOUND = candidates.find((p) => fs.existsSync(p));
 
-if (!CLAUDE_DIST) {
+if (!CLAUDE_DIST_FOUND) {
   throw new Error("claude-dist not found in any known location");
 }
+
+const CLAUDE_DIST: string = CLAUDE_DIST_FOUND;
 
 const CLAUDE_DIR = path.join(os.homedir(), ".claude");
 
@@ -30,10 +40,9 @@ function head(msg: string) {
   console.log("\n== " + msg + " ==\n");
 }
 
-function die(msg: string) {
+function die(msg: string): never {
   console.error("✗ " + msg);
   process.exit(1);
-  throw new Error(msg);
 }
 
 function linkForce(target: string, link: string, type: "file" | "dir") {
@@ -228,7 +237,18 @@ export async function installClaudeCommand(opts: any) {
 
   const merged = deepMerge(base, patch, mcpPatch);
   fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
-  say(`settings merged (mcp: ${mcpServerPath})`);
+  say(`settings.json merged (mcp: ${mcpServerPath})`);
+
+  // Register MCP in ~/.claude.json (user MCPs visible in /mcp)
+  const claudeJsonPath = path.join(os.homedir(), ".claude.json");
+  const claudeJson = JSON.parse(fs.readFileSync(claudeJsonPath, "utf-8"));
+  claudeJson.mcpServers = claudeJson.mcpServers || {};
+  claudeJson.mcpServers.ctk = {
+    command: "node",
+    args: [mcpServerPath],
+  };
+  fs.writeFileSync(claudeJsonPath, JSON.stringify(claudeJson, null, 2));
+  say(`~/.claude.json updated (MCP ctk registered)`);
 
   head("5. Model preference");
   const stateDir = path.join(CLAUDE_DIR, "state", "claude-master-toolkit");

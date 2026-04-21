@@ -1,5 +1,5 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { sessions } from '../../db/schema.js';
+import { sessions } from '../../../shared/db/schema.js';
 import { metaToSessionInsert, metaToSessionUpdate } from '../mappers/meta-to-session-row.js';
 import type { SyncContext } from '../types.js';
 

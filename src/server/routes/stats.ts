@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { desc, sql, gte } from 'drizzle-orm';
-import { getDb } from '../db/db.js';
-import { sessions, tokenEvents } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { sessions, tokenEvents } from '../../shared/db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
 
 interface StatsQuery {

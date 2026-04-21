@@ -1,6 +1,6 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { createHash } from 'crypto';
-import { turnContent } from '../../db/schema.js';
+import { turnContent } from '../../../shared/db/schema.js';
 import { userEventToContent } from '../mappers/user-event-to-content.js';
 import type { SyncContext, RefMaps } from '../types.js';
 import type { SessionEvent } from '../../../shared/types/session-event.js';

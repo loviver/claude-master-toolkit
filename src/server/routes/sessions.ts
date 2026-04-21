@@ -5,8 +5,8 @@ import { existsSync } from 'fs';
 import { resolve, join } from 'path';
 import { homedir } from 'os';
 import { syncFile, syncSession } from '../parser/index.js';
-import { getDb } from '../db/db.js';
-import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../../shared/db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
 import { sessionBus, type SessionBusEvent } from '../events/bus.js';
 import type {

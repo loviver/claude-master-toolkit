@@ -1,5 +1,5 @@
-import { getDb } from '../db/db.js';
-import { sessions } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { sessions } from '../../shared/db/schema.js';
 import { listProjectDirs, listSessionFiles } from '../../shared/jsonl-parser/index.js';
 import { syncFile } from './sync-file.js';
 

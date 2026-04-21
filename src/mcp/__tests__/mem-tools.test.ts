@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { migrate } from '../../server/db/migrate.js';
+import { migrate } from '../../shared/db/migrate.js';
 import { memHandlers } from '../mem-tools.js';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };

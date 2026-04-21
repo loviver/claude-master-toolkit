@@ -1,3 +1,29 @@
+/**
+ * SQLite schema — claude-master-toolkit.
+ *
+ * DOMAINS (tables agrupadas por responsabilidad):
+ *   Session tracking   → sessions, tokenEvents, turnToolCalls, turnHooks,
+ *                        turnFileChanges, turnContent
+ *   Memory / knowledge → memoriesV2, memorySearches
+ *   Code analysis      → symbols, indexedFiles
+ *   Agent coordination → briefs, findings, agentCache
+ *   Benchmarking       → benchTasks, benchRuns, benchTurns, benchImports
+ *   Infrastructure     → settings, syncState
+ *
+ * SYNC PATTERN:
+ *   Claude Code JSONL session files → server parse (incremental via syncState)
+ *   → upsert into sessions + tokenEvents + derived tables.
+ *
+ * COLUMN NAMING:
+ *   DB layer: snake_case (SQL idiomatic, avoids reserved words like `where` → `where_`).
+ *   API/CLI layer: camelCase (JS idiomatic).
+ *   Translation: src/shared/memories/mapper.ts (NEVER hand-write bindings elsewhere).
+ *
+ * BACKCOMPAT:
+ *   v7+ enrichment columns (uuid, messageId, requestId, etc.) are nullable.
+ *   Old sessions parsed before v7 have NULL in those fields — intentional.
+ */
+
 import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // ── Sessions ──

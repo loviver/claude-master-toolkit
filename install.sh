@@ -72,7 +72,9 @@ fi
 LOCAL_BIN="$HOME/.local/bin"
 mkdir -p "$LOCAL_BIN"
 ln -sf "$REPO_DIR/bin/ctk.js" "$LOCAL_BIN/ctk"
+ln -sf "$REPO_DIR/bin/ctk-mcp.js" "$LOCAL_BIN/ctk-mcp"
 say "linked $LOCAL_BIN/ctk → $REPO_DIR/bin/ctk.js"
+say "linked $LOCAL_BIN/ctk-mcp → $REPO_DIR/bin/ctk-mcp.js"
 
 # If ~/.local/bin isn't on PATH, add it to ~/.bashrc (and ~/.zshrc if present).
 add_path_stanza() {

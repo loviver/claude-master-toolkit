@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, like, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { writeFileSync, existsSync } from 'fs';
-import { getDb } from '../db/db.js';
-import { memoriesV2 as memories } from '../db/schema.js';
+import { getDb } from '../../shared/db/db.js';
+import { memoriesV2 as memories } from '../../shared/db/schema.js';
 
 type MemoryRow = typeof memories.$inferSelect;
 function projectMemory(row: MemoryRow): MemoryRow & { content: string } {

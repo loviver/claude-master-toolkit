@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { MemoryRow, MemoryType, SaveInput, UpdateInput } from './types.js';
+import type { MemoryRow, SaveInput, UpdateInput } from './types.js';
+import { toInsertBindings, toUpdateBindings, toUpsertBindings } from './mapper.js';
 
 // ── Internal row lookup ──
 
@@ -14,7 +15,6 @@ export function rowById(db: Database.Database, id: string): MemoryRow | null {
 export function save(db: Database.Database, input: SaveInput): MemoryRow {
   const now = Date.now();
   const scope = input.scope ?? 'project';
-  const type: MemoryType = input.type ?? 'note';
 
   if (input.topicKey) {
     const existing = db
@@ -30,26 +30,7 @@ export function save(db: Database.Database, input: SaveInput): MemoryRow {
              description = ?, file_path = ?,
              updated_at = ?
          WHERE id = ?`,
-      ).run(
-        input.title,
-        type,
-        input.what ?? existing.what,
-        input.why ?? existing.why,
-        input.where ?? existing.where_,
-        input.learned ?? existing.learned,
-        input.projectPath ?? existing.project_path,
-        input.sessionId ?? existing.session_id,
-        input.model ?? existing.model,
-        input.phase ?? existing.phase,
-        input.tokensInput ?? existing.tokens_input,
-        input.tokensOutput ?? existing.tokens_output,
-        input.cacheHitPct ?? existing.cache_hit_pct,
-        input.costUsd ?? existing.cost_usd,
-        input.description ?? existing.description,
-        input.filePath ?? existing.file_path,
-        now,
-        existing.id,
-      );
+      ).run(...toUpsertBindings(input, existing, now));
       return rowById(db, existing.id)!;
     }
   }
@@ -62,29 +43,7 @@ export function save(db: Database.Database, input: SaveInput): MemoryRow {
        scope, project_path, description, file_path,
        created_at, updated_at
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    input.sessionId ?? null,
-    input.title,
-    type,
-    input.what ?? null,
-    input.why ?? null,
-    input.where ?? null,
-    input.learned ?? null,
-    input.topicKey ?? null,
-    input.model ?? null,
-    input.phase ?? null,
-    input.tokensInput ?? null,
-    input.tokensOutput ?? null,
-    input.cacheHitPct ?? null,
-    input.costUsd ?? null,
-    scope,
-    input.projectPath ?? null,
-    input.description ?? null,
-    input.filePath ?? null,
-    now,
-    now,
-  );
+  ).run(...toInsertBindings(input, id, now));
   return rowById(db, id)!;
 }
 
@@ -102,27 +61,7 @@ export function update(db: Database.Database, id: string, input: UpdateInput): M
          cache_hit_pct = ?, cost_usd = ?,
          updated_at = ?
      WHERE id = ?`,
-  ).run(
-    input.title ?? existing.title,
-    input.type ?? existing.type,
-    input.what ?? existing.what,
-    input.why ?? existing.why,
-    input.where ?? existing.where_,
-    input.learned ?? existing.learned,
-    input.topicKey ?? existing.topic_key,
-    input.scope ?? existing.scope,
-    input.projectPath ?? existing.project_path,
-    input.description ?? existing.description,
-    input.filePath ?? existing.file_path,
-    input.model ?? existing.model,
-    input.phase ?? existing.phase,
-    input.tokensInput ?? existing.tokens_input,
-    input.tokensOutput ?? existing.tokens_output,
-    input.cacheHitPct ?? existing.cache_hit_pct,
-    input.costUsd ?? existing.cost_usd,
-    Date.now(),
-    id,
-  );
+  ).run(...toUpdateBindings(input, existing, Date.now(), id));
   return rowById(db, id);
 }
 

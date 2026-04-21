@@ -13,15 +13,25 @@ import {
   exportVault,
   importVault,
   type MemoryType,
-  type MemoryScope,
 } from '../../shared/memories/v2.js';
+import type {
+  ContentSource,
+  MemSaveOpts,
+  MemRecallOpts,
+  MemContextOpts,
+  MemTraceOpts,
+  MemSummaryOpts,
+  MemStatsOpts,
+  MemExportOpts,
+  MemImportOpts,
+} from '../types/mem-opts.js';
 
 const VALID_TYPES: MemoryType[] = [
   'decision', 'bugfix', 'architecture', 'pattern',
   'preference', 'reference', 'note', 'session_summary',
 ];
 
-function readContent(opts: { content?: string; file?: string; stdin?: boolean }): string {
+function readContent(opts: ContentSource): string {
   if (opts.content) return opts.content;
   if (opts.file) return readFileSync(opts.file, 'utf-8');
   if (opts.stdin) return readFileSync(0, 'utf-8');
@@ -38,21 +48,7 @@ function withDb<T>(fn: (db: ReturnType<typeof openMemDb>) => T): T {
   }
 }
 
-export function memSaveCommand(opts: {
-  title?: string;
-  type?: string;
-  what?: string;
-  why?: string;
-  where?: string;
-  learned?: string;
-  content?: string;
-  file?: string;
-  stdin?: boolean;
-  scope?: string;
-  topicKey?: string;
-  projectPath?: string;
-  sessionId?: string;
-}): void {
+export function memSaveCommand(opts: MemSaveOpts): void {
   if (!opts.title) outputError('mem save: --title required');
   const type = (opts.type ?? 'note') as MemoryType;
   if (!VALID_TYPES.includes(type)) {
@@ -69,7 +65,7 @@ export function memSaveCommand(opts: {
       where: opts.where,
       learned: opts.learned,
       topicKey: opts.topicKey,
-      scope: opts.scope as MemoryScope | undefined,
+      scope: opts.scope,
       projectPath: opts.projectPath ?? process.cwd(),
       sessionId: opts.sessionId,
     });
@@ -78,18 +74,13 @@ export function memSaveCommand(opts: {
   process.exit(0);
 }
 
-export function memRecallCommand(query: string, opts: {
-  limit?: string;
-  type?: string;
-  scope?: string;
-  projectPath?: string;
-}): void {
+export function memRecallCommand(query: string, opts: MemRecallOpts): void {
   withDb((db) => {
     const rows = recall(db, {
       query,
       limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
-      type: opts.type as MemoryType | undefined,
-      scope: opts.scope as MemoryScope | undefined,
+      type: opts.type,
+      scope: opts.scope,
       projectPath: opts.projectPath,
     });
     output({
@@ -107,11 +98,7 @@ export function memRecallCommand(query: string, opts: {
   process.exit(0);
 }
 
-export function memContextCommand(opts: {
-  projectPath?: string;
-  sessionId?: string;
-  limit?: string;
-}): void {
+export function memContextCommand(opts: MemContextOpts): void {
   withDb((db) => {
     const rows = context(db, {
       projectPath: opts.projectPath ?? process.cwd(),
@@ -123,11 +110,7 @@ export function memContextCommand(opts: {
   process.exit(0);
 }
 
-export function memTraceCommand(opts: {
-  projectPath?: string;
-  sessionId?: string;
-  limit?: string;
-}): void {
+export function memTraceCommand(opts: MemTraceOpts): void {
   withDb((db) => {
     const rows = trace(db, {
       projectPath: opts.projectPath,
@@ -157,14 +140,7 @@ export function memDeleteCommand(id: string): void {
   process.exit(0);
 }
 
-export function memSummaryCommand(opts: {
-  content?: string;
-  file?: string;
-  stdin?: boolean;
-  sessionId?: string;
-  projectPath?: string;
-  title?: string;
-}): void {
+export function memSummaryCommand(opts: MemSummaryOpts): void {
   const content = readContent(opts);
   const sid = opts.sessionId ?? `cli-${Date.now()}`;
   withDb((db) => {
@@ -179,7 +155,7 @@ export function memSummaryCommand(opts: {
   process.exit(0);
 }
 
-export function memStatsCommand(opts: { projectPath?: string; all?: boolean }): void {
+export function memStatsCommand(opts: MemStatsOpts): void {
   withDb((db) => {
     const out = stats(db, {
       projectPath: opts.all ? undefined : (opts.projectPath ?? process.cwd()),
@@ -189,7 +165,7 @@ export function memStatsCommand(opts: { projectPath?: string; all?: boolean }): 
   process.exit(0);
 }
 
-export function memExportCommand(opts: { projectPath?: string; all?: boolean; out?: string }): void {
+export function memExportCommand(opts: MemExportOpts): void {
   withDb((db) => {
     const dump = exportVault(db, {
       projectPath: opts.all ? undefined : (opts.projectPath ?? process.cwd()),
@@ -205,7 +181,7 @@ export function memExportCommand(opts: { projectPath?: string; all?: boolean; ou
   process.exit(0);
 }
 
-export function memImportCommand(opts: { file?: string; stdin?: boolean }): void {
+export function memImportCommand(opts: MemImportOpts): void {
   const raw = opts.file ? readFileSync(opts.file, 'utf-8') : (opts.stdin ? readFileSync(0, 'utf-8') : '');
   if (!raw) outputError('mem import: provide --file or --stdin');
   const dump = JSON.parse(raw);

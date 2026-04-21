@@ -100,7 +100,20 @@ export async function uninstallClaudeCommand(opts: any) {
     say("no backups dir");
   }
 
-  head("4. Caveman plugin");
+  head("4. Unregister MCP from ~/.claude.json");
+  const claudeJsonPath = path.join(os.homedir(), ".claude.json");
+  if (fs.existsSync(claudeJsonPath)) {
+    const claudeJson = JSON.parse(fs.readFileSync(claudeJsonPath, "utf-8"));
+    if (claudeJson.mcpServers?.ctk) {
+      delete claudeJson.mcpServers.ctk;
+      fs.writeFileSync(claudeJsonPath, JSON.stringify(claudeJson, null, 2));
+      say("removed MCP ctk");
+    } else {
+      say("MCP ctk not registered");
+    }
+  }
+
+  head("5. Caveman plugin");
   if (opts.removeCaveman) {
     try {
       execSync("command -v claude", { stdio: "ignore" });

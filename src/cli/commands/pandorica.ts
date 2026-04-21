@@ -1,5 +1,5 @@
 // Legacy `ctk pandorica` CLI — thin wrapper over Pandorica v2 (`mem_*`).
-// Kept for backward-compat; prefer `ctk mem <subcmd>`.
+// DEPRECATED: prefer `ctk mem <subcmd>`. Kept for backward-compat.
 import { readFileSync } from 'fs';
 import { output, outputError } from '../../shared/output.js';
 import {
@@ -14,23 +14,33 @@ import {
   type MemoryType,
   type MemoryScope,
 } from '../../shared/memories/v2.js';
+import type { ContentSource } from '../types/mem-opts.js';
+import type {
+  LegacyPandoricaType,
+  PandoricaSaveOpts,
+  PandoricaSearchOpts,
+  PandoricaContextOpts,
+  PandoricaRecentOpts,
+  PandoricaSummaryOpts,
+} from '../types/pandorica-opts.js';
 
-type LegacyType =
-  | 'bugfix' | 'decision' | 'architecture' | 'discovery'
-  | 'pattern' | 'config' | 'preference' | 'session_summary';
-
-const LEGACY_TYPES: LegacyType[] = [
+const LEGACY_TYPES: LegacyPandoricaType[] = [
   'bugfix', 'decision', 'architecture', 'discovery',
   'pattern', 'config', 'preference', 'session_summary',
 ];
 
-function mapType(t: LegacyType): MemoryType {
+function mapType(t: LegacyPandoricaType): MemoryType {
   if (t === 'discovery') return 'note';
   if (t === 'config') return 'reference';
   return t as MemoryType;
 }
 
-function readContent(opts: { content?: string; file?: string; stdin?: boolean }): string {
+function warnDeprecated(sub: string): void {
+  // Stderr-only. Does not affect --json output on stdout.
+  console.warn(`[ctk] DEPRECATED: 'ctk pandorica ${sub}' — use 'ctk mem ${sub}' instead.`);
+}
+
+function readContent(opts: ContentSource): string {
   if (opts.content) return opts.content;
   if (opts.file) return readFileSync(opts.file, 'utf-8');
   if (opts.stdin) return readFileSync(0, 'utf-8');
@@ -43,26 +53,17 @@ function withDb<T>(fn: (db: ReturnType<typeof openMemDb>) => T): T {
   try { return fn(db); } finally { db.close(); }
 }
 
-export function saveCommand(opts: {
-  title?: string;
-  type?: string;
-  content?: string;
-  file?: string;
-  stdin?: boolean;
-  scope?: string;
-  topicKey?: string;
-  projectPath?: string;
-  sessionId?: string;
-}): void {
+export function saveCommand(opts: PandoricaSaveOpts): void {
+  warnDeprecated('save');
   if (!opts.title) outputError('save: --title required');
-  if (!opts.type || !LEGACY_TYPES.includes(opts.type as LegacyType)) {
+  if (!opts.type || !LEGACY_TYPES.includes(opts.type as LegacyPandoricaType)) {
     outputError(`save: --type must be one of ${LEGACY_TYPES.join('|')}`);
   }
   const content = readContent(opts);
   withDb((db) => {
     const row = save(db, {
       title: opts.title!,
-      type: mapType(opts.type as LegacyType),
+      type: mapType(opts.type as LegacyPandoricaType),
       what: content,
       scope: opts.scope as MemoryScope | undefined,
       topicKey: opts.topicKey,
@@ -74,14 +75,10 @@ export function saveCommand(opts: {
   process.exit(0);
 }
 
-export function searchCommand(query: string, opts: {
-  limit?: string;
-  type?: string;
-  scope?: string;
-  projectPath?: string;
-}): void {
+export function searchCommand(query: string, opts: PandoricaSearchOpts): void {
+  warnDeprecated('search');
   withDb((db) => {
-    const legacy = opts.type as LegacyType | undefined;
+    const legacy = opts.type as LegacyPandoricaType | undefined;
     const type: MemoryType | undefined = legacy ? mapType(legacy) : undefined;
     const rows = recall(db, {
       query,
@@ -105,7 +102,8 @@ export function searchCommand(query: string, opts: {
   process.exit(0);
 }
 
-export function contextCommand(opts: { projectPath?: string; sessionId?: string; limit?: string }): void {
+export function contextCommand(opts: PandoricaContextOpts): void {
+  warnDeprecated('context');
   withDb((db) => {
     const rows = v2Context(db, {
       projectPath: opts.projectPath ?? process.cwd(),
@@ -117,7 +115,8 @@ export function contextCommand(opts: { projectPath?: string; sessionId?: string;
   process.exit(0);
 }
 
-export function recentCommand(opts: { limit?: string; all?: boolean }): void {
+export function recentCommand(opts: PandoricaRecentOpts): void {
+  warnDeprecated('recent');
   withDb((db) => {
     const rows = trace(db, {
       projectPath: opts.all ? undefined : process.cwd(),
@@ -137,6 +136,7 @@ export function recentCommand(opts: { limit?: string; all?: boolean }): void {
 }
 
 export function getCommand(id: string): void {
+  warnDeprecated('get');
   withDb((db) => {
     const row = getById(db, id);
     if (!row) outputError(`pandorica: memory '${id}' not found`);
@@ -146,6 +146,7 @@ export function getCommand(id: string): void {
 }
 
 export function deleteCommand(id: string): void {
+  warnDeprecated('delete');
   withDb((db) => {
     const ok = deleteById(db, id);
     if (!ok) outputError(`pandorica: memory '${id}' not found`);
@@ -154,14 +155,8 @@ export function deleteCommand(id: string): void {
   process.exit(0);
 }
 
-export function summaryCommand(opts: {
-  content?: string;
-  file?: string;
-  stdin?: boolean;
-  sessionId?: string;
-  projectPath?: string;
-  title?: string;
-}): void {
+export function summaryCommand(opts: PandoricaSummaryOpts): void {
+  warnDeprecated('summary');
   const content = readContent(opts);
   const sid = opts.sessionId ?? `cli-${Date.now()}`;
   withDb((db) => {
