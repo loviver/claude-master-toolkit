@@ -353,6 +353,52 @@ export function migrate(): void {
     END;
   `);
 
+  // v9 plans (workflow execution)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS plans (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      definition TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      project_path TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plans_project ON plans(project_path);
+
+    CREATE TABLE IF NOT EXISTS plan_executions (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+      state TEXT NOT NULL DEFAULT 'pending',
+      current_node_id TEXT,
+      output TEXT,
+      error TEXT,
+      started_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      timeline TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plan_executions_plan ON plan_executions(plan_id);
+    CREATE INDEX IF NOT EXISTS idx_plan_executions_state ON plan_executions(state);
+
+    CREATE TABLE IF NOT EXISTS plan_node_states (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      execution_id TEXT NOT NULL REFERENCES plan_executions(id) ON DELETE CASCADE,
+      node_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      output TEXT,
+      error TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      started_at INTEGER,
+      completed_at INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plan_node_states_execution ON plan_node_states(execution_id);
+    CREATE INDEX IF NOT EXISTS idx_plan_node_states_node ON plan_node_states(node_id);
+  `);
+
   // v8 backfill: copy legacy memories → memories_v2 (idempotent via INSERT OR IGNORE on id)
   const legacyTables = ['memories', 'pandorica_memories'] as const;
   for (const t of legacyTables) {

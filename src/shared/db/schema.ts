@@ -357,3 +357,44 @@ export const benchImports = sqliteTable('bench_imports', {
   rowCount: integer('row_count').notNull().default(0),
   checksum: text('checksum').notNull(),
 });
+
+// ── Workflow Plans (deterministic task execution) ──
+
+export const plans = sqliteTable('plans', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  definition: text('definition').notNull(), // JSON: { nodes: PlanNode[], entrypoint: string }
+  version: integer('version').notNull().default(1),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  projectPath: text('project_path'),
+});
+
+export const planExecutions = sqliteTable('plan_executions', {
+  id: text('id').primaryKey(),
+  planId: text('plan_id')
+    .notNull()
+    .references(() => plans.id, { onDelete: 'cascade' }),
+  state: text('state').notNull().default('pending'), // pending|running|paused|completed|failed
+  currentNodeId: text('current_node_id'),
+  output: text('output'), // JSON: execution result
+  error: text('error'),
+  startedAt: integer('started_at').notNull(),
+  completedAt: integer('completed_at'),
+  timeline: text('timeline'), // JSON array of { nodeId, at, status }
+});
+
+export const planNodeStates = sqliteTable('plan_node_states', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  executionId: text('execution_id')
+    .notNull()
+    .references(() => planExecutions.id, { onDelete: 'cascade' }),
+  nodeId: text('node_id').notNull(),
+  status: text('status').notNull().default('pending'), // pending|running|done|failed
+  output: text('output'), // JSON
+  error: text('error'),
+  attempts: integer('attempts').notNull().default(0),
+  startedAt: integer('started_at'),
+  completedAt: integer('completed_at'),
+});

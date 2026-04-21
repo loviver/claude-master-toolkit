@@ -12,6 +12,7 @@ import { Memories } from './features/memories/Memories';
 import { Projects } from './features/projects/Projects';
 import { GraphExplorer } from './features/graph/GraphExplorer';
 import { Settings } from './features/settings/Settings';
+import { Workflows } from './features/workflows/Workflows';
 
 export function App() {
   return (
@@ -29,6 +30,7 @@ export function App() {
             <Route path="/phases"        element={<Phases />} />
             <Route path="/efficiency"    element={<Efficiency />} />
             <Route path="/memories"      element={<Memories />} />
+            <Route path="/workflows"     element={<Workflows />} />
             <Route path="/settings"      element={<Settings />} />
           </Route>
         </Routes>

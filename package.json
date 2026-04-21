@@ -28,7 +28,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/server/db/migrate.ts",
+    "db:migrate": "tsx src/shared/db/migrate.ts",
     "prepublishOnly": "npm run build",
     "reinstall": "./uninstall.sh && pnpm install && pnpm run db:migrate && pnpm run build && ./install.sh"
   },
