@@ -5,11 +5,12 @@ import styles from './WorkflowNodes.module.css';
 
 export type WfNodeStatus = 'pending' | 'running' | 'done' | 'failed' | undefined;
 
-export interface WfNodeData {
+export interface WfNodeData extends Record<string, unknown> {
   label: string;
   description?: string;
   status?: WfNodeStatus;
   attempts?: number;
+  isEntrypoint?: boolean;
 }
 
 export type TaskNode = Node<WfNodeData, 'task'>;
@@ -43,6 +44,10 @@ function WfNodeBase({
 
       {data.description && (
         <div className={styles.description}>{data.description}</div>
+      )}
+
+      {data.isEntrypoint && (
+        <div className={styles.entrypoint}>&#9654; start</div>
       )}
 
       {data.status && (
