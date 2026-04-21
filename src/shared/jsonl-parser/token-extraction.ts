@@ -1,186 +1,241 @@
-import { readFile } from 'fs/promises';
-import { basename } from 'path';
-import type { SessionEvent, TokenUsage } from '../types/index.js';
+import { readFile } from "fs/promises";
+import { basename } from "path";
+import type { SessionEvent, TokenUsage } from "../types/index.js";
 
-// ── Raw JSONL parsing ──
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
 
-/**
- * Parse a JSONL file into SessionEvent array.
- * Resilient: skips malformed lines.
- */
-export async function parseJsonlFile(filePath: string): Promise<SessionEvent[]> {
-  const content = await readFile(filePath, 'utf-8');
+const EMPTY_TOKENS: TokenUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheCreationTokens: 0,
+};
+
+// ─────────────────────────────────────────────
+// File parsing
+// ─────────────────────────────────────────────
+
+export async function parseJsonlFile(
+  filePath: string,
+): Promise<SessionEvent[]> {
+  const content = await readFile(filePath, "utf-8");
+
   const events: SessionEvent[] = [];
+  const lines = content.split("\n");
 
-  for (const line of content.split('\n')) {
+  for (const line of lines) {
     if (!line.trim()) continue;
+
     try {
-      events.push(JSON.parse(line) as SessionEvent);
+      const parsed = JSON.parse(line);
+      events.push(parsed as SessionEvent);
     } catch {
-      // Skip malformed lines
+      // ignore malformed line
     }
   }
 
   return events;
 }
 
-// ── Token event extraction ──
+// ─────────────────────────────────────────────
+// Type-safe access helpers (NO inline types in logic)
+// ─────────────────────────────────────────────
 
-/**
- * Extract token usage events from parsed session events.
- * Returns one entry per assistant turn that has usage data.
- */
+function getAssistantMessage(event: SessionEvent) {
+  if (event.type !== "assistant") return null;
+  return event.message ?? null;
+}
+
+function hasUsage(event: SessionEvent): boolean {
+  if (event.type !== "assistant") return false;
+  return !!event.message?.usage;
+}
+
+function extractUsage(event: SessionEvent): TokenUsage {
+  const msg = (event as any).message;
+
+  return {
+    inputTokens: msg?.usage?.input_tokens ?? 0,
+    outputTokens: msg?.usage?.output_tokens ?? 0,
+    cacheReadTokens: msg?.usage?.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: msg?.usage?.cache_creation_input_tokens ?? 0,
+  };
+}
+
+// ─────────────────────────────────────────────
+// Token extraction
+// ─────────────────────────────────────────────
+
 export function extractTokenEvents(events: SessionEvent[]): Array<{
   timestamp: string;
   model: string;
   usage: TokenUsage;
 }> {
-  return events
-    .filter(
-      (e): e is SessionEvent & { type: 'assistant' } =>
-        e.type === 'assistant' && !!(e as { message?: { usage?: unknown } }).message?.usage,
-    )
-    .map((e) => {
-      const msg = e.message;
-      return {
-        timestamp: e.timestamp,
-        model: msg.model ?? 'unknown',
-        usage: {
-          inputTokens: msg.usage!.input_tokens ?? 0,
-          outputTokens: msg.usage!.output_tokens ?? 0,
-          cacheReadTokens: msg.usage!.cache_read_input_tokens ?? 0,
-          cacheCreationTokens: msg.usage!.cache_creation_input_tokens ?? 0,
-        },
-      };
+  const result: Array<{
+    timestamp: string;
+    model: string;
+    usage: TokenUsage;
+  }> = [];
+
+  for (const event of events) {
+    if (!hasUsage(event)) continue;
+
+    const msg = getAssistantMessage(event);
+    if (!msg) continue;
+
+    result.push({
+      timestamp: event.timestamp,
+      model: msg.model ?? "unknown",
+      usage: extractUsage(event),
     });
+  }
+
+  return result;
 }
 
-// ── Cumulative token usage ──
+// ─────────────────────────────────────────────
+// Token aggregation
+// ─────────────────────────────────────────────
 
 export async function getSessionTokens(filePath: string): Promise<TokenUsage> {
   const events = await parseJsonlFile(filePath);
   const tokenEvents = extractTokenEvents(events);
 
-  return tokenEvents.reduce<TokenUsage>(
-    (acc, e) => ({
+  return tokenEvents.reduce<TokenUsage>((acc, e) => {
+    return {
       inputTokens: acc.inputTokens + e.usage.inputTokens,
       outputTokens: acc.outputTokens + e.usage.outputTokens,
       cacheReadTokens: acc.cacheReadTokens + e.usage.cacheReadTokens,
-      cacheCreationTokens: acc.cacheCreationTokens + e.usage.cacheCreationTokens,
-    }),
-    { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
-  );
+      cacheCreationTokens:
+        acc.cacheCreationTokens + e.usage.cacheCreationTokens,
+    };
+  }, EMPTY_TOKENS);
 }
 
-// ── Latest turn usage (current context window) ──
+// ─────────────────────────────────────────────
+// Latest usage
+// ─────────────────────────────────────────────
 
-export async function getLatestTurnUsage(filePath: string): Promise<TokenUsage> {
+export async function getLatestTurnUsage(
+  filePath: string,
+): Promise<TokenUsage> {
   const events = await parseJsonlFile(filePath);
   const tokenEvents = extractTokenEvents(events);
-  const last = tokenEvents.at(-1);
 
-  if (!last) {
-    return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
-  }
-
-  return last.usage;
+  const last = tokenEvents[tokenEvents.length - 1];
+  return last?.usage ?? EMPTY_TOKENS;
 }
 
-// ── Session metadata ──
+// ─────────────────────────────────────────────
+// Metadata extraction helpers
+// ─────────────────────────────────────────────
 
-export function extractSessionMeta(events: SessionEvent[]): {
-  sessionId: string;
-  startedAt: string;
-  lastActiveAt: string;
-  cwd: string;
-  gitBranch?: string;
-  version?: string;
-  primaryModel: string;
-  turnCount: number;
-  customTitle?: string;
-  lastPrompt?: string;
-  entrypoint?: string;
-} {
+function getTextFromMessageContent(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+
+  if (Array.isArray(content)) {
+    let out = "";
+
+    for (const block of content) {
+      if (block && typeof block === "object") {
+        const typed = block as { type?: string; text?: string };
+        if (typed.type === "text" && typeof typed.text === "string") {
+          out += typed.text + "\n";
+        }
+      }
+    }
+
+    return out.trim() || undefined;
+  }
+
+  return undefined;
+}
+
+// ─────────────────────────────────────────────
+// Session metadata
+// ─────────────────────────────────────────────
+
+export function extractSessionMeta(events: SessionEvent[]) {
   const first = events[0];
 
   const modelCounts = new Map<string, number>();
-  for (const e of events) {
-    if (e.type === 'assistant' && e.message?.model) {
-      const m = e.message.model;
-      modelCounts.set(m, (modelCounts.get(m) ?? 0) + 1);
-    }
-  }
-  const primaryModel = [...modelCounts.entries()]
-    .sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
 
-  const turnCount = events.filter((e) => e.type === 'assistant').length;
-
-  // JSONL lines are not guaranteed chronological (resumed sessions).
-  let minTs: string | undefined;
-  let maxTs: string | undefined;
-  for (const e of events) {
-    if (!e.timestamp) continue;
-    if (minTs === undefined || e.timestamp < minTs) minTs = e.timestamp;
-    if (maxTs === undefined || e.timestamp > maxTs) maxTs = e.timestamp;
-  }
-  const fallback = new Date().toISOString();
-
-  // Scan ALL events for first populated cwd/gitBranch/version (first event may lack them).
   let cwd: string | undefined;
   let gitBranch: string | undefined;
   let version: string | undefined;
-  for (const e of events) {
-    if (!cwd && typeof (e as { cwd?: string }).cwd === 'string' && (e as { cwd?: string }).cwd) {
-      cwd = (e as { cwd: string }).cwd;
-    }
-    if (!gitBranch && typeof (e as { gitBranch?: string }).gitBranch === 'string' && (e as { gitBranch?: string }).gitBranch) {
-      gitBranch = (e as { gitBranch: string }).gitBranch;
-    }
-    if (!version && typeof (e as { version?: string }).version === 'string') {
-      version = (e as { version: string }).version;
-    }
-    if (cwd && gitBranch && version) break;
-  }
+
+  let minTs: string | undefined;
+  let maxTs: string | undefined;
 
   let customTitle: string | undefined;
   let lastPrompt: string | undefined;
-  const entrypoint = typeof (first as { entrypoint?: string })?.entrypoint === 'string'
-    ? (first as { entrypoint: string }).entrypoint
-    : undefined;
 
   for (const e of events) {
-    const rec = e as Record<string, unknown>;
-    if (!customTitle) {
-      const ct = typeof rec.customTitle === 'string' ? rec.customTitle
-        : (rec.type === 'summary' && typeof rec.summary === 'string') ? rec.summary
-        : undefined;
-      if (ct) customTitle = ct;
+    // timestamps
+    if (e.timestamp) {
+      if (!minTs || e.timestamp < minTs) minTs = e.timestamp;
+      if (!maxTs || e.timestamp > maxTs) maxTs = e.timestamp;
     }
-    if (rec.type === 'user' && rec.message) {
-      const msg = rec.message as { content?: unknown };
-      if (typeof msg.content === 'string') {
-        lastPrompt = msg.content;
-      } else if (Array.isArray(msg.content)) {
-        const text = msg.content
-          .filter((b): b is { type: string; text: string } =>
-            typeof b === 'object' && b !== null && (b as any).type === 'text' && typeof (b as any).text === 'string')
-          .map((b) => b.text).join('\n');
-        if (text) lastPrompt = text;
+
+    // model count
+    if (e.type === "assistant" && e.message?.model) {
+      const m = e.message.model;
+      modelCounts.set(m, (modelCounts.get(m) ?? 0) + 1);
+    }
+
+    // cwd / git / version
+    const anyEvent = e as any;
+
+    if (!cwd && typeof anyEvent.cwd === "string") cwd = anyEvent.cwd;
+    if (!gitBranch && typeof anyEvent.gitBranch === "string")
+      gitBranch = anyEvent.gitBranch;
+    if (!version && typeof anyEvent.version === "string")
+      version = anyEvent.version;
+
+    // title
+    if (!customTitle) {
+      if (typeof anyEvent.customTitle === "string") {
+        customTitle = anyEvent.customTitle;
+      } else if (
+        anyEvent.type === "summary" &&
+        typeof anyEvent.summary === "string"
+      ) {
+        customTitle = anyEvent.summary;
       }
+    }
+
+    // last prompt
+    if (anyEvent.type === "user" && anyEvent.message?.content) {
+      const text = getTextFromMessageContent(anyEvent.message.content);
+      if (text) lastPrompt = text;
     }
   }
 
+  const primaryModel =
+    [...modelCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "unknown";
+
+  const turnCount = events.reduce((acc, e) => {
+    return acc + (e.type === "assistant" ? 1 : 0);
+  }, 0);
+
+  const fallback = new Date().toISOString();
+
   return {
-    sessionId: first?.sessionId ?? basename(first?.uuid ?? 'unknown'),
+    sessionId: first?.sessionId ?? basename((first as any)?.uuid ?? "unknown"),
     startedAt: minTs ?? fallback,
     lastActiveAt: maxTs ?? minTs ?? fallback,
-    cwd: cwd ?? '',
+    cwd: cwd ?? "",
     gitBranch,
     version,
     primaryModel,
     turnCount,
     customTitle,
     lastPrompt,
-    entrypoint,
+    entrypoint:
+      typeof (first as any)?.entrypoint === "string"
+        ? (first as any).entrypoint
+        : undefined,
   };
 }
