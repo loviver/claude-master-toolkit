@@ -10,6 +10,10 @@ dist/
 # Claude Code local state
 .claude/
 
+# CTK debug/inspect output (transient analysis artifacts)
+.ctk/debug/
+.ctk/schemas/inferred/
+
 # Env
 .env
 .env.local

@@ -31,6 +31,22 @@ if [[ -n "$USER_PROMPT" ]] && echo "$USER_PROMPT" | grep -qE '^/task\s+'; then
   exit 0
 fi
 
+# --- Plan Designer Hint -----------------------------------------------------
+# Detect plan-design intent and suggest loading plan-designer skill
+if [[ -n "$USER_PROMPT" ]]; then
+  if echo "$USER_PROMPT" | grep -qiE '(diseñ[aá]|crea|genera|create|design|generate).*(plan|workflow)|(plan).*(diseñ[aá]|para|for)|^/plan-designer'; then
+    if ! echo "$USER_PROMPT" | grep -qE '^/plan-designer'; then
+      jq -n '{
+        hookSpecificOutput: {
+          hookEventName: "UserPromptSubmit",
+          additionalContext: "[ctk-skill-hint] load plan-designer — detected plan design intent. Invoke the plan-designer skill."
+        }
+      }'
+      exit 0
+    fi
+  fi
+fi
+
 # --- SDD Init Guard ---------------------------------------------------------
 # If prompt invokes an sdd-* command and .ctk/init.marker is missing, inject
 # a hint. Non-blocking — orchestrator's SDD Init Guard completes the flow.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { handlers } from './handlers.js';
+import { wfHandlers } from './workflow-tools.js';
 
 const FindingTypeSchema = z.enum(['bug', 'assumption', 'decision', 'deadend', 'pattern']);
 const cwdParam = z.string().optional().describe('Absolute project path. Pass process.cwd() when invoking from a sub-agent to avoid CWD mismatch.');
@@ -219,5 +220,156 @@ export function registerTools(server: McpServer): void {
       },
     },
     async (args) => handlers.pandorica_recent(args),
+  );
+
+  // ── Workflow Plans ──
+
+  const wfNodeSchema = z.object({
+    id: z.string(),
+    type: z.enum(['task', 'agent', 'decision', 'skill', 'bash', 'read', 'edit', 'subflow', 'parallel']),
+    label: z.string(),
+    description: z.string().optional(),
+    config: z.record(z.string(), z.unknown()),
+    edges: z.array(z.object({
+      target: z.string(),
+      condition: z.string().optional(),
+    })),
+    retries: z.number().optional(),
+    timeout: z.number().optional(),
+  });
+
+  const wfDefinitionSchema = z.object({
+    nodes: z.array(wfNodeSchema),
+    entrypoint: z.string(),
+  });
+
+  server.registerTool(
+    'wf_create',
+    {
+      description:
+        'Create a workflow plan. Plans define a DAG of task/agent/decision nodes. ' +
+        'Execute with wf_execute. View in dashboard /workflows.',
+      inputSchema: {
+        name: z.string().describe('Plan name'),
+        definition: wfDefinitionSchema,
+        description: z.string().optional(),
+        project_path: z.string().optional().describe('Defaults to process.cwd()'),
+      },
+    },
+    (args) => wfHandlers.wf_create(args),
+  );
+
+  server.registerTool(
+    'wf_list',
+    {
+      description: 'List all workflow plans, optionally filtered by project.',
+      inputSchema: {
+        project_path: z.string().optional(),
+      },
+    },
+    (args) => wfHandlers.wf_list(args),
+  );
+
+  server.registerTool(
+    'wf_get',
+    {
+      description: 'Get full plan definition by ID.',
+      inputSchema: {
+        plan_id: z.string(),
+      },
+    },
+    (args) => wfHandlers.wf_get(args),
+  );
+
+  server.registerTool(
+    'wf_update',
+    {
+      description: 'Update a workflow plan (name, description, or full definition).',
+      inputSchema: {
+        plan_id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        definition: wfDefinitionSchema.optional(),
+      },
+    },
+    (args) => wfHandlers.wf_update(args),
+  );
+
+  server.registerTool(
+    'wf_generate',
+    {
+      description:
+        'Generate a workflow plan with agents (explorer → implementer → reviewer). ' +
+        'Takes a description and creates a 4-node plan ready to execute.',
+      inputSchema: {
+        description: z.string().describe('Plan description (e.g., "analyze and fix auth middleware")'),
+        project_path: z.string().optional().describe('Defaults to process.cwd()'),
+      },
+    },
+    (args) => wfHandlers.wf_generate(args),
+  );
+
+  server.registerTool(
+    'wf_execute',
+    {
+      description:
+        'Execute a workflow plan. Returns executionId immediately — poll wf_status for progress. ' +
+        'Agent nodes are queued; task nodes run their command.',
+      inputSchema: {
+        plan_id: z.string(),
+      },
+    },
+    async (args) => wfHandlers.wf_execute(args),
+  );
+
+  server.registerTool(
+    'wf_status',
+    {
+      description: 'Get execution state and per-node timeline. Poll until state is completed/failed.',
+      inputSchema: {
+        execution_id: z.string(),
+      },
+    },
+    (args) => wfHandlers.wf_status(args),
+  );
+
+  const mutationOpSchema = z.discriminatedUnion('op', [
+    z.object({ op: z.literal('addNode'), after: z.string(), node: wfNodeSchema }),
+    z.object({ op: z.literal('updateNode'), id: z.string(), patch: z.record(z.string(), z.unknown()) }),
+    z.object({ op: z.literal('redirectEdge'), from: z.string(), to: z.string(), newTarget: z.string() }),
+    z.object({ op: z.literal('removeNode'), id: z.string(), mode: z.enum(['skip', 'prune']) }),
+    z.object({
+      op: z.literal('addBranch'),
+      from: z.string(),
+      condition: z.string(),
+      truePath: z.string(),
+      falsePath: z.string(),
+    }),
+  ]);
+
+  server.registerTool(
+    'wf_mutate',
+    {
+      description:
+        'Mutate a running workflow graph. Adds/updates/removes nodes or reroutes edges. ' +
+        'Validates acyclicity, increments plan version, appends entry to mutationLog.',
+      inputSchema: {
+        execution_id: z.string().describe('Target running execution id'),
+        op: mutationOpSchema,
+        by_node_id: z.string().optional().describe('Id of the node that requested the mutation'),
+      },
+    },
+    (args) => wfHandlers.wf_mutate(args as Parameters<typeof wfHandlers.wf_mutate>[0]),
+  );
+
+  server.registerTool(
+    'wf_mutation_log',
+    {
+      description: 'Read the ordered mutation log for an execution (audit of agent-driven graph edits).',
+      inputSchema: {
+        execution_id: z.string(),
+      },
+    },
+    (args) => wfHandlers.wf_mutation_log(args),
   );
 }

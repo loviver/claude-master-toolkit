@@ -179,6 +179,7 @@ export async function installClaudeCommand(opts: any) {
     "sdd-ff",
     "sdd-continue",
     "pandorica-protocol",
+    "plan-designer",
     "delegate",
     "ctk-toolkit",
   ];
