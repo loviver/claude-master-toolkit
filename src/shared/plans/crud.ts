@@ -1,7 +1,12 @@
 import { eq, and } from 'drizzle-orm';
 import { getDb } from '../db/db.js';
 import { plans, planExecutions, planNodeStates } from '../db/schema.js';
-import type { Plan, PlanExecutionState, PlanNodeState } from '../types/plan.js';
+import type {
+  MutationLogEntry,
+  Plan,
+  PlanExecutionState,
+  PlanNodeState,
+} from '../types/plan.js';
 
 export function createPlan(plan: Omit<Plan, 'createdAt' | 'updatedAt'>): Plan {
   const db = getDb();
@@ -115,7 +120,29 @@ export function getExecution(executionId: string): PlanExecutionState | null {
     startedAt: exec.startedAt,
     completedAt: exec.completedAt ?? undefined,
     timeline: exec.timeline ? JSON.parse(exec.timeline) : [],
+    mutationLog: exec.mutationLog ? JSON.parse(exec.mutationLog) : [],
   };
+}
+
+export function getMutationLog(executionId: string): MutationLogEntry[] {
+  const db = getDb();
+  const row = db
+    .select({ mutationLog: planExecutions.mutationLog })
+    .from(planExecutions)
+    .where(eq(planExecutions.id, executionId))
+    .get();
+  if (!row) return [];
+  return row.mutationLog ? (JSON.parse(row.mutationLog) as MutationLogEntry[]) : [];
+}
+
+export function appendMutationLog(executionId: string, entry: MutationLogEntry): void {
+  const db = getDb();
+  const existing = getMutationLog(executionId);
+  existing.push(entry);
+  db.update(planExecutions)
+    .set({ mutationLog: JSON.stringify(existing) })
+    .where(eq(planExecutions.id, executionId))
+    .run();
 }
 
 export function updateExecution(executionId: string, state: PlanExecutionState): void {

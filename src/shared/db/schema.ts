@@ -383,6 +383,7 @@ export const planExecutions = sqliteTable('plan_executions', {
   startedAt: integer('started_at').notNull(),
   completedAt: integer('completed_at'),
   timeline: text('timeline'), // JSON array of { nodeId, at, status }
+  mutationLog: text('mutation_log'), // JSON array of MutationLogEntry — runtime graph edits applied by agents
 });
 
 export const planNodeStates = sqliteTable('plan_node_states', {

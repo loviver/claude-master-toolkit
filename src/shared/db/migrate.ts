@@ -377,7 +377,8 @@ export function migrate(): void {
       error TEXT,
       started_at INTEGER NOT NULL,
       completed_at INTEGER,
-      timeline TEXT
+      timeline TEXT,
+      mutation_log TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_plan_executions_plan ON plan_executions(plan_id);
@@ -398,6 +399,12 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_plan_node_states_execution ON plan_node_states(execution_id);
     CREATE INDEX IF NOT EXISTS idx_plan_node_states_node ON plan_node_states(node_id);
   `);
+
+  // v10 plan_executions.mutation_log — agent-driven graph edits during execution
+  const planExecCols = db.prepare(`PRAGMA table_info(plan_executions)`).all() as { name: string }[];
+  if (!planExecCols.some((c) => c.name === 'mutation_log')) {
+    db.exec(`ALTER TABLE plan_executions ADD COLUMN mutation_log TEXT`);
+  }
 
   // v8 backfill: copy legacy memories → memories_v2 (idempotent via INSERT OR IGNORE on id)
   const legacyTables = ['memories', 'pandorica_memories'] as const;

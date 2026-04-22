@@ -226,7 +226,7 @@ export function registerTools(server: McpServer): void {
 
   const wfNodeSchema = z.object({
     id: z.string(),
-    type: z.enum(['task', 'agent', 'decision']),
+    type: z.enum(['task', 'agent', 'decision', 'skill', 'bash', 'read', 'edit', 'subflow', 'parallel']),
     label: z.string(),
     description: z.string().optional(),
     config: z.record(z.string(), z.unknown()),
@@ -296,6 +296,20 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
+    'wf_generate',
+    {
+      description:
+        'Generate a workflow plan with agents (explorer → implementer → reviewer). ' +
+        'Takes a description and creates a 4-node plan ready to execute.',
+      inputSchema: {
+        description: z.string().describe('Plan description (e.g., "analyze and fix auth middleware")'),
+        project_path: z.string().optional().describe('Defaults to process.cwd()'),
+      },
+    },
+    (args) => wfHandlers.wf_generate(args),
+  );
+
+  server.registerTool(
     'wf_execute',
     {
       description:
@@ -317,5 +331,45 @@ export function registerTools(server: McpServer): void {
       },
     },
     (args) => wfHandlers.wf_status(args),
+  );
+
+  const mutationOpSchema = z.discriminatedUnion('op', [
+    z.object({ op: z.literal('addNode'), after: z.string(), node: wfNodeSchema }),
+    z.object({ op: z.literal('updateNode'), id: z.string(), patch: z.record(z.string(), z.unknown()) }),
+    z.object({ op: z.literal('redirectEdge'), from: z.string(), to: z.string(), newTarget: z.string() }),
+    z.object({ op: z.literal('removeNode'), id: z.string(), mode: z.enum(['skip', 'prune']) }),
+    z.object({
+      op: z.literal('addBranch'),
+      from: z.string(),
+      condition: z.string(),
+      truePath: z.string(),
+      falsePath: z.string(),
+    }),
+  ]);
+
+  server.registerTool(
+    'wf_mutate',
+    {
+      description:
+        'Mutate a running workflow graph. Adds/updates/removes nodes or reroutes edges. ' +
+        'Validates acyclicity, increments plan version, appends entry to mutationLog.',
+      inputSchema: {
+        execution_id: z.string().describe('Target running execution id'),
+        op: mutationOpSchema,
+        by_node_id: z.string().optional().describe('Id of the node that requested the mutation'),
+      },
+    },
+    (args) => wfHandlers.wf_mutate(args as Parameters<typeof wfHandlers.wf_mutate>[0]),
+  );
+
+  server.registerTool(
+    'wf_mutation_log',
+    {
+      description: 'Read the ordered mutation log for an execution (audit of agent-driven graph edits).',
+      inputSchema: {
+        execution_id: z.string(),
+      },
+    },
+    (args) => wfHandlers.wf_mutation_log(args),
   );
 }

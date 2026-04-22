@@ -17,9 +17,15 @@
 }
 
 /* Type variants */
-.task   { border-top: 3px solid #3b82f6; }
-.agent  { border-top: 3px solid #8b5cf6; }
+.task     { border-top: 3px solid #3b82f6; }
+.agent    { border-top: 3px solid #8b5cf6; }
 .decision { border-top: 3px solid #f59e0b; }
+.skill    { border-top: 3px solid #ec4899; }
+.bash     { border-top: 3px solid #10b981; }
+.read     { border-top: 3px solid #06b6d4; }
+.edit     { border-top: 3px solid #eab308; }
+.subflow  { border-top: 3px solid #a855f7; }
+.parallel { border-top: 3px solid #f97316; }
 
 /* Status tints */
 .status_running { box-shadow: 0 0 0 1px #f59e0b44; }
@@ -39,6 +45,12 @@
 .badge_task     { background: #3b82f622; color: #60a5fa; }
 .badge_agent    { background: #8b5cf622; color: #a78bfa; }
 .badge_decision { background: #f59e0b22; color: #fbbf24; }
+.badge_skill    { background: #ec489922; color: #f472b6; }
+.badge_bash     { background: #10b98122; color: #34d399; }
+.badge_read     { background: #06b6d422; color: #22d3ee; }
+.badge_edit     { background: #eab30822; color: #facc15; }
+.badge_subflow  { background: #a855f722; color: #c084fc; }
+.badge_parallel { background: #f9731622; color: #fb923c; }
 
 .label {
   font-size: 13px;

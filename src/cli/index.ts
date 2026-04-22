@@ -70,6 +70,7 @@ import {
   planDeleteCommand,
   planExecCommand,
   planStatusCommand,
+  planGenerateCommand,
 } from "./commands/plan-exec.js";
 
 const VERSION = "0.1.14";
@@ -549,6 +550,12 @@ wf
   .command("delete <plan-id>")
   .description("Delete a plan")
   .action(planDeleteCommand);
+
+wf
+  .command("generate <description>")
+  .description("Generate a plan with agents (explorer → implementer → reviewer)")
+  .option("--project-path <path>", "Override project path")
+  .action(planGenerateCommand);
 
 wf
   .command("exec <plan-id>")

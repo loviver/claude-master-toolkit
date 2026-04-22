@@ -136,3 +136,79 @@ export function planStatusCommand(executionId: string): void {
     process.exit(1);
   }
 }
+
+export function planGenerateCommand(description: string, opts: any): void {
+  try {
+    const startId = randomUUID();
+    const analyzeId = randomUUID();
+    const implementId = randomUUID();
+    const reviewId = randomUUID();
+
+    const def: PlanDefinition = {
+      entrypoint: startId,
+      nodes: [
+        {
+          id: startId,
+          type: 'task',
+          label: 'Start',
+          description: 'Entry point',
+          config: {},
+          edges: [{ target: analyzeId }],
+        },
+        {
+          id: analyzeId,
+          type: 'agent',
+          label: 'Analyze',
+          description: `Analyze: ${description}`,
+          config: {
+            agentRole: 'explorer',
+            agentPrompt: `You are an explorer agent. ${description}. Analyze the situation thoroughly and provide detailed findings.`,
+          },
+          edges: [{ target: implementId }],
+        },
+        {
+          id: implementId,
+          type: 'agent',
+          label: 'Implement',
+          description: 'Implement solution based on analysis',
+          config: {
+            agentRole: 'implementer',
+            agentPrompt: 'You are an implementer agent. Based on the analysis, implement the necessary changes. Follow best practices and write clean, maintainable code.',
+          },
+          edges: [{ target: reviewId }],
+        },
+        {
+          id: reviewId,
+          type: 'agent',
+          label: 'Review',
+          description: 'Review and verify implementation',
+          config: {
+            agentRole: 'reviewer',
+            agentPrompt: 'You are a reviewer agent. Review the implementation for quality, correctness, and adherence to standards.',
+          },
+          edges: [],
+        },
+      ],
+    };
+
+    const plan = createPlan({
+      id: randomUUID(),
+      name: `Generated: ${description.substring(0, 40)}${description.length > 40 ? '...' : ''}`,
+      description: `Auto-generated plan for: ${description}`,
+      definition: def,
+      version: 1,
+      projectPath: opts.projectPath ?? process.cwd(),
+    });
+
+    output({
+      created: true,
+      id: plan.id,
+      name: plan.name,
+      nodes: plan.definition.nodes.length,
+      message: 'Plan generated. View in /workflows UI or execute with: ctk plan exec ' + plan.id,
+    });
+  } catch (err) {
+    outputError(`plan generate failed: ${(err as Error).message}`);
+    process.exit(1);
+  }
+}

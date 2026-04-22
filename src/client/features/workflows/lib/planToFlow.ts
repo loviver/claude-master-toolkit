@@ -54,6 +54,7 @@ export function planToFlow(def: PlanDefinition): { nodes: Node<WfNodeData>[]; ed
       description: planNode.description,
       status: undefined,
       isEntrypoint: planNode.id === def.entrypoint,
+      config: planNode.config,
     },
   }));
 
@@ -89,7 +90,7 @@ export function flowToPlan(
     type: (node.type ?? 'task') as PlanNode['type'],
     label: node.data.label,
     description: node.data.description,
-    config: {},
+    config: (node.data.config ?? {}) as Record<string, unknown>,
     edges: (edgesBySource.get(node.id) ?? []).map((e) => ({ target: e.target })),
   }));
 

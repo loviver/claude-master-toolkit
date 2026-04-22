@@ -43,7 +43,9 @@ describe('mcp/workflow-tools', () => {
     migrate();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Drain fire-and-forget executor promises before dropping the DB
+    await new Promise((r) => setTimeout(r, 50));
     closeDb();
     if (originalEnv !== undefined) process.env['CTK_DB_PATH'] = originalEnv;
     else delete process.env['CTK_DB_PATH'];
@@ -138,6 +140,84 @@ describe('mcp/workflow-tools', () => {
 
   it('wf_status errors for unknown execution', () => {
     const r = wfHandlers.wf_status({ execution_id: 'no-such-id' }) as McpResult;
+    expect(r.isError).toBe(true);
+  });
+
+  // ── wf_mutate ──
+
+  it('wf_mutate adds a node and bumps plan version', async () => {
+    const created = parse(wfHandlers.wf_create({ name: 'test', definition: SIMPLE_PLAN }));
+    const exec = parse(await wfHandlers.wf_execute({ plan_id: created.id }));
+
+    const result = parse(
+      wfHandlers.wf_mutate({
+        execution_id: exec.execution_id,
+        op: {
+          op: 'addNode',
+          after: 'step1',
+          node: {
+            id: 'injected',
+            type: 'bash',
+            label: 'Injected',
+            config: { command: 'date' },
+            edges: [],
+          },
+        },
+      }),
+    );
+
+    expect(result.op).toBe('addNode');
+    expect(result.version).toBe(2);
+    expect(result.nodes).toBe(3);
+
+    const plan = parse(wfHandlers.wf_get({ plan_id: created.id }));
+    expect(plan.definition.nodes.find((n: any) => n.id === 'injected')).toBeTruthy();
+    const step1 = plan.definition.nodes.find((n: any) => n.id === 'step1');
+    expect(step1.edges[0].target).toBe('injected');
+  });
+
+  it('wf_mutate records entry in mutation log', async () => {
+    const created = parse(wfHandlers.wf_create({ name: 'test', definition: SIMPLE_PLAN }));
+    const exec = parse(await wfHandlers.wf_execute({ plan_id: created.id }));
+    await new Promise((r) => setTimeout(r, 50));
+
+    wfHandlers.wf_mutate({
+      execution_id: exec.execution_id,
+      by_node_id: 'step1',
+      op: {
+        op: 'updateNode',
+        id: 'step2',
+        patch: { label: 'Renamed' },
+      },
+    });
+
+    const log = parse(wfHandlers.wf_mutation_log({ execution_id: exec.execution_id }));
+    expect(log.count).toBe(1);
+    expect(log.entries[0].byNodeId).toBe('step1');
+    expect(log.entries[0].op.op).toBe('updateNode');
+  });
+
+  it('wf_mutate rejects mutation that creates a cycle', async () => {
+    const created = parse(wfHandlers.wf_create({ name: 'test', definition: SIMPLE_PLAN }));
+    const exec = parse(await wfHandlers.wf_execute({ plan_id: created.id }));
+
+    const r = wfHandlers.wf_mutate({
+      execution_id: exec.execution_id,
+      op: {
+        op: 'updateNode',
+        id: 'step2',
+        patch: { edges: [{ target: 'step1' }] },
+      },
+    }) as McpResult;
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toMatch(/cycle/);
+  });
+
+  it('wf_mutate errors for unknown execution', () => {
+    const r = wfHandlers.wf_mutate({
+      execution_id: 'no-such-id',
+      op: { op: 'removeNode', id: 'x', mode: 'skip' },
+    }) as McpResult;
     expect(r.isError).toBe(true);
   });
 });

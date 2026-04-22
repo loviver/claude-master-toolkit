@@ -130,4 +130,45 @@ describe('flowToPlan', () => {
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].edges).toHaveLength(0);
   });
+
+  it('preserves config on round-trip (agent node with agentPrompt)', () => {
+    const defWithConfig: PlanDefinition = {
+      entrypoint: 'a',
+      nodes: [
+        {
+          id: 'a',
+          type: 'agent',
+          label: 'Explorer',
+          config: { subagent_type: 'Explore', prompt: 'map repo', toolWhitelist: ['Read', 'Grep'] },
+          edges: [],
+        },
+      ],
+    };
+    const { nodes, edges } = planToFlow(defWithConfig);
+    const result = flowToPlan(nodes, edges, defWithConfig.entrypoint);
+    const nodeA = result.nodes.find((n) => n.id === 'a')!;
+    expect(nodeA.config).toEqual({
+      subagent_type: 'Explore',
+      prompt: 'map repo',
+      toolWhitelist: ['Read', 'Grep'],
+    });
+  });
+
+  it('preserves config for bash primitive', () => {
+    const bashDef: PlanDefinition = {
+      entrypoint: 'b',
+      nodes: [
+        {
+          id: 'b',
+          type: 'bash' as PlanDefinition['nodes'][0]['type'],
+          label: 'Install deps',
+          config: { command: 'npm ci', timeout: 60000 },
+          edges: [],
+        },
+      ],
+    };
+    const { nodes, edges } = planToFlow(bashDef);
+    const result = flowToPlan(nodes, edges, bashDef.entrypoint);
+    expect(result.nodes[0].config).toEqual({ command: 'npm ci', timeout: 60000 });
+  });
 });
