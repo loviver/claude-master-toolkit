@@ -50,6 +50,7 @@ Load BEFORE writing code. Multiple skills can apply simultaneously.
 | ---------------------------------------------------------- | ------------------------------------------------- |
 | Go tests, Bubbletea TUI testing                            | go-testing                                        |
 | Creating new AI skills                                     | skill-creator                                     |
+| "diseñá un plan", "crea un plan", "/plan-designer"         | plan-designer                                     |
 | SDD meta-commands (`/sdd-new`, `/sdd-ff`, `/sdd-continue`) | delegates to `sdd-orchestrator` sub-agent         |
 | Any `/sdd-*` executor phase                                | existing SDD skill (sdd-explore, sdd-apply, etc.) |
 | Delegating work to sub-agents                              | `/delegate` (enforces `ctk model` + context check)|

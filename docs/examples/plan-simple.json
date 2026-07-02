@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "research",
+      "type": "task",
+      "label": "Research market",
+      "description": "Gather market data",
+      "config": {
+        "command": "echo 'Market research complete'"
+      },
+      "edges": [
+        { "target": "analyze" }
+      ],
+      "retries": 1
+    },
+    {
+      "id": "analyze",
+      "type": "agent",
+      "label": "Analyze findings",
+      "description": "Analyze research data with agent",
+      "config": {
+        "agentPrompt": "Analyze market research data and provide insights",
+        "agentRole": "analyzer"
+      },
+      "edges": [
+        { "target": "report" }
+      ]
+    },
+    {
+      "id": "report",
+      "type": "task",
+      "label": "Generate report",
+      "description": "Create final report",
+      "config": {
+        "command": "echo 'Report generated'"
+      },
+      "edges": []
+    }
+  ],
+  "entrypoint": "research"
+}

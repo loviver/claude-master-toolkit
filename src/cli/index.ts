@@ -23,6 +23,7 @@ import {
   indexCallersCommand,
 } from "./commands/indexer.js";
 import { understandCommand } from "./commands/understand.js";
+import { schemaInspectCommand } from "./commands/schema-inspect.js";
 import {
   briefNewCommand,
   briefReadCommand,
@@ -62,6 +63,15 @@ import {
   benchExportCommand,
   benchImportCommand,
 } from "./commands/bench.js";
+import {
+  planCreateCommand,
+  planListCommand,
+  planGetCommand,
+  planDeleteCommand,
+  planExecCommand,
+  planStatusCommand,
+  planGenerateCommand,
+} from "./commands/plan-exec.js";
 
 const VERSION = "0.1.14";
 const VALID_PANDORICA_TYPES =
@@ -227,6 +237,17 @@ program
     "Intent-based: combines find + slice + deps + callers in one JSON",
   )
   .action(understandCommand);
+
+program
+  .command("schema-inspect <jsonl>")
+  .description("Extract and analyze schema structure from Claude Code JSONL session file")
+  .option("--type <type>", "Filter to specific event type (user|assistant|...)")
+  .option("--json", "Output as raw JSON to stdout")
+  .option("--sample", "Show 1 real example per event type")
+  .option("--depth <n>", "Schema inference depth", "3")
+  .option("--output <dir>", "Output directory (default: .ctk/debug/schema-inspect/<slug>-<ts>/)")
+  .option("--export-schemas", "Generate BigQuery-style declarative schemas per event type")
+  .action(schemaInspectCommand);
 
 const brief = program
   .command("brief")
@@ -503,5 +524,47 @@ mem
   .option("--file <path>")
   .option("--stdin")
   .action(memImportCommand);
+
+const wf = program
+  .command("wf")
+  .description("Workflow plans — create, execute, track");
+
+wf
+  .command("create <name> <json-file>")
+  .description("Create plan from JSON definition")
+  .option("--project-path <path>", "Override project path")
+  .action(planCreateCommand);
+
+wf
+  .command("list")
+  .description("List all plans")
+  .option("--project-path <path>", "Filter by project")
+  .action(planListCommand);
+
+wf
+  .command("get <plan-id>")
+  .description("View plan definition")
+  .action(planGetCommand);
+
+wf
+  .command("delete <plan-id>")
+  .description("Delete a plan")
+  .action(planDeleteCommand);
+
+wf
+  .command("generate <description>")
+  .description("Generate a plan with agents (explorer → implementer → reviewer)")
+  .option("--project-path <path>", "Override project path")
+  .action(planGenerateCommand);
+
+wf
+  .command("exec <plan-id>")
+  .description("Execute a plan")
+  .action(planExecCommand);
+
+wf
+  .command("status <execution-id>")
+  .description("Get execution status and timeline")
+  .action(planStatusCommand);
 
 program.parse();

@@ -1,0 +1,102 @@
+.node {
+  min-width: 160px;
+  max-width: 220px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border);
+  background: var(--surface-2, #18181b);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: relative;
+  transition: box-shadow 0.15s;
+}
+
+.node.selected {
+  box-shadow: 0 0 0 2px var(--accent-claude, #a78bfa);
+}
+
+/* Type variants */
+.task     { border-top: 3px solid #3b82f6; }
+.agent    { border-top: 3px solid #8b5cf6; }
+.decision { border-top: 3px solid #f59e0b; }
+.skill    { border-top: 3px solid #ec4899; }
+.bash     { border-top: 3px solid #10b981; }
+.read     { border-top: 3px solid #06b6d4; }
+.edit     { border-top: 3px solid #eab308; }
+.subflow  { border-top: 3px solid #a855f7; }
+.parallel { border-top: 3px solid #f97316; }
+
+/* Status tints */
+.status_running { box-shadow: 0 0 0 1px #f59e0b44; }
+.status_done    { box-shadow: 0 0 0 1px #22c55e44; }
+.status_failed  { box-shadow: 0 0 0 1px #ef444444; }
+
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.badge_task     { background: #3b82f622; color: #60a5fa; }
+.badge_agent    { background: #8b5cf622; color: #a78bfa; }
+.badge_decision { background: #f59e0b22; color: #fbbf24; }
+.badge_skill    { background: #ec489922; color: #f472b6; }
+.badge_bash     { background: #10b98122; color: #34d399; }
+.badge_read     { background: #06b6d422; color: #22d3ee; }
+.badge_edit     { background: #eab30822; color: #facc15; }
+.badge_subflow  { background: #a855f722; color: #c084fc; }
+.badge_parallel { background: #f9731622; color: #fb923c; }
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #f4f4f5);
+  line-height: 1.3;
+}
+
+.description {
+  font-size: 11px;
+  color: var(--text-muted, #71717a);
+  line-height: 1.4;
+}
+
+.status {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.statusPill_pending  { background: #3f3f4622; color: #71717a; }
+.statusPill_running  { background: #f59e0b22; color: #fbbf24; }
+.statusPill_done     { background: #22c55e22; color: #4ade80; }
+.statusPill_failed   { background: #ef444422; color: #f87171; }
+
+.pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.7); }
+}
+
+.handle {
+  width: 8px;
+  height: 8px;
+  background: var(--border, #3f3f46);
+  border: 1px solid var(--text-muted, #71717a);
+}

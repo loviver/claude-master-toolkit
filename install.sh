@@ -48,7 +48,7 @@ head "2. Build CLI + Server + React SPA"
 pnpm run build
 
 head "3. Initialize database"
-pnpm exec tsx src/server/db/migrate.ts
+pnpm exec tsx src/shared/db/migrate.ts
 
 head "4. Expose ctk on PATH"
 chmod +x "$REPO_DIR/bin/ctk.js"
