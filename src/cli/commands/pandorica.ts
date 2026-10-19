@@ -14,7 +14,7 @@ import {
   type MemoryScope,
 } from '../../shared/memories/v2.js';
 import { recallHybrid } from '../../shared/memories/hybrid.js';
-import { getCachedEmbedder, reindexAll } from '../../shared/memories/embedding/index.js';
+import { getCachedEmbedder, reindexAll, readEmbedderConfig } from '../../shared/memories/embedding/index.js';
 import type { ContentSource } from '../types/mem-opts.js';
 import type {
   LegacyPandoricaType,
@@ -118,7 +118,12 @@ export async function reindexCommand(): Promise<void> {
   await withDbAsync(async (db) => {
     const embedder = await getCachedEmbedder(db);
     if (!embedder) {
-      outputError('pandorica reindex: no embedder configured (set CTK_EMBEDDER; got "none")');
+      const kind = readEmbedderConfig(db).kind;
+      outputError(
+        kind === 'none'
+          ? 'pandorica reindex: embedder disabled (set CTK_EMBEDDER to local|ollama|api)'
+          : `pandorica reindex: embedder '${kind}' failed to load — see the warning above`,
+      );
       return;
     }
     const { total, embedded } = await reindexAll(db, embedder, (done, all) => {
