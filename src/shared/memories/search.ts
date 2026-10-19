@@ -12,13 +12,21 @@ import type {
 
 // ── FTS query sanitization ──
 
-function sanitizeFtsQuery(query: string): string {
+/**
+ * Build an FTS5 MATCH expression from a free-text query.
+ *
+ * Terms are OR-joined (not AND): a single missing or reworded token no longer zeroes the
+ * whole query — BM25 still ranks rows matching more terms higher. This is the keyword leg of
+ * hybrid recall; the dense-vector leg covers paraphrase/cross-language. Each term is quoted
+ * (with embedded quotes doubled) so punctuation can't inject FTS operators.
+ */
+export function sanitizeFtsQuery(query: string): string {
   const terms = query
     .trim()
     .split(/\s+/)
     .filter((t) => t.length > 0)
     .map((t) => `"${t.replace(/"/g, '""')}"`);
-  return terms.join(' ');
+  return terms.join(' OR ');
 }
 
 // ── Tokenizer for suggest scoring ──

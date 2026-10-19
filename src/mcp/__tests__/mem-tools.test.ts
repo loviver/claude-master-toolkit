@@ -13,23 +13,29 @@ function parse(result: McpResult): any {
 
 describe('mcp/mem-tools', () => {
   let tmpDir: string;
-  let originalEnv: string | undefined;
+  let originalDbPath: string | undefined;
+  let originalEmbedder: string | undefined;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'ctk-memtool-'));
-    originalEnv = process.env['CTK_DB_PATH'];
+    originalDbPath = process.env['CTK_DB_PATH'];
+    originalEmbedder = process.env['CTK_EMBEDDER'];
     process.env['CTK_DB_PATH'] = join(tmpDir, 'ctk.sqlite');
+    // Handler tests exercise behavior, not embeddings → keyword-only keeps them fast + deterministic.
+    process.env['CTK_EMBEDDER'] = 'none';
     migrate();
   });
 
   afterEach(() => {
-    if (originalEnv !== undefined) process.env['CTK_DB_PATH'] = originalEnv;
+    if (originalDbPath !== undefined) process.env['CTK_DB_PATH'] = originalDbPath;
     else delete process.env['CTK_DB_PATH'];
+    if (originalEmbedder !== undefined) process.env['CTK_EMBEDDER'] = originalEmbedder;
+    else delete process.env['CTK_EMBEDDER'];
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('mem_save returns saved+id and row is retrievable via mem_get', () => {
-    const saved = parse(memHandlers.mem_save({ title: 'hello', type: 'note', what: 'world' }));
+  it('mem_save returns saved+id and row is retrievable via mem_get', async () => {
+    const saved = parse(await memHandlers.mem_save({ title: 'hello', type: 'note', what: 'world' }));
     expect(saved.saved).toBe(true);
     expect(saved.id).toMatch(/[0-9a-f-]{36}/);
 
@@ -39,14 +45,14 @@ describe('mcp/mem-tools', () => {
     expect(got.access_count).toBe(1);
   });
 
-  it('mem_update modifies a row', () => {
-    const saved = parse(memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' }));
+  it('mem_update modifies a row', async () => {
+    const saved = parse(await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' }));
     const updated = parse(memHandlers.mem_update({ id: saved.id, what: 'y' }));
     expect(updated.what).toBe('y');
   });
 
-  it('mem_delete returns deleted:true and row gone', () => {
-    const saved = parse(memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' }));
+  it('mem_delete returns deleted:true and row gone', async () => {
+    const saved = parse(await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' }));
     const del = parse(memHandlers.mem_delete({ id: saved.id }));
     expect(del.deleted).toBe(true);
 
@@ -54,30 +60,30 @@ describe('mcp/mem-tools', () => {
     expect(missing.isError).toBe(true);
   });
 
-  it('mem_mark sets topic_key', () => {
-    const saved = parse(memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' }));
+  it('mem_mark sets topic_key', async () => {
+    const saved = parse(await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' }));
     const marked = parse(memHandlers.mem_mark({ id: saved.id, topic_key: 'my/key' }));
     expect(marked.topic_key).toBe('my/key');
   });
 
-  it('mem_recall returns count + results + BM25 order', () => {
-    memHandlers.mem_save({ title: 'a1', type: 'note', what: 'alpha' });
-    memHandlers.mem_save({ title: 'a2', type: 'note', what: 'alpha alpha alpha' });
-    const r = parse(memHandlers.mem_recall({ query: 'alpha' }));
+  it('mem_recall returns count + results + BM25 order', async () => {
+    await memHandlers.mem_save({ title: 'a1', type: 'note', what: 'alpha' });
+    await memHandlers.mem_save({ title: 'a2', type: 'note', what: 'alpha alpha alpha' });
+    const r = parse(await memHandlers.mem_recall({ query: 'alpha' }));
     expect(r.count).toBe(2);
     expect(r.results[0].title).toBe('a2');
   });
 
-  it('mem_context returns project-scoped rows', () => {
-    memHandlers.mem_save({ title: 'a', type: 'note', what: 'x', project_path: '/p1' });
-    memHandlers.mem_save({ title: 'b', type: 'note', what: 'y', project_path: '/p2' });
+  it('mem_context returns project-scoped rows', async () => {
+    await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x', project_path: '/p1' });
+    await memHandlers.mem_save({ title: 'b', type: 'note', what: 'y', project_path: '/p2' });
     const r = parse(memHandlers.mem_context({ project_path: '/p1' }));
     expect(r.count).toBe(1);
     expect(r.memories[0].title).toBe('a');
   });
 
-  it('mem_trace returns ordered list', () => {
-    memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' });
+  it('mem_trace returns ordered list', async () => {
+    await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' });
     const r = parse(memHandlers.mem_trace({ limit: 5 }));
     expect(r.count).toBe(1);
   });
@@ -105,29 +111,29 @@ describe('mcp/mem-tools', () => {
     expect(r.saved).toBe(true);
   });
 
-  it('mem_merge moves memories between projects', () => {
-    memHandlers.mem_save({ title: 'a', type: 'note', what: 'x', project_path: '/old' });
-    memHandlers.mem_save({ title: 'b', type: 'note', what: 'y', project_path: '/old' });
+  it('mem_merge moves memories between projects', async () => {
+    await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x', project_path: '/old' });
+    await memHandlers.mem_save({ title: 'b', type: 'note', what: 'y', project_path: '/old' });
     const r = parse(memHandlers.mem_merge({ from: '/old', to: '/new' }));
     expect(r.moved).toBe(2);
   });
 
-  it('mem_suggest returns ranked topic_keys', () => {
-    memHandlers.mem_save({ title: 'auth model', type: 'architecture', what: 'tokens', topic_key: 'arch/auth' });
+  it('mem_suggest returns ranked topic_keys', async () => {
+    await memHandlers.mem_save({ title: 'auth model', type: 'architecture', what: 'tokens', topic_key: 'arch/auth' });
     const r = parse(memHandlers.mem_suggest({ title: 'auth tokens rotation' }));
     expect(r.hints.length).toBeGreaterThan(0);
     expect(r.hints[0].topic_key).toBe('arch/auth');
   });
 
-  it('mem_stats returns counts', () => {
-    memHandlers.mem_save({ title: 'a', type: 'decision', what: 'x' });
-    memHandlers.mem_save({ title: 'b', type: 'note', what: 'y' });
+  it('mem_stats returns counts', async () => {
+    await memHandlers.mem_save({ title: 'a', type: 'decision', what: 'x' });
+    await memHandlers.mem_save({ title: 'b', type: 'note', what: 'y' });
     const r = parse(memHandlers.mem_stats({}));
     expect(r.memoriesTotal).toBe(2);
   });
 
-  it('mem_export / mem_import round-trip', () => {
-    memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' });
+  it('mem_export / mem_import round-trip', async () => {
+    await memHandlers.mem_save({ title: 'a', type: 'note', what: 'x' });
     const dump = parse(memHandlers.mem_export({}));
     expect(dump.memories.length).toBe(1);
 

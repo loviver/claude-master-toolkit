@@ -353,6 +353,21 @@ export function migrate(): void {
     END;
   `);
 
+  // v11: Pandorica hybrid recall — dense embeddings sidecar (brute-force JS cosine).
+  // One vector per memory; populated on write + `ctk pandorica reindex`. FK cascade keeps it
+  // in lockstep with memories_v2 deletions. `vector` is a raw Float32 little-endian BLOB.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_embeddings (
+      memory_id TEXT PRIMARY KEY REFERENCES memories_v2(id) ON DELETE CASCADE,
+      model TEXT NOT NULL,
+      dim INTEGER NOT NULL,
+      vector BLOB NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model ON memory_embeddings(model);
+  `);
+
   // v9 plans (workflow execution)
   db.exec(`
     CREATE TABLE IF NOT EXISTS plans (
