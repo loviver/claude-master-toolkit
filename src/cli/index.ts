@@ -34,6 +34,7 @@ import { recordCommand, recallCommand } from "./commands/findings.js";
 import {
   saveCommand as pandoricaSaveCommand,
   searchCommand as pandoricaSearchCommand,
+  reindexCommand as pandoricaReindexCommand,
   contextCommand as pandoricaContextCommand,
   recentCommand as pandoricaRecentCommand,
   getCommand as pandoricaGetCommand,
@@ -43,6 +44,7 @@ import {
 import {
   memSaveCommand,
   memRecallCommand,
+  memReindexCommand,
   memContextCommand,
   memTraceCommand,
   memGetCommand,
@@ -386,12 +388,17 @@ pandorica
 
 pandorica
   .command("search <query>")
-  .description("Search memories by keyword")
+  .description("Search memories (hybrid: keyword FTS5 + semantic vectors)")
   .option("--limit <n>", "Max results (default 20)")
   .option("--type <type>", "Filter by type")
   .option("--scope <scope>", "Filter by scope")
   .option("--project-path <path>", "Filter by project path")
   .action(pandoricaSearchCommand);
+
+pandorica
+  .command("reindex")
+  .description("(Re)compute semantic embeddings for every memory in the vault")
+  .action(pandoricaReindexCommand);
 
 pandorica
   .command("context")
@@ -459,12 +466,17 @@ mem
 
 mem
   .command("recall <query>")
-  .description("FTS5 search with BM25 ranking")
+  .description("Hybrid recall: FTS5/BM25 keyword + semantic vectors (RRF-fused)")
   .option("--limit <n>", "Max results (default 20)")
   .option("--type <type>", "Filter by type")
   .option("--scope <scope>", "Filter by scope")
   .option("--project-path <path>", "Filter by project path")
   .action(memRecallCommand);
+
+mem
+  .command("reindex")
+  .description("(Re)compute semantic embeddings for every memory in the vault")
+  .action(memReindexCommand);
 
 mem
   .command("context")

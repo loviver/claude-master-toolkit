@@ -109,12 +109,33 @@ All commands accept `--json` for machine‑readable output.
 | Command                               | Purpose                                                   |
 | ------------------------------------- | --------------------------------------------------------- |
 | `ctk pandorica save --title ... --type ...` | Save a memory (`bugfix`, `decision`, `architecture`, `discovery`, `pattern`, `config`, `preference`, `session_summary`). |
-| `ctk pandorica search <q>`            | Keyword search.                                           |
+| `ctk pandorica search <q>`            | Hybrid search (keyword + semantic).                       |
+| `ctk pandorica reindex`               | (Re)compute semantic embeddings for the whole vault.      |
 | `ctk pandorica context`               | Recent memories for current project/session.              |
 | `ctk pandorica recent [--all]`        | Last N memories.                                          |
 | `ctk pandorica get <id>`              | Full untruncated memory.                                  |
 | `ctk pandorica delete <id>`           | Delete a memory.                                          |
 | `ctk pandorica summary`               | Persist a session summary.                                |
+
+#### Hybrid recall (v0.2.0)
+
+Search fuses two legs so a reworded or cross-language query still hits:
+
+- **Keyword** — FTS5/BM25, now OR-joined (one missing term no longer zeroes the query).
+- **Semantic** — dense embeddings scored by cosine, so `"ai credits"` finds a memory saved as `"créditos IA"`.
+
+The two ranked lists are merged with Reciprocal Rank Fusion. The vault stays a single SQLite file (vectors live in a `memory_embeddings` sidecar; brute-force cosine, no native vector extension).
+
+The embedder is pluggable and **off nothing is lost** — if it's unavailable, recall silently falls back to keyword-only. Configure via `settings` keys or env:
+
+| Setting (`settings` table) / env         | Default                                            | Notes                                            |
+| ----------------------------------------- | -------------------------------------------------- | ------------------------------------------------ |
+| `pandorica.embedder` / `CTK_EMBEDDER`     | `local`                                            | `local` · `ollama` · `api` · `none`              |
+| `pandorica.embedModel` / `CTK_EMBED_MODEL`| `Xenova/paraphrase-multilingual-MiniLM-L12-v2`     | multilingual (ES+EN), 384-dim                    |
+| `pandorica.embedEndpoint` / `CTK_EMBED_ENDPOINT` | ollama: `http://localhost:11434` · api: OpenAI | for `ollama` / `api`                             |
+| `CTK_EMBED_API_KEY` / `OPENAI_API_KEY`    | —                                                  | for `api`                                        |
+
+`local` uses transformers.js (installed as an **optional** dependency; the model downloads once, then fully offline). After upgrading, run `ctk pandorica reindex` once to embed existing memories; new memories saved through the MCP server embed automatically.
 
 ### Briefs & findings (sub‑agent coordination)
 

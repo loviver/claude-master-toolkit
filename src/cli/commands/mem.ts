@@ -3,7 +3,6 @@ import { output, outputError } from '../../shared/output.js';
 import {
   openMemDb,
   save,
-  recall,
   context,
   trace,
   getById,
@@ -14,6 +13,8 @@ import {
   importVault,
   type MemoryType,
 } from '../../shared/memories/v2.js';
+import { recallHybrid } from '../../shared/memories/hybrid.js';
+import { getCachedEmbedder, reindexAll } from '../../shared/memories/embedding/index.js';
 import type {
   ContentSource,
   MemSaveOpts,
@@ -48,6 +49,15 @@ function withDb<T>(fn: (db: ReturnType<typeof openMemDb>) => T): T {
   }
 }
 
+async function withDbAsync<T>(fn: (db: ReturnType<typeof openMemDb>) => Promise<T>): Promise<T> {
+  const db = openMemDb();
+  try {
+    return await fn(db);
+  } finally {
+    db.close();
+  }
+}
+
 export function memSaveCommand(opts: MemSaveOpts): void {
   if (!opts.title) outputError('mem save: --title required');
   const type = (opts.type ?? 'note') as MemoryType;
@@ -74,15 +84,20 @@ export function memSaveCommand(opts: MemSaveOpts): void {
   process.exit(0);
 }
 
-export function memRecallCommand(query: string, opts: MemRecallOpts): void {
-  withDb((db) => {
-    const rows = recall(db, {
-      query,
-      limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
-      type: opts.type,
-      scope: opts.scope,
-      projectPath: opts.projectPath,
-    });
+export async function memRecallCommand(query: string, opts: MemRecallOpts): Promise<void> {
+  await withDbAsync(async (db) => {
+    const embedder = await getCachedEmbedder(db);
+    const rows = await recallHybrid(
+      db,
+      {
+        query,
+        limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
+        type: opts.type,
+        scope: opts.scope,
+        projectPath: opts.projectPath,
+      },
+      { embedder },
+    );
     output({
       count: rows.length,
       results: rows.map((r) => ({
@@ -94,6 +109,22 @@ export function memRecallCommand(query: string, opts: MemRecallOpts): void {
         preview: (r.what ?? '').slice(0, 200),
       })),
     });
+  });
+  process.exit(0);
+}
+
+export async function memReindexCommand(): Promise<void> {
+  await withDbAsync(async (db) => {
+    const embedder = await getCachedEmbedder(db);
+    if (!embedder) {
+      outputError('mem reindex: no embedder configured (set pandorica.embedder or CTK_EMBEDDER; got "none")');
+      return;
+    }
+    const { total, embedded } = await reindexAll(db, embedder, (done, all) => {
+      if (done % 25 === 0 || done === all) process.stderr.write(`\r[ctk] reindex ${done}/${all}`);
+    });
+    process.stderr.write('\n');
+    output({ reindexed: embedded, total, model: embedder.id });
   });
   process.exit(0);
 }

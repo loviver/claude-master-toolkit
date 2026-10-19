@@ -4,7 +4,6 @@ import {
   update,
   deleteById,
   mark,
-  recall,
   context,
   trace,
   getById,
@@ -21,6 +20,8 @@ import {
   type MemoryScope,
   type VaultDump,
 } from '../shared/memories/v2.js';
+import { recallHybrid } from '../shared/memories/hybrid.js';
+import { getCachedEmbedder, embedMemoryBestEffort } from '../shared/memories/embedding/index.js';
 
 function jsonResult(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
@@ -37,6 +38,15 @@ function withDb<T>(fn: (db: ReturnType<typeof openMemDb>) => T): T {
   const db = openMemDb();
   try {
     return fn(db);
+  } finally {
+    db.close();
+  }
+}
+
+async function withDbAsync<T>(fn: (db: ReturnType<typeof openMemDb>) => Promise<T>): Promise<T> {
+  const db = openMemDb();
+  try {
+    return await fn(db);
   } finally {
     db.close();
   }
@@ -68,7 +78,7 @@ interface SaveArgs {
 
 export const memHandlers = {
   mem_save(args: SaveArgs) {
-    return withDb((db) => {
+    return withDbAsync(async (db) => {
       const row = save(db, {
         title: args.title,
         type: args.type,
@@ -89,6 +99,7 @@ export const memHandlers = {
         description: args.description,
         filePath: args.file_path,
       });
+      await embedMemoryBestEffort(db, row);
       return jsonResult({
         saved: true,
         id: row.id,
@@ -144,15 +155,20 @@ export const memHandlers = {
     project_path?: string;
     session_id?: string;
   }) {
-    return withDb((db) => {
-      const results = recall(db, {
-        query: args.query,
-        limit: args.limit,
-        type: args.type,
-        scope: args.scope,
-        projectPath: args.project_path,
-        sessionId: args.session_id,
-      });
+    return withDbAsync(async (db) => {
+      const embedder = await getCachedEmbedder(db);
+      const results = await recallHybrid(
+        db,
+        {
+          query: args.query,
+          limit: args.limit,
+          type: args.type,
+          scope: args.scope,
+          projectPath: args.project_path,
+          sessionId: args.session_id,
+        },
+        { embedder },
+      );
       return jsonResult({
         count: results.length,
         results: results.map((r) => ({

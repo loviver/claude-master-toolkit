@@ -5,7 +5,6 @@ import { output, outputError } from '../../shared/output.js';
 import {
   openMemDb,
   save,
-  recall,
   context as v2Context,
   trace,
   getById,
@@ -14,6 +13,8 @@ import {
   type MemoryType,
   type MemoryScope,
 } from '../../shared/memories/v2.js';
+import { recallHybrid } from '../../shared/memories/hybrid.js';
+import { getCachedEmbedder, reindexAll } from '../../shared/memories/embedding/index.js';
 import type { ContentSource } from '../types/mem-opts.js';
 import type {
   LegacyPandoricaType,
@@ -53,6 +54,11 @@ function withDb<T>(fn: (db: ReturnType<typeof openMemDb>) => T): T {
   try { return fn(db); } finally { db.close(); }
 }
 
+async function withDbAsync<T>(fn: (db: ReturnType<typeof openMemDb>) => Promise<T>): Promise<T> {
+  const db = openMemDb();
+  try { return await fn(db); } finally { db.close(); }
+}
+
 export function saveCommand(opts: PandoricaSaveOpts): void {
   warnDeprecated('save');
   if (!opts.title) outputError('save: --title required');
@@ -75,18 +81,23 @@ export function saveCommand(opts: PandoricaSaveOpts): void {
   process.exit(0);
 }
 
-export function searchCommand(query: string, opts: PandoricaSearchOpts): void {
+export async function searchCommand(query: string, opts: PandoricaSearchOpts): Promise<void> {
   warnDeprecated('search');
-  withDb((db) => {
+  await withDbAsync(async (db) => {
     const legacy = opts.type as LegacyPandoricaType | undefined;
     const type: MemoryType | undefined = legacy ? mapType(legacy) : undefined;
-    const rows = recall(db, {
-      query,
-      limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
-      type,
-      scope: opts.scope as MemoryScope | undefined,
-      projectPath: opts.projectPath,
-    });
+    const embedder = await getCachedEmbedder(db);
+    const rows = await recallHybrid(
+      db,
+      {
+        query,
+        limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
+        type,
+        scope: opts.scope as MemoryScope | undefined,
+        projectPath: opts.projectPath,
+      },
+      { embedder },
+    );
     output({
       count: rows.length,
       results: rows.map((r) => ({
@@ -98,6 +109,23 @@ export function searchCommand(query: string, opts: PandoricaSearchOpts): void {
         preview: (r.what ?? '').slice(0, 200),
       })),
     });
+  });
+  process.exit(0);
+}
+
+export async function reindexCommand(): Promise<void> {
+  warnDeprecated('reindex');
+  await withDbAsync(async (db) => {
+    const embedder = await getCachedEmbedder(db);
+    if (!embedder) {
+      outputError('pandorica reindex: no embedder configured (set CTK_EMBEDDER; got "none")');
+      return;
+    }
+    const { total, embedded } = await reindexAll(db, embedder, (done, all) => {
+      if (done % 25 === 0 || done === all) process.stderr.write(`\r[ctk] reindex ${done}/${all}`);
+    });
+    process.stderr.write('\n');
+    output({ reindexed: embedded, total, model: embedder.id });
   });
   process.exit(0);
 }
