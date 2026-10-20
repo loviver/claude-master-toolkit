@@ -111,9 +111,13 @@ Installed into `~/.claude/hooks/` and registered in `settings.json` via `ctk ins
 - **UserPromptSubmit** — warns once per threshold crossing (70 / 85 / 95%). Dynamic context limit per model (overridable with `$CLAUDE_CONTEXT_WINDOW`).
 - **UserPromptSubmit `/task <name>`** — explicit task-switch. Blocks when git is dirty, otherwise persists the task name in `.ctk/current-task.txt`. Prevents mid-context drift without consolidating prior work.
 - **PreToolUse `Bash`** — blocks `git commit` invocations that embed AI attribution (`Co-Authored-By`, `Generated with [Claude Code]`, `🤖`, `noreply@anthropic.com`).
-- **PreToolUse `Agent`** — hints (non-blocking) when a sub-agent is launched without the `/delegate` brief preamble. Set `CTK_HOOK_AGENT_STRICT=1` to escalate to hard block.
+- **PreToolUse `Agent`** — single responsibility: hints (non-blocking) when a sub-agent is launched without the `/delegate` brief preamble. Set `CTK_HOOK_AGENT_STRICT=1` to escalate to hard block. (Persona/registry injection moved to `SubagentStart` — see below.)
+- **PostToolUse `Edit|Write|MultiEdit`** — incremental `ctk index build` after a source-file edit (`ts/tsx/js/jsx/mjs/cjs/py/go/rs`) in a ctk-active project (gated on `.ctk/init.marker`). Keeps the AST index that ODD risk routing reads fresh instead of stale-until-manual-rebuild. **Detached background** run (zero turn latency) under a non-blocking `flock` — if a reindex is already running the new one skips; the index self-heals on the next edit. Toggle: `CTK_HOOK_REINDEX=0`. Test seam: `CTK_REINDEX_SYNC=1` (inline).
+- **SubagentStart** — injects `~/.claude/persona.md` + `.ctk/skill-registry.md` pointer into the SUB-AGENT's context (the correct target; `PreToolUse:Agent`'s `additionalContext` lands in the main thread). Toggles: `CTK_HOOK_PERSONA_INJECT=0`, `CTK_HOOK_REGISTRY_INJECT=0`.
+- **SubagentStop** — opt-in (`CTK_HOOK_SUBAGENT_NAG=1`, default OFF). Light reminder to consolidate findings via `mem_save` / `ctk_record` after apply/implement agents (`sdd-apply`, `general-purpose`, `cavecrew-builder`) finish. Non-blocking; cannot count the sub-agent's saves (no transcript exposed).
 - **Stop** — if the turn had ≥3 Edits/Writes with zero `mem_save` / `pandorica_save` / `ctk_record` calls, emits a one-shot reminder. Never blocks.
 - **PreCompact** — injects a reminder to call `mem_session({ action: 'summary' })` (o legacy `pandorica_session_summary`) before the window is compressed.
+- **SessionEnd** — display-only, ~1.5s budget (the model is gone, no AI summary possible). Mechanical only: final best-effort session sync + on `reason=clear|logout` purges THIS session's state (`.nagged`, per-session counters/agent-steps).
 
 On any window-threshold warning, recommend:
 

@@ -77,9 +77,13 @@ Lives in `claude-dist/` — installed by symlinking into `~/.claude/`:
 
 ## Hook enforcement (post Phase 0.4)
 
-- **PreToolUse:Agent** — injects `~/.claude/persona.md` + `.ctk/skill-registry.md` pointer into every sub-agent context. Toggles: `CTK_HOOK_PERSONA_INJECT=0`, `CTK_HOOK_REGISTRY_INJECT=0`.
+- **PreToolUse:Agent** — single responsibility: enforces the `/delegate` brief protocol (hint, or hard block under `CTK_HOOK_AGENT_STRICT=1`). Must stay here because it needs to DENY before the spawn.
+- **SubagentStart** — injects `~/.claude/persona.md` + `.ctk/skill-registry.md` pointer into the SUB-AGENT's context. Toggles: `CTK_HOOK_PERSONA_INJECT=0`, `CTK_HOOK_REGISTRY_INJECT=0`. (Moved off `PreToolUse:Agent`, whose `additionalContext` targets the main thread, not the sub-agent.)
+- **SubagentStop** — opt-in (`CTK_HOOK_SUBAGENT_NAG=1`, default OFF). Non-blocking reminder to consolidate findings after apply/implement agents finish.
 - **UserPromptSubmit** — on `/sdd-*` prompts with no `.ctk/init.marker`, emits an init-required hint so `sdd-orchestrator` runs `sdd-init` first.
 - **PreToolUse:Edit|Write|MultiEdit** — parses `.ctk/skill-registry.md` and emits `[ctk-skill-hint] load <name>` when the target `file_path` matches a skill trigger. Toggle: `CTK_HOOK_EDIT_SKILL_INJECT=0`.
+- **PostToolUse:Edit|Write|MultiEdit** — incremental `ctk index build` after a source-file (`ts/tsx/js/jsx/mjs/cjs/py/go/rs`) edit in a ctk-active project (gated on `.ctk/init.marker`), so the AST index ODD reads never goes stale. Runs **detached in the background** (zero turn latency) under a non-blocking `flock` so rapid edits don't pile up parallel SQLite writers. Toggle: `CTK_HOOK_REINDEX=0`. Test seam: `CTK_REINDEX_SYNC=1` runs inline.
+- **SessionEnd** — mechanical final sync + per-session state cleanup on clear/logout.
 - **Stop** — threshold configurable via `CTK_HOOK_SAVE_THRESHOLD` (default 3). `CTK_HOOK_SAVE_STRICT=1` blocks the turn (exit 2) when Edits ≥ threshold and zero `mem_save` / `ctk_record` calls.
 - **Max-step cap** — `src/cli/lib/agent-budget.ts` tracks per-agent tool-call counters under `~/.claude/state/claude-master-toolkit/<session>/agent-steps/`. Default 10, override `CTK_AGENT_MAX_STEPS`. Soft enforcement via orchestrator prompt (hook-level hard enforcement blocked by Claude Code granularity).
 
