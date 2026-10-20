@@ -70,7 +70,8 @@ Lives in `claude-dist/` — installed by symlinking into `~/.claude/`:
 - `ctk init` — detect stack + test framework, write `.ctk/project-context.md` + `init.marker`, activate Strict TDD when supported, persist a reference memory in pandorica.
 - `ctk skill-registry` — scan skill sources (`~/.claude/skills/`, `claude-dist/skills/`, project skills, conventions) and render `.ctk/skill-registry.md` (name | triggers | path | summary).
 - `ctk plan <task>` — topological resolve of the component graph (pandorica / sdd / skills / persona / hooks / model-routing) without executing. Debug tool.
-- `ctk orchestrate <task>` — run the pipeline (prepare → apply → rollback-on-failure) with streamed progress events.
+- `ctk orchestrate <task>` — run the pipeline (prepare → apply → rollback-on-failure) with streamed progress events. Gated by ODD risk tier: DIRECT short-circuits to inline.
+- `ctk risk [--base <ref>] [--json]` — ADVISORY ODD risk score of the current branch (DIRECT|GUARDED|DELEGATE) measured off the AST index. MCP tool: `ctk_risk`.
 - `ctk model <phase>` — resolve the sub-agent model for a phase. MANDATORY before any `Agent` tool call (or use `/delegate`).
 - `ctk pandorica <save|search|context|session-summary|recent|get>` — persistent memory vault CLI. MCP tools: `mem_*` (v2) + legacy `pandorica_*` aliases.
 

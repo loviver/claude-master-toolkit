@@ -5,7 +5,7 @@ description: Reference card para tools ctk_* MCP — token-efficient symbol look
 
 # ctk toolkit — MCP reference
 
-Nine MCP tools exposed by `ctk` server. PREFER over Read/Grep for code exploration — 60-75% fewer tokens.
+Ten MCP tools exposed by `ctk` server. PREFER over Read/Grep for code exploration — 60-75% fewer tokens.
 
 ## Decision: ctk vs Read
 
@@ -16,6 +16,7 @@ Nine MCP tools exposed by `ctk` server. PREFER over Read/Grep for code explorati
 | File exports + deps | `ctk_deps(file)` |
 | Who calls X | `ctk_callers(symbol)` |
 | Non-TS file slice | `ctk_slice(file, symbol)` |
+| Risk tier of the change (ODD) | `ctk_risk(base?, cwd?)` |
 | Full file required | `Read` (LAST RESORT) |
 
 ## Tools
@@ -41,6 +42,9 @@ Query pool BEFORE exploring. Avoid duplicate work.
 
 ### ctk_brief_read(id) / ctk_brief_validate(id)
 Contract for delegated task. `ctk_brief_read` FIRST before any exploration.
+
+### ctk_risk(base?, cwd?)
+ADVISORY ODD risk read of the current branch vs base. Returns `{ base, signals, score:{score,tier,rationale}, touched }`. Tier ∈ DIRECT|GUARDED|DELEGATE, measured off the index (blast radius, public API, spread, churn) — not guessed. Consult BEFORE deciding inline vs delegate. Needs a built index.
 
 ## Protocol
 
