@@ -66,7 +66,7 @@ Tools v2 (`mem_*`, 15 verbs, FTS5 + cost correlation): `mem_save` / `mem_update`
 Legacy aliases (`pandorica_save` / `_search` / `_context` / `_get` / `_session_summary` / `_recent`) ruteados a `mem_*`. CLI: `ctk pandorica <subcmd>`.
 
 Full rules and templates live in the `pandorica-protocol` skill if you ever need to re-read them.
-
+'c
 ## ODD — Organic Dimensioning (Risk Routing)
 
 Dimension work by **measured risk**, not file count. Before deciding to delegate (or before starting a multi-file change), consult the risk tier:
