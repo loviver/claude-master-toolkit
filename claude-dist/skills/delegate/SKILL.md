@@ -27,6 +27,20 @@ If no phase is given, default to `general`.
 
 ## Action — follow these steps IN ORDER
 
+### Pre-flight: Dimensionar la tarea (ODD) — ANTES del Step 0
+
+Dimensioná por riesgo medido, no por intuición. Antes de armar el brief:
+
+```bash
+ctk risk        # o MCP ctk_risk({ cwd }) — tier + score + rationale vs base
+```
+
+- **DIRECT** → NO delegues. Hacelo inline — spawnear un sub-agente para un cambio chico y aislado quema tokens sin retorno. Cortá acá.
+- **GUARDED** → delegá UN implementer acotado (brief de scope cerrado) + `sdd-verify`. Seguí al Step 0.
+- **DELEGATE** → flujo SDD completo / orchestrator. Seguí al Step 0.
+
+Si el índice no está (`ctk index build` nunca corrió) o no es un repo git, `ctk risk` queda silencioso → seguí con tu criterio. ADVISORY: el tier sugiere, vos decidís.
+
 ### Step 0: Brief obligatorio (contrato)
 
 Sub-agents arrancan con un contrato explícito, no con exploración libre.

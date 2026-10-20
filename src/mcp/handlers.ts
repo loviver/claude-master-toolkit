@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { openDb } from "../shared/indexer/db-raw.js";
+import { assessRisk } from "../shared/risk/index.js";
 import { memHandlers } from "./mem-tools.js";
 import type { MemoryType, MemoryScope } from "../shared/memories/v2.js";
 // Legacy pandorica type aliases kept for backward-compat shim signatures
@@ -170,6 +171,14 @@ export const handlers = {
 
   ctk_brief_validate(args: { id: string }) {
     return withDb((db) => jsonResult(briefValidate(db, args.id)));
+  },
+
+  ctk_risk(args: { base?: string; cwd?: string }) {
+    try {
+      return jsonResult(assessRisk({ base: args.base, cwd: PROJECT_PATH(args.cwd) }));
+    } catch (err) {
+      return errorResult(`ctk_risk failed: ${(err as Error).message}`);
+    }
   },
 
   ctk_model(args: { phase: string }) {

@@ -133,6 +133,21 @@ export function registerTools(server: McpServer): void {
     async (args) => handlers.ctk_brief_validate(args),
   );
 
+  server.registerTool(
+    'ctk_risk',
+    {
+      description:
+        'ADVISORY ODD risk read of the current branch vs its base. Returns signals + score + tier ' +
+        '(DIRECT|GUARDED|DELEGATE) + transparent rationale, measured off the AST index (blast radius, ' +
+        'public API, spread, churn) — not guessed. Consult BEFORE deciding to work inline vs delegate.',
+      inputSchema: {
+        base: z.string().optional().describe('Base ref to diff against (default: origin HEAD or main)'),
+        cwd: cwdParam,
+      },
+    },
+    async (args) => handlers.ctk_risk(args),
+  );
+
   // ─── Pandorica: persistent memory vault ───────────────────────
   const PandoricaType = z.enum([
     'bugfix', 'decision', 'architecture', 'discovery',

@@ -67,6 +67,26 @@ Legacy aliases (`pandorica_save` / `_search` / `_context` / `_get` / `_session_s
 
 Full rules and templates live in the `pandorica-protocol` skill if you ever need to re-read them.
 
+## ODD — Organic Dimensioning (Risk Routing)
+
+Dimension work by **measured risk**, not file count. Before deciding to delegate (or before starting a multi-file change), consult the risk tier:
+
+```bash
+ctk risk            # tier + score + rationale of the current branch vs base
+```
+
+or the MCP tool `ctk_risk({ base?, cwd? })`. Risk is **measured** off the AST index (blast radius, public API, spread, churn) + prior bug findings — not guessed.
+
+Tier → flow (the human leads; this is a SUGGESTION):
+
+- **DIRECT** (`score < 0.25`) — small, isolated. Do it inline. No sub-agent, no SDD.
+- **GUARDED** (`0.25–0.6`) — a single bounded implementer with a closed-scope brief + `sdd-verify`.
+- **DELEGATE** (`score ≥ 0.6`) — full SDD / orchestrator flow.
+
+Hard floors override the score: a single symbol with >15 callers floors GUARDED, >50 floors DELEGATE; a prior bug on touched code escalates one tier.
+
+**ADVISORY, not enforced.** ODD never auto-routes — it surfaces a tier and its rationale so YOU choose the proportional flow. Requires a built index (`ctk index build`); if the index/git is unavailable it stays silent rather than guessing. `/delegate` runs this as its first pre-flight gate.
+
 ## Model Selection Layer
 
 **MANDATORY:** Before ANY Agent tool call, run `ctk model <phase>` and pass the result as the `model` parameter. Prefer using `/delegate` which enforces this automatically.
