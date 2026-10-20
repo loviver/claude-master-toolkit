@@ -15,6 +15,7 @@ import {
 } from '../../shared/memories/v2.js';
 import { recallHybrid } from '../../shared/memories/hybrid.js';
 import { getCachedEmbedder, reindexAll, readEmbedderConfig } from '../../shared/memories/embedding/index.js';
+import { embedTimeoutMs } from '../../shared/memories/embedding/timeout.js';
 import type {
   ContentSource,
   MemSaveOpts,
@@ -86,7 +87,8 @@ export function memSaveCommand(opts: MemSaveOpts): void {
 
 export async function memRecallCommand(query: string, opts: MemRecallOpts): Promise<void> {
   await withDbAsync(async (db) => {
-    const embedder = await getCachedEmbedder(db);
+    // Recall never downloads and is time-bounded: a stalled embedder degrades to keyword-only.
+    const embedder = await getCachedEmbedder(db, { timeoutMs: embedTimeoutMs() });
     const rows = await recallHybrid(
       db,
       {
@@ -115,7 +117,8 @@ export async function memRecallCommand(query: string, opts: MemRecallOpts): Prom
 
 export async function memReindexCommand(): Promise<void> {
   await withDbAsync(async (db) => {
-    const embedder = await getCachedEmbedder(db);
+    // Reindex is the ONLY path allowed to download the model; unbounded on purpose.
+    const embedder = await getCachedEmbedder(db, { allowDownload: true });
     if (!embedder) {
       const kind = readEmbedderConfig(db).kind;
       outputError(

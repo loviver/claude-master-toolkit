@@ -15,6 +15,7 @@ import {
 } from '../../shared/memories/v2.js';
 import { recallHybrid } from '../../shared/memories/hybrid.js';
 import { getCachedEmbedder, reindexAll, readEmbedderConfig } from '../../shared/memories/embedding/index.js';
+import { embedTimeoutMs } from '../../shared/memories/embedding/timeout.js';
 import type { ContentSource } from '../types/mem-opts.js';
 import type {
   LegacyPandoricaType,
@@ -36,9 +37,22 @@ function mapType(t: LegacyPandoricaType): MemoryType {
   return t as MemoryType;
 }
 
+// Legacy pandorica subcommand → actual `ctk mem` subcommand. Not 1:1: search→recall,
+// recent→trace, session-summary→summary.
+const MEM_EQUIVALENT: Record<string, string> = {
+  save: 'save',
+  search: 'recall',
+  recent: 'trace',
+  context: 'context',
+  'session-summary': 'summary',
+  get: 'get',
+  reindex: 'reindex',
+};
+
 function warnDeprecated(sub: string): void {
   // Stderr-only. Does not affect --json output on stdout.
-  console.warn(`[ctk] DEPRECATED: 'ctk pandorica ${sub}' — use 'ctk mem ${sub}' instead.`);
+  const target = MEM_EQUIVALENT[sub] ?? sub;
+  console.warn(`[ctk] DEPRECATED: 'ctk pandorica ${sub}' — use 'ctk mem ${target}' instead.`);
 }
 
 function readContent(opts: ContentSource): string {
@@ -86,7 +100,7 @@ export async function searchCommand(query: string, opts: PandoricaSearchOpts): P
   await withDbAsync(async (db) => {
     const legacy = opts.type as LegacyPandoricaType | undefined;
     const type: MemoryType | undefined = legacy ? mapType(legacy) : undefined;
-    const embedder = await getCachedEmbedder(db);
+    const embedder = await getCachedEmbedder(db, { timeoutMs: embedTimeoutMs() });
     const rows = await recallHybrid(
       db,
       {
@@ -116,7 +130,7 @@ export async function searchCommand(query: string, opts: PandoricaSearchOpts): P
 export async function reindexCommand(): Promise<void> {
   warnDeprecated('reindex');
   await withDbAsync(async (db) => {
-    const embedder = await getCachedEmbedder(db);
+    const embedder = await getCachedEmbedder(db, { allowDownload: true });
     if (!embedder) {
       const kind = readEmbedderConfig(db).kind;
       outputError(

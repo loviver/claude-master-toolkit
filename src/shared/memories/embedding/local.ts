@@ -23,12 +23,19 @@ function resolveModelCacheDir(): string {
   return dir;
 }
 
-export async function createLocalEmbedder(model: string): Promise<Embedder> {
+export async function createLocalEmbedder(
+  model: string,
+  opts: { allowRemoteModels?: boolean } = {},
+): Promise<Embedder> {
+  // Only an explicit reindex may download the ~110MB model. Recall/save pass
+  // false so a missing/partial cache throws FAST (→ keyword fallback) instead
+  // of blocking the query on a multi-minute download.
+  const allowRemoteModels = opts.allowRemoteModels ?? true;
   const pkg = '@huggingface/transformers';
   const mod: any = await import(pkg);
   if (mod.env) {
     mod.env.cacheDir = resolveModelCacheDir();
-    mod.env.allowRemoteModels = true;
+    mod.env.allowRemoteModels = allowRemoteModels;
     mod.env.useBrowserCache = false;
   }
   const extractor = await mod.pipeline('feature-extraction', model);

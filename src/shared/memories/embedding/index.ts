@@ -3,6 +3,7 @@ import type { MemoryRow, MemoryType, MemoryScope } from '../types.js';
 import type { Embedder } from './port.js';
 import { canonicalMemoryText } from './text.js';
 import { encodeVector, decodeVector } from '../vector.js';
+import { withTimeout, embedTimeoutMs } from './timeout.js';
 
 export type { Embedder } from './port.js';
 
@@ -37,15 +38,24 @@ export function readEmbedderConfig(db: Database.Database): EmbedderConfig {
   return { kind, model, endpoint, apiKey };
 }
 
-/** Resolve a live embedder from config. Returns null for 'none' or any init failure (never throws). */
-export async function resolveEmbedder(cfg: EmbedderConfig): Promise<Embedder | null> {
-  try {
+export interface ResolveOpts {
+  /** Bound provider init; on timeout the resolve degrades to keyword (null). */
+  timeoutMs?: number;
+  /** Permit the local embedder to download its model. Only `reindex` sets true. */
+  allowDownload?: boolean;
+}
+
+/** Resolve a live embedder from config. Returns null for 'none' or any init failure/timeout (never throws). */
+export async function resolveEmbedder(cfg: EmbedderConfig, opts: ResolveOpts = {}): Promise<Embedder | null> {
+  const init = async (): Promise<Embedder | null> => {
     switch (cfg.kind) {
       case 'none':
         return null;
       case 'local': {
         const { createLocalEmbedder } = await import('./local.js');
-        return await createLocalEmbedder(cfg.model ?? DEFAULT_LOCAL_MODEL);
+        return await createLocalEmbedder(cfg.model ?? DEFAULT_LOCAL_MODEL, {
+          allowRemoteModels: opts.allowDownload ?? false,
+        });
       }
       case 'ollama': {
         const { createOllamaEmbedder } = await import('./ollama.js');
@@ -58,6 +68,10 @@ export async function resolveEmbedder(cfg: EmbedderConfig): Promise<Embedder | n
       default:
         return null;
     }
+  };
+  try {
+    const p = init();
+    return opts.timeoutMs ? await withTimeout(p, opts.timeoutMs, `embedder '${cfg.kind}' init`) : await p;
   } catch (err) {
     console.warn(
       `[ctk] embedder '${cfg.kind}' unavailable: ${(err as Error).message}. Recall stays keyword-only.`,
@@ -67,8 +81,8 @@ export async function resolveEmbedder(cfg: EmbedderConfig): Promise<Embedder | n
 }
 
 /** Convenience: read config from the DB and resolve. */
-export function resolveEmbedderFromDb(db: Database.Database): Promise<Embedder | null> {
-  return resolveEmbedder(readEmbedderConfig(db));
+export function resolveEmbedderFromDb(db: Database.Database, opts: ResolveOpts = {}): Promise<Embedder | null> {
+  return resolveEmbedder(readEmbedderConfig(db), opts);
 }
 
 // ── Persistence ──
@@ -97,11 +111,13 @@ export function countEmbeddings(db: Database.Database): number {
 
 let _cached: { key: string; embedder: Embedder | null } | null = null;
 
-export async function getCachedEmbedder(db: Database.Database): Promise<Embedder | null> {
+export async function getCachedEmbedder(db: Database.Database, opts: ResolveOpts = {}): Promise<Embedder | null> {
   const cfg = readEmbedderConfig(db);
-  const key = `${cfg.kind}:${cfg.model ?? ''}:${cfg.endpoint ?? ''}`;
+  // allowDownload is part of the key so a no-download null cache never shadows a
+  // later reindex that is allowed to download.
+  const key = `${cfg.kind}:${cfg.model ?? ''}:${cfg.endpoint ?? ''}:${opts.allowDownload ? 'dl' : 'nodl'}`;
   if (_cached && _cached.key === key) return _cached.embedder;
-  const embedder = await resolveEmbedder(cfg);
+  const embedder = await resolveEmbedder(cfg, opts);
   _cached = { key, embedder };
   return embedder;
 }
@@ -109,8 +125,8 @@ export async function getCachedEmbedder(db: Database.Database): Promise<Embedder
 /** Embed a just-saved memory if an embedder is configured. Never throws, never blocks correctness. */
 export async function embedMemoryBestEffort(db: Database.Database, row: MemoryRow): Promise<void> {
   try {
-    const embedder = await getCachedEmbedder(db);
-    if (embedder) await embedMemory(db, row, embedder);
+    const embedder = await getCachedEmbedder(db, { timeoutMs: embedTimeoutMs() });
+    if (embedder) await withTimeout(embedMemory(db, row, embedder), embedTimeoutMs(), 'embed-on-save');
   } catch {
     /* non-fatal: reindex recovers it */
   }

@@ -22,6 +22,7 @@ import {
 } from '../shared/memories/v2.js';
 import { recallHybrid } from '../shared/memories/hybrid.js';
 import { getCachedEmbedder, embedMemoryBestEffort } from '../shared/memories/embedding/index.js';
+import { embedTimeoutMs } from '../shared/memories/embedding/timeout.js';
 
 function jsonResult(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
@@ -156,7 +157,7 @@ export const memHandlers = {
     session_id?: string;
   }) {
     return withDbAsync(async (db) => {
-      const embedder = await getCachedEmbedder(db);
+      const embedder = await getCachedEmbedder(db, { timeoutMs: embedTimeoutMs() });
       const results = await recallHybrid(
         db,
         {

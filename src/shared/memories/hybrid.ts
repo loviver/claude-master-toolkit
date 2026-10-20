@@ -6,6 +6,7 @@ import { cosineSimilarity } from './vector.js';
 import { reciprocalRankFusion } from './fusion.js';
 import { loadCandidateVectors } from './embedding/index.js';
 import type { Embedder } from './embedding/port.js';
+import { withTimeout, embedTimeoutMs } from './embedding/timeout.js';
 
 export type RecallMode = 'hybrid' | 'keyword' | 'semantic';
 
@@ -35,7 +36,11 @@ export async function recallHybrid(
 
   let vecRanked: Array<{ row: MemoryRow; sim: number }> = [];
   try {
-    const [qvec] = await opts.embedder.embed([input.query]);
+    const [qvec] = await withTimeout(
+      opts.embedder.embed([input.query]),
+      embedTimeoutMs(),
+      'semantic query embed',
+    );
     if (qvec && qvec.length > 0) {
       vecRanked = loadCandidateVectors(db, input)
         .map((c) => ({ row: c.row, sim: cosineSimilarity(qvec, c.vector) }))
