@@ -3,7 +3,9 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { mkdirSync } from 'fs';
 
-const INDEXER_SCHEMA_VERSION = 1;
+// v2: dep/caller edges are file-qualified (`file::symbol`). Bumping wipes any
+// v1 index (bare-name edges) so it rebuilds in the new collision-proof format.
+const INDEXER_SCHEMA_VERSION = 2;
 
 export function openDb(): Database.Database {
   const path = process.env['CTK_DB_PATH']

@@ -1,6 +1,7 @@
-import { Project, SyntaxKind, type Node, type SourceFile } from 'ts-morph';
+import { Project, SyntaxKind, Node, type SourceFile } from 'ts-morph';
 import { createHash } from 'crypto';
 import { relative, resolve } from 'path';
+import { qualifyId } from './ids.js';
 
 export interface IndexedSymbol {
   projectPath: string;
@@ -64,22 +65,53 @@ function extractSignature(node: Node): string | null {
   return null;
 }
 
-function extractDeps(node: Node): string[] {
+/**
+ * Resolve a call's callee to the DECLARED name of the symbol it targets,
+ * using the type-checker. For `svc.doThing()` this returns `doThing` (the
+ * method), not `svc` (the receiver); for an imported `parseThing()` it follows
+ * the import alias to the real declaration. Calls that resolve into a `.d.ts`
+ * or `node_modules` are dropped — they are never in-project edges. When the
+ * checker can't resolve (dynamic/`any` dispatch) we fall back to the BARE
+ * syntactic last segment of the callee text — honest: we don't know its file.
+ */
+function resolveCallTarget(expr: Node, projectPath: string): string | null {
+  try {
+    const sym = Node.isPropertyAccessExpression(expr)
+      ? expr.getNameNode().getSymbol()
+      : expr.getSymbol();
+    if (sym) {
+      const target = sym.getAliasedSymbol() ?? sym;
+      const decl = target.getDeclarations()[0];
+      const fp = decl?.getSourceFile().getFilePath() ?? '';
+      if (fp.endsWith('.d.ts') || fp.includes('node_modules')) return null;
+      const name = target.getName();
+      if (!name || name === '__type' || !/^[A-Za-z_]/.test(name)) return null;
+      // Qualify with the target's file so same-named symbols don't collide.
+      // No declaration file (rare builtin) → bare name.
+      return fp ? qualifyId(relative(projectPath, fp), name) : name;
+    }
+  } catch {
+    // fall through to syntactic extraction
+  }
+  const last = expr.getText().split('.').pop() ?? '';
+  const root = last.split('(')[0];
+  return root && /^[A-Za-z_]/.test(root) ? root : null;
+}
+
+function extractDeps(node: Node, projectPath: string): string[] {
   const deps = new Set<string>();
   node.forEachDescendant((child) => {
     if (child.getKind() === SyntaxKind.CallExpression) {
       const expr = (child as any).getExpression?.();
-      if (expr) {
-        const text = expr.getText();
-        const root = text.split('.')[0].split('(')[0];
-        if (root && /^[A-Za-z_]/.test(root)) deps.add(root);
-      }
+      if (!expr) return;
+      const resolved = resolveCallTarget(expr, projectPath);
+      if (resolved) deps.add(resolved);
     }
   });
   return Array.from(deps).slice(0, 30);
 }
 
-function collectSymbols(
+export function collectSymbols(
   sourceFile: SourceFile,
   projectPath: string,
   filePath: string,
@@ -98,7 +130,7 @@ function collectSymbols(
       startLine: node.getStartLineNumber(),
       endLine: node.getEndLineNumber(),
       exported,
-      deps: extractDeps(node),
+      deps: extractDeps(node, projectPath),
       tokensEstimate: estimateTokens(text),
       contentHash: hashContent(text),
     });
@@ -149,7 +181,9 @@ function createProject(absRoot: string): Project {
   return new Project({
     tsConfigFilePath: `${absRoot}/tsconfig.json`,
     skipAddingFilesFromTsConfig: false,
-    skipFileDependencyResolution: true,
+    // Resolve import graph so the type-checker can follow aliases to real
+    // declarations — required for precise dep/caller edges (not name strings).
+    skipFileDependencyResolution: false,
   });
 }
 

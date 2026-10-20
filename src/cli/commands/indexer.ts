@@ -6,6 +6,7 @@ import { openTsProject, type IndexedSymbol } from '../../shared/indexer/ts-index
 import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
 import { openDb } from '../../shared/indexer/db-raw.js';
 import { findSymbol, getDeps, getCallers } from '../../shared/indexer/queries.js';
+import { qualifyId, parseQualifiedId } from '../../shared/indexer/ids.js';
 
 const IGNORE_DIRS = new Set([
   'node_modules', 'dist', '.git', 'target', '__pycache__',
@@ -154,28 +155,42 @@ export async function indexBuildCommand(
   });
   deleteStaleTx();
 
-  // Recompute callers only when dirty
+  // Recompute callers only when dirty. Edges are file-qualified (`file::symbol`)
+  // so same-named symbols in different files don't collide.
   if (dirty) {
     const recomputeTx = db.transaction(() => {
       const allRows = db
-        .prepare('SELECT symbol, deps FROM symbols WHERE project_path = ?')
-        .all(projectPath) as { symbol: string; deps: string | null }[];
+        .prepare('SELECT symbol, file, deps FROM symbols WHERE project_path = ?')
+        .all(projectPath) as { symbol: string; file: string; deps: string | null }[];
 
+      // key = dep id (qualified `tfile::tname`, or bare for an unresolved call);
+      // value = set of qualified caller ids that reference it.
       const callerMap = new Map<string, Set<string>>();
       for (const r of allRows) {
+        const callerId = qualifyId(r.file, r.symbol);
         const deps: string[] = r.deps ? JSON.parse(r.deps) : [];
         for (const d of deps) {
           if (!callerMap.has(d)) callerMap.set(d, new Set());
-          callerMap.get(d)!.add(r.symbol);
+          callerMap.get(d)!.add(callerId);
         }
       }
 
       db.prepare('UPDATE symbols SET callers = NULL WHERE project_path = ?').run(projectPath);
-      const updateCallers = db.prepare(
+      const updateByFile = db.prepare(
+        'UPDATE symbols SET callers = ? WHERE project_path = ? AND file = ? AND symbol = ?',
+      );
+      const updateByName = db.prepare(
         'UPDATE symbols SET callers = ? WHERE project_path = ? AND symbol = ?',
       );
-      for (const [sym, callers] of callerMap.entries()) {
-        updateCallers.run(JSON.stringify(Array.from(callers)), projectPath, sym);
+      for (const [dep, callers] of callerMap.entries()) {
+        const payload = JSON.stringify(Array.from(callers));
+        const parsed = parseQualifiedId(dep);
+        if (parsed) {
+          updateByFile.run(payload, projectPath, parsed.file, parsed.symbol);
+        } else {
+          // Unresolved (bare) dep target — fuzzy write to every same-named symbol.
+          updateByName.run(payload, projectPath, dep);
+        }
       }
     });
     recomputeTx();

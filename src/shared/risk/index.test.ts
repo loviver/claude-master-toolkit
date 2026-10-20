@@ -45,12 +45,13 @@ describe('buildSignals — aggregate touched symbols + ranges into RiskSignals',
     expect(s.maxSymbolCallers).toBe(2);
   });
 
-  it('blastRadius is unique external callers — touched symbols subtracted out', () => {
-    // foo called by {a,b}; bar called by {b,foo}. Union {a,b,foo} minus touched {foo,bar} = {a,b}.
+  it('blastRadius is unique external callers (qualified) — touched symbols subtracted out', () => {
+    // Edges are file-qualified. foo called by {x::a, x::b}; bar called by {x::b, a::foo}.
+    // a::foo IS a touched symbol → internal edge, subtracted. Union minus touched = {x::a, x::b}.
     const s = buildSignals(
       [
-        sym({ symbol: 'foo', callers: ['a', 'b'] }),
-        sym({ symbol: 'bar', callers: ['b', 'foo'] }),
+        sym({ file: 'src/a.ts', symbol: 'foo', callers: ['src/x.ts::a', 'src/x.ts::b'] }),
+        sym({ file: 'src/a.ts', symbol: 'bar', callers: ['src/x.ts::b', 'src/a.ts::foo'] }),
       ],
       [],
       0,

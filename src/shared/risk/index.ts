@@ -6,6 +6,7 @@ import { scoreRisk } from './score.js';
 import { DEFAULT_RISK_CONFIG, validateConfig } from './config.js';
 import { getTouchedRanges, resolveBaseBranch } from './diff.js';
 import { mapTouchedSymbols, type TouchedSymbol } from './map.js';
+import { qualifyId } from '../indexer/ids.js';
 import type { RiskConfig, RiskScore, RiskSignals } from './types.js';
 import type { TouchedRange } from './diff.js';
 
@@ -37,7 +38,9 @@ export function countPriorBugs(findings: FindingLike[], touched: TouchedSymbol[]
  * Pure — no git, no DB. `priorBugs` is passed through already counted.
  */
 export function buildSignals(touched: TouchedSymbol[], ranges: TouchedRange[], priorBugs: number): RiskSignals {
-  const touchedNames = new Set(touched.map((t) => t.symbol));
+  // Compare in the qualified (`file::symbol`) namespace so an internal edge
+  // between two same-named-but-different-file symbols isn't mistaken for blast.
+  const touchedIds = new Set(touched.map((t) => qualifyId(t.file, t.symbol)));
 
   // Blast radius: every external symbol that calls a touched one, minus the
   // touched symbols themselves (internal edges don't count as blast).
@@ -46,7 +49,7 @@ export function buildSignals(touched: TouchedSymbol[], ranges: TouchedRange[], p
   for (const t of touched) {
     maxSymbolCallers = Math.max(maxSymbolCallers, t.callers.length);
     for (const c of t.callers) {
-      if (!touchedNames.has(c)) externalCallers.add(c);
+      if (!touchedIds.has(c)) externalCallers.add(c);
     }
   }
 

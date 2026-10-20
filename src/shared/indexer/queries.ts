@@ -8,6 +8,7 @@ import type {
   UnderstandResult,
   DepsResult,
   CallersResult,
+  CallerInfo,
   Finding,
   RecordFindingInput,
   RecallOpts,
@@ -15,6 +16,7 @@ import type {
   BriefStatus,
   BriefValidation,
 } from './types.js';
+import { parseQualifiedId } from './ids.js';
 
 // ─── Symbol lookups ───────────────────────────────────────────
 
@@ -92,24 +94,47 @@ export function getCallers(
   projectPath: string,
   name: string,
 ): CallersResult {
-  const row = db.prepare(
-    `SELECT callers FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?) LIMIT 1`,
-  ).get(projectPath, name, `%.${name}`) as { callers: string | null } | undefined;
-
-  if (!row) return { symbol: name, callers: [] };
-
-  const names: string[] = row.callers ? JSON.parse(row.callers) : [];
-  if (names.length === 0) return { symbol: name, callers: [] };
-
-  const placeholders = names.map(() => '?').join(',');
+  // Union callers across EVERY definition of the bare name (a bare query for a
+  // name that exists in several files legitimately wants all their callers).
   const rows = db.prepare(
-    `SELECT file, symbol, start_line FROM symbols WHERE project_path = ? AND symbol IN (${placeholders})`,
-  ).all(projectPath, ...names) as Array<{ file: string; symbol: string; start_line: number }>;
+    `SELECT callers FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?)`,
+  ).all(projectPath, name, `%.${name}`) as Array<{ callers: string | null }>;
 
-  return {
-    symbol: name,
-    callers: rows.map((r) => ({ file: r.file, symbol: r.symbol, line: r.start_line })),
-  };
+  const callerIds = new Set<string>();
+  for (const r of rows) {
+    const ids: string[] = r.callers ? JSON.parse(r.callers) : [];
+    for (const id of ids) callerIds.add(id);
+  }
+  if (callerIds.size === 0) return { symbol: name, callers: [] };
+
+  // Qualified id → exact (file, symbol) lookup: no cross-file bleed. A bare id
+  // (unresolved caller) falls back to every same-named symbol — best-effort.
+  const lineStmt = db.prepare(
+    `SELECT start_line FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
+  );
+  const bareStmt = db.prepare(
+    `SELECT file, symbol, start_line FROM symbols WHERE project_path = ? AND symbol = ?`,
+  );
+
+  const callers: CallerInfo[] = [];
+  for (const id of callerIds) {
+    const parsed = parseQualifiedId(id);
+    if (parsed) {
+      const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
+        | { start_line: number }
+        | undefined;
+      callers.push({ file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 });
+    } else {
+      const brows = bareStmt.all(projectPath, id) as Array<{
+        file: string;
+        symbol: string;
+        start_line: number;
+      }>;
+      for (const b of brows) callers.push({ file: b.file, symbol: b.symbol, line: b.start_line });
+    }
+  }
+
+  return { symbol: name, callers };
 }
 
 export function understand(
