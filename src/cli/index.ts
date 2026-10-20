@@ -16,6 +16,7 @@ import { initCommand } from "./commands/init.js";
 import { skillRegistryCommand } from "./commands/skill-registry.js";
 import { planCommand } from "./commands/plan.js";
 import { orchestrateCommand } from "./commands/orchestrate.js";
+import { riskCommand } from "./commands/risk.js";
 import {
   indexBuildCommand,
   indexFindCommand,
@@ -136,6 +137,14 @@ program
     "Run pipeline for ctk components (stub runners, Phase 0.3 wires real steps)",
   )
   .action(orchestrateCommand);
+
+program
+  .command("risk")
+  .description(
+    "Advisory ODD risk score of the current branch (DIRECT|GUARDED|DELEGATE)",
+  )
+  .option("--base <ref>", "Base ref to diff against (default: origin HEAD or main)")
+  .action(riskCommand);
 
 program
   .command("slice <file> <symbol>")
