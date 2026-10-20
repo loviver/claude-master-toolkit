@@ -22,7 +22,8 @@ ctk dashboard          # http://localhost:3200
 | **Context guardian**   | Hooks that warn when you cross 70 / 85 / 95 % of the window — before Claude Code does.                       | installed by `ctk install claude`         |
 | **Pandorica**          | Persistent memory vault (SQLite). Save decisions/bugs/patterns, search across sessions and projects.         | `ctk pandorica …`, MCP tools              |
 | **Model router**       | `ctk model <phase>` returns an alias (opus/sonnet/haiku) per SDD phase. Sub‑agents inherit it via `/delegate`. | `ctk model`, `ctk model-pref`             |
-| **Code indexer**       | Tree‑sitter + ts‑morph symbol index for TS, Go, Python, Rust. Find / callers / deps in JSON.                 | `ctk index …`, `ctk understand`           |
+| **Code indexer**       | Tree‑sitter + ts‑morph symbol index for TS, Go, Python, Rust. Type‑resolved, **file‑qualified** call/dep edges (collision‑proof); a PostToolUse hook keeps it fresh. Find / callers / deps in JSON. | `ctk index …`, `ctk understand`           |
+| **ODD risk routing**   | `ctk risk` scores a branch DIRECT / GUARDED / DELEGATE off the symbol index — blast radius, public API, spread, churn — to right‑size delegation. | `ctk risk`, MCP `ctk_risk`                |
 | **MCP server**         | Exposes Pandorica + indexer as MCP tools so Claude Code can call them directly.                              | registered on `ctk install claude`        |
 | **Bench harness**      | A/B runs (ctk vs baseline) from JSONL with export/import of the bench DB.                                    | `ctk bench …`                             |
 | **Bash primitives**    | `slice`, `find`, `git-log`, `git-changed`, `test-summary` — compact output for agent loops.                  | `ctk <cmd>`                               |
@@ -52,7 +53,7 @@ This **modifies your Claude Code environment** (with a timestamped backup at `~/
 
 - Symlinks an opinionated `CLAUDE.md` persona into `~/.claude/CLAUDE.md`
 - Symlinks skills (`sdd-new`, `sdd-ff`, `sdd-continue`, `pandorica-protocol`, `delegate`, `ctk-toolkit`) and the `sdd-orchestrator` agent into `~/.claude/`
-- Installs hooks (`session-start`, `user-prompt-submit`, `pre-tool-use`, `stop`, `pre-compact`) into `~/.claude/hooks/`
+- Installs hooks (`session-start`, `user-prompt-submit`, `pre-tool-use`, `post-tool-use`, `stop`, `pre-compact`, `subagent-start`, `subagent-stop`, `session-end`) into `~/.claude/hooks/` — `post-tool-use` keeps the symbol index fresh by reindexing in the background after each edit
 - Merges hook + MCP registrations into `~/.claude/settings.json`
 - Optionally installs the third‑party `caveman` plugin (skip with `--skip-caveman`)
 
