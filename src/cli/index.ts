@@ -6,6 +6,7 @@ import { sliceCommand } from "./commands/slice.js";
 import { modelCommand, modelPrefCommand } from "./commands/model.js";
 import { tokensCommand, estimateCommand } from "./commands/tokens.js";
 import { costCommand, contextCommand } from "./commands/cost.js";
+import { statuslineCommand } from "./commands/statusline.js";
 import { gitLogCommand, gitChangedCommand } from "./commands/git.js";
 import { findCommand } from "./commands/find.js";
 import { testSummaryCommand } from "./commands/test.js";
@@ -183,6 +184,11 @@ program
   .command("context")
   .description("Show current Claude Code session context usage")
   .action(contextCommand);
+
+program
+  .command("statusline")
+  .description("Emit statusline string from SQLite (reads session JSON on stdin)")
+  .action(statuslineCommand);
 
 program
   .command("git-log [count]")
