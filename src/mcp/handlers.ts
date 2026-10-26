@@ -28,6 +28,7 @@ import {
   briefValidate,
   type FindOpts,
 } from "../shared/indexer/queries.js";
+import { repoMap } from "../shared/indexer/repo-map.js";
 import type {
   FindingType,
   RecallOpts,
@@ -171,6 +172,12 @@ const rawHandlers = {
   ctk_callers(args: { symbol: string; file?: string; include?: 'calls' | 'refs' | 'all'; cwd?: string }) {
     return withIndex(args.cwd, (db, project) =>
       jsonResult(getCallers(db, project, args.symbol, { file: args.file, include: args.include })),
+    );
+  },
+
+  ctk_map(args: { focus?: string[]; budget?: number; cwd?: string }) {
+    return withIndex(args.cwd, (db, project) =>
+      jsonResult(repoMap(db, project, { focus: args.focus, budget: args.budget })),
     );
   },
 

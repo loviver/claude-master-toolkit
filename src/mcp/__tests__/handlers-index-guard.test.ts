@@ -35,6 +35,7 @@ describe('index guard — an unindexed project is an error, not an empty answer'
     ['ctk_find', () => handlers.ctk_find({ name: 'x', cwd: PROJECT })],
     ['ctk_callers', () => handlers.ctk_callers({ symbol: 'x', cwd: PROJECT })],
     ['ctk_deps', () => handlers.ctk_deps({ file: 'a.ts', cwd: PROJECT })],
+    ['ctk_map', () => handlers.ctk_map({ cwd: PROJECT })],
   ])('%s tells the agent to build the index', (_name, call) => {
     const res = call() as { isError?: boolean; content: Array<{ text: string }> };
     expect(res.isError).toBe(true);
@@ -46,5 +47,17 @@ describe('index guard — an unindexed project is an error, not an empty answer'
     const res = handlers.ctk_find({ name: 'x', cwd: PROJECT }) as { isError?: boolean; content: Array<{ text: string }> };
     expect(res.isError).toBeUndefined();
     expect(parse(res)).toEqual({ matches: [] });
+  });
+
+  it('ctk_map returns the ranked map once the project is indexed', () => {
+    markIndexed();
+    const db = openDb();
+    db.prepare(
+      `INSERT INTO symbols (project_path, file, symbol, kind, signature, start_line, end_line, exported, deps, callers, tokens_estimate, content_hash, updated_at)
+       VALUES (?, 'a.ts', 'run', 'function', 'run()', 1, 1, 1, '[]', '[]', 0, 'h', 0)`,
+    ).run(PROJECT);
+    db.close();
+    const res = handlers.ctk_map({ cwd: PROJECT, budget: 100 }) as { content: Array<{ text: string }> };
+    expect(parse(res).files).toEqual([{ file: 'a.ts', symbols: [{ symbol: 'run', kind: 'function', signature: 'run()' }] }]);
   });
 });

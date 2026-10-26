@@ -9,6 +9,7 @@ import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
 import { openDb } from '../../shared/indexer/db-raw.js';
 import { findSymbol, getDeps, getCallers } from '../../shared/indexer/queries.js';
 import { qualifyId, parseQualifiedId } from '../../shared/indexer/ids.js';
+import { repoMap } from '../../shared/indexer/repo-map.js';
 
 const IGNORE_DIRS = new Set([
   'node_modules', 'dist', '.git', 'target', '__pycache__',
@@ -255,6 +256,17 @@ export function indexDepsCommand(file: string): void {
   try {
     const result = getDeps(db, process.cwd(), file);
     output(result);
+  } finally {
+    db.close();
+    process.exit(0);
+  }
+}
+
+export function indexMapCommand(opts: { focus?: string; budget?: string } = {}): void {
+  const db = openDb();
+  try {
+    const focus = opts.focus?.split(',').map((f) => f.trim()).filter(Boolean);
+    output(repoMap(db, process.cwd(), { focus, budget: opts.budget ? Number(opts.budget) : undefined }));
   } finally {
     db.close();
     process.exit(0);

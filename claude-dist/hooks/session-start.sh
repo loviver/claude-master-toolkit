@@ -52,7 +52,7 @@ context_guardian() {
 
 ctk_reminder() {
   command -v ctk >/dev/null 2>&1 || return 0
-  echo "ctk MCP active — tools: ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read. Use /delegate for Agent calls."
+  echo "ctk MCP active — tools: ctk_map (start here), ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read. Use /delegate for Agent calls."
 }
 
 pandorica_reminder() {

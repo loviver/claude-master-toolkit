@@ -86,6 +86,23 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
+    'ctk_map',
+    {
+      annotations: { readOnlyHint: true },
+      description:
+        'Repo map: the most structurally important symbols (PageRank over the call/reference graph) with signatures, ' +
+        'grouped by file and cut to a token budget. Call FIRST when exploring an unfamiliar project or area, ' +
+        'instead of reading files to get oriented. `focus` (files or symbol names) centers the map on that area.',
+      inputSchema: {
+        focus: z.array(z.string()).optional().describe('Files (path or suffix) or symbol names to center the map on'),
+        budget: z.number().int().positive().optional().describe('Approximate token budget for the map (default 1024)'),
+        cwd: cwdParam,
+      },
+    },
+    async (args) => handlers.ctk_map(args),
+  );
+
+  server.registerTool(
     'ctk_slice',
     {
       annotations: { readOnlyHint: true },

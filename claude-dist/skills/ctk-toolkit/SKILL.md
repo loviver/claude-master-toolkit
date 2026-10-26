@@ -11,6 +11,7 @@ Ten MCP tools exposed by `ctk` server. PREFER over Read/Grep for code exploratio
 
 | Goal | Tool |
 |------|------|
+| Get oriented in a project / area | `ctk_map(focus?, budget?)` — 1 call |
 | Know symbol signature + body + deps + callers | `ctk_understand(symbol)` — 1 call |
 | Find symbol by name | `ctk_find(name, kind?, exported?)` |
 | File exports + deps | `ctk_deps(file)` |
@@ -20,6 +21,9 @@ Ten MCP tools exposed by `ctk` server. PREFER over Read/Grep for code exploratio
 | Full file required | `Read` (LAST RESORT) |
 
 ## Tools
+
+### ctk_map(focus?, budget?)
+Repo map: top symbols by PageRank over the call/reference graph, with signatures, grouped by file, cut to a token budget (default 1024). Call FIRST to get oriented in an unfamiliar project/area instead of reading files. `focus` = files or symbols to center on.
 
 ### ctk_understand(symbol)
 Returns `{signature, body, range, file, deps, callers, tokens, exported}` in one call. USE FIRST.

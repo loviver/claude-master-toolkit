@@ -24,6 +24,7 @@ import {
   indexFindCommand,
   indexDepsCommand,
   indexCallersCommand,
+  indexMapCommand,
 } from "./commands/indexer.js";
 import { understandCommand } from "./commands/understand.js";
 import { schemaInspectCommand } from "./commands/schema-inspect.js";
@@ -285,6 +286,13 @@ index
   .option("--file <path>", "Pin to a definition by exact path or path suffix")
   .option("--include <kind>", "calls|refs|all (default all)")
   .action(indexCallersCommand);
+
+index
+  .command("map")
+  .description("Repo map: top symbols by PageRank, cut to a token budget")
+  .option("--focus <items>", "Comma-separated files or symbols to center the map on")
+  .option("--budget <tokens>", "Approximate token budget (default 1024)")
+  .action(indexMapCommand);
 
 program
   .command("understand <symbol>")
