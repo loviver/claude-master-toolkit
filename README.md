@@ -268,8 +268,11 @@ ctk install claude           # optional: install the integration layer from this
 
 ```bash
 pnpm run build:cli                              # the MCP server and indexer run from dist/
+npx tsx scripts/bench/oracle.ts                 # verify tasks.json ground truth against the code
 npx tsx scripts/bench/codex-bench.ts --reps 3   # results in .ctk/bench/codex-<date>.{md,json}
 ```
+
+`oracle.ts` recomputes each task's answer with the TypeScript type-checker (definitions, callers through import aliases, JSX renders, importers) and exits non-zero when `tasks.json` drifted from the code, so a stale task never grades a run. The task set covers plain lookups plus the cases text search gets wrong: same-named functions in different files, aliased imports, JSX usage, and open-ended exploration.
 
 Measure MCP latency from `item.duration`, not from the wall time around the call: the latter includes client overhead and is not comparable with a shell `time`.
 

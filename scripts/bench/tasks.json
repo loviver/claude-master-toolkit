@@ -1,32 +1,147 @@
 {
   "repo": ".",
-  "note": "Ground truth verified with `rg` against this repo. Re-verify if the symbols below move.",
+  "note": "Ground truth is verified by scripts/bench/oracle.ts (TypeScript type-checker). Run it before codex-bench.ts; tasks without `oracle` are unverified.",
   "tasks": [
     {
       "id": "lookup-def",
       "kind": "lookup",
       "prompt": "In which file is the function `getCallers` defined? Answer with the file path only.",
-      "expect": { "all": ["src/shared/indexer/queries.ts"] }
+      "expect": {
+        "all": [
+          "src/shared/indexer/queries.ts"
+        ]
+      },
+      "oracle": {
+        "type": "definedIn",
+        "symbol": "getCallers"
+      }
     },
     {
       "id": "callers-direct",
       "kind": "lookup",
       "prompt": "List every non-test source file under src/ that directly calls `getCallers`, excluding the file that defines it. Answer with file paths only, one per line.",
-      "expect": { "all": ["src/mcp/handlers.ts", "src/cli/commands/indexer.ts"], "none": ["src/mcp/tools.ts"] }
+      "expect": {
+        "all": [
+          "src/mcp/handlers.ts",
+          "src/cli/commands/indexer.ts"
+        ],
+        "none": [
+          "src/mcp/tools.ts"
+        ]
+      },
+      "oracle": {
+        "type": "callers",
+        "symbol": "getCallers",
+        "file": "src/shared/indexer/queries.ts"
+      }
     },
     {
       "id": "importers-multi",
       "kind": "multihop",
       "prompt": "List every non-test source file under src/ that imports from the module `shared/indexer/queries` (any relative path spelling). Answer with file paths only, one per line.",
       "expect": {
-        "all": ["src/mcp/handlers.ts", "src/shared/risk/index.ts", "src/cli/commands/brief.ts", "src/cli/commands/understand.ts", "src/cli/commands/findings.ts", "src/cli/commands/indexer.ts"]
+        "all": [
+          "src/mcp/handlers.ts",
+          "src/shared/risk/index.ts",
+          "src/cli/commands/brief.ts",
+          "src/cli/commands/understand.ts",
+          "src/cli/commands/findings.ts",
+          "src/cli/commands/indexer.ts"
+        ]
+      },
+      "oracle": {
+        "type": "importers",
+        "file": "src/shared/indexer/queries.ts"
       }
     },
     {
       "id": "transitive-tools",
       "kind": "multihop",
       "prompt": "Which MCP tools registered in src/mcp/tools.ts end up, directly or transitively, calling the function `resolveCandidates` in src/shared/indexer/queries.ts? Answer with the tool names only (e.g. ctk_xxx), one per line.",
-      "expect": { "all": ["ctk_understand", "ctk_find", "ctk_callers"], "none": ["ctk_deps", "ctk_slice"] }
+      "expect": {
+        "all": [
+          "ctk_understand",
+          "ctk_find",
+          "ctk_callers"
+        ],
+        "none": [
+          "ctk_deps",
+          "ctk_slice"
+        ]
+      }
+    },
+    {
+      "id": "homonym-callers",
+      "kind": "homonym",
+      "prompt": "List every non-test source file under src/ that calls the `syncSession` function defined in src/hooks/lib/sync.ts. Another function with the same name exists elsewhere \u2014 exclude its callers. Answer with file paths only, one per line.",
+      "expect": {
+        "all": [
+          "src/hooks/handlers/session-end.ts",
+          "src/hooks/handlers/stop.ts"
+        ],
+        "none": [
+          "src/server/parser/sync-session.ts"
+        ]
+      },
+      "oracle": {
+        "type": "callers",
+        "symbol": "syncSession",
+        "file": "src/hooks/lib/sync.ts"
+      }
+    },
+    {
+      "id": "alias-callers",
+      "kind": "alias",
+      "prompt": "List every non-test source file under src/ that calls `currentSessionId` from src/shared/agents/resolve.ts, including calls made through an import alias. Exclude the defining file. Answer with file paths only, one per line.",
+      "expect": {
+        "all": [
+          "src/cli/lib/agent-budget.ts",
+          "src/mcp/mem-tools.ts",
+          "src/shared/indexer/queries.ts"
+        ],
+        "none": [
+          "src/shared/agents/resolve.ts"
+        ]
+      },
+      "oracle": {
+        "type": "callers",
+        "symbol": "currentSessionId",
+        "file": "src/shared/agents/resolve.ts"
+      }
+    },
+    {
+      "id": "jsx-render",
+      "kind": "jsx",
+      "prompt": "List every non-test source file under src/ that renders the React component `SessionGraph` (defined in src/client/features/session-graph/SessionGraph.tsx) as JSX. Answer with file paths only, one per line.",
+      "expect": {
+        "all": [
+          "src/client/features/graph/GraphExplorer.tsx",
+          "src/client/features/session-detail/SessionDetail/SessionDetail.tsx"
+        ],
+        "none": [
+          "src/client/features/session-graph/SessionGraph.tsx"
+        ]
+      },
+      "oracle": {
+        "type": "callers",
+        "symbol": "SessionGraph",
+        "file": "src/client/features/session-graph/SessionGraph.tsx"
+      }
+    },
+    {
+      "id": "explore-pagerank",
+      "kind": "explore",
+      "prompt": "This project ranks symbols with PageRank for one of its MCP tools. In which file and which function is the PageRank computed? Answer with the file path and the function name.",
+      "expect": {
+        "all": [
+          "src/shared/indexer/repo-map.ts",
+          "rankSymbols"
+        ]
+      },
+      "oracle": {
+        "type": "definedIn",
+        "symbol": "rankSymbols"
+      }
     }
   ]
 }
