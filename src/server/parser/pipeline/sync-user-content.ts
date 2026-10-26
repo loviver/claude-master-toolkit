@@ -1,11 +1,11 @@
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type { AppDb } from '../../../shared/db/db.js';
 import { createHash } from 'crypto';
 import { turnContent } from '../../../shared/db/schema.js';
 import { userEventToContent } from '../mappers/user-event-to-content.js';
 import type { SyncContext, RefMaps } from '../types.js';
 import type { SessionEvent } from '../../../shared/types/session-event.js';
 
-export function syncUserContent(db: BetterSQLite3Database, ctx: SyncContext, refs: RefMaps): void {
+export function syncUserContent(db: AppDb, ctx: SyncContext, refs: RefMaps): void {
   const events = ctx.allEvents as SessionEvent[];
   for (let i = 0; i < events.length; i++) {
     const ev = events[i];

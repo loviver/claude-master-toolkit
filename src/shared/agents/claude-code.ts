@@ -73,6 +73,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   sessionIdEnv(): string | null {
     return 'CLAUDE_SESSION_ID';
   }
+  tierModel(tier: 'high' | 'mid' | 'low'): string | null {
+    return { high: 'opus', mid: 'sonnet', low: 'haiku' }[tier];
+  }
   capabilities(): AgentCapabilities {
     return { hookAsk: true, preCompactContext: true, statusLine: true, sessionEndReason: true };
   }

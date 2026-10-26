@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { resolveAgentId, currentSessionId } from '../resolve.js';
 
-const KEYS = ['CTK_AGENT', 'CTK_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDECODE', 'CODEX_SESSION_ID', 'CODEX_HOME', 'CODEX_THREAD_ID'];
+const KEYS = ['CTK_AGENT', 'CTK_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDECODE', 'CODEX_MANAGED_BY_NPM', 'CODEX_HOME', 'CODEX_THREAD_ID'];
 const saved: Record<string, string | undefined> = {};
 beforeEach(() => {
   for (const k of KEYS) { saved[k] = process.env[k]; delete process.env[k]; }
@@ -22,7 +22,7 @@ describe('resolveAgentId', () => {
     expect(resolveAgentId()).toBe('codex');
   });
   it('sniffs codex env', () => {
-    process.env['CODEX_SESSION_ID'] = 'x';
+    process.env['CODEX_MANAGED_BY_NPM'] = '1';
     expect(resolveAgentId()).toBe('codex');
   });
   it('sniffs claude env', () => {
@@ -43,8 +43,8 @@ describe('currentSessionId', () => {
     process.env['CLAUDE_SESSION_ID'] = 'a';
     expect(currentSessionId()).toBe('a');
   });
-  it('codex env, prefixed codex:', () => {
-    process.env['CODEX_SESSION_ID'] = 'z';
-    expect(currentSessionId()).toBe('codex:z');
+  it('codex has no env session id: undefined unless CTK_SESSION_ID', () => {
+    process.env['CODEX_HOME'] = '/x';
+    expect(currentSessionId()).toBeUndefined();
   });
 });

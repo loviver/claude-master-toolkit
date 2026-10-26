@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as schema from '../../../shared/db/schema.js';
 import { tokenEvents, sessions } from '../../../shared/db/schema.js';
 import { loadRefMaps } from '../builders/ref-maps.js';
 
@@ -33,7 +34,7 @@ function makeDb() {
       user_type TEXT, event_subtype TEXT, event_level TEXT
     );
   `);
-  return drizzle(sqlite);
+  return drizzle(sqlite, { schema });
 }
 
 describe('loadRefMaps', () => {

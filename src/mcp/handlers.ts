@@ -1,8 +1,10 @@
 import { execFileSync } from "child_process";
+import { randomUUID } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import { currentSessionId, readMainModel } from "../shared/agents/resolve.js";
+import { currentSessionId, readMainModel, resolveAgentId } from "../shared/agents/resolve.js";
+import { resolveModel } from "../shared/models/router.js";
 import { openDb } from "../shared/indexer/db-raw.js";
 import { ctkPaths } from "../shared/paths/ctk-home.js";
 import { assessRisk } from "../shared/risk/index.js";
@@ -23,11 +25,11 @@ import {
   recallFindings,
   briefRead,
   briefValidate,
+  type FindOpts,
 } from "../shared/indexer/queries.js";
 import type {
   FindingType,
   RecallOpts,
-  FindOpts,
 } from "../shared/indexer/types.js";
 
 function mapPandoricaType(t: PandoricaType): MemoryType {
@@ -166,31 +168,16 @@ export const handlers = {
     }
   },
 
-  ctk_model(args: { phase: string }) {
+  ctk_model(args: { phase: string; agent?: string }) {
     const pref = readModelPreference();
-
-    if (pref.startsWith("pinned:")) return jsonResult({ model: pref.slice(7) });
-
-    const current = readMainModel();
-
-    if (pref === "inherit") return jsonResult({ model: current, pref });
-
-    if (pref === "auto") {
-      const opusPhases = ["sdd-propose", "sdd-design", "orchestrator"];
-      const haikiPhases = ["sdd-archive"];
-      const model = opusPhases.includes(args.phase)
-        ? "opus"
-        : haikiPhases.includes(args.phase)
-          ? "haiku"
-          : "sonnet";
-      return jsonResult({ model, pref, phase: args.phase });
+    let agent;
+    try {
+      agent = resolveAgentId(args.agent);
+    } catch (err) {
+      return errorResult((err as Error).message);
     }
-
-    if (["opus", "sonnet", "haiku"].includes(pref)) {
-      return jsonResult({ model: pref, pref });
-    }
-
-    return jsonResult({ model: current, pref });
+    const model = resolveModel({ agent, current: readMainModel(agent), pref, phase: args.phase });
+    return jsonResult({ model, pref, phase: args.phase, agent });
   },
 
   ctk_git_log(args: { count?: number; cwd?: string }) {
@@ -258,7 +245,7 @@ export const handlers = {
     project_path?: string;
     title?: string;
   }) {
-    const sid = args.session_id ?? currentSessionId() ?? randomSessionId();
+    const sid = args.session_id ?? currentSessionId() ?? randomUUID();
     return memHandlers.mem_session({
       sub: 'summary',
       session_id: sid,

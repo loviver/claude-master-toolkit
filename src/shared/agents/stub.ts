@@ -100,4 +100,7 @@ export class StubAdapter implements AgentAdapter {
   readMainModel(_homeDir: string): string | null {
     return null;
   }
+  tierModel(_tier: 'high' | 'mid' | 'low'): string | null {
+    return null;
+  }
 }

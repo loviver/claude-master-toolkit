@@ -56,10 +56,10 @@ export function Settings() {
               helperText={PREF_HELP[pref]}
             />
             {updateSetting.isError && (
-              <Button variant="secondary" disabled>Error — retry</Button>
+              <Button variant="ghost" disabled>Error — retry</Button>
             )}
             {saved && (
-              <Button variant="secondary" disabled>
+              <Button variant="ghost" disabled>
                 <Icon icon={CheckCircle2} size="sm" /> Saved
               </Button>
             )}

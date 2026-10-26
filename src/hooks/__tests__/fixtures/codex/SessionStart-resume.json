@@ -1,0 +1,9 @@
+{
+  "session_id": "01a1796b-7cae-71f2-a370-cb648f67eb0a",
+  "transcript_path": "/home/user/.codex/sessions/2026/10/26/rollout-2026-10-26T12-14-09-01a1796b-7cae-71f2-a370-cb648f67eb0a.jsonl",
+  "cwd": "/tmp/ctk-scratch",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-6-luna",
+  "permission_mode": "default",
+  "source": "resume"
+}

@@ -46,7 +46,6 @@ export class CodexAdapter implements AgentAdapter {
   systemPromptFile(homeDir: string): string {
     return join(this.globalConfigDir(homeDir), 'AGENTS.md');
   }
-  /** UNVERIFIED (Phase 0 open question): may be ~/.agents/skills instead. */
   skillsDir(homeDir: string): string {
     return join(this.globalConfigDir(homeDir), 'skills');
   }
@@ -71,9 +70,9 @@ export class CodexAdapter implements AgentAdapter {
   transcriptsRoot(homeDir: string): string {
     return join(this.globalConfigDir(homeDir), 'sessions');
   }
-  /** UNVERIFIED (Phase 0 open question). */
+  /** Verified (Phase 0): Codex exports no session-id env to hook/MCP children. */
   sessionIdEnv(): string | null {
-    return 'CODEX_SESSION_ID';
+    return null;
   }
 
   systemPromptStrategy(): SystemPromptStrategy {
@@ -97,6 +96,11 @@ export class CodexAdapter implements AgentAdapter {
   }
   supportsMCP(): boolean {
     return true;
+  }
+
+  /** No verified tier→model mapping for Codex yet: always inherit the main model. */
+  tierModel(_tier: 'high' | 'mid' | 'low'): string | null {
+    return null;
   }
 
   capabilities(): AgentCapabilities {

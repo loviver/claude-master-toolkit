@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'fs';
 import { dirname, join } from 'path';
-import { output, outputError, readMainModel } from '../../shared/output.js';
+import { output, outputError } from '../../shared/output.js';
+import { readMainModel, resolveAgentId } from '../../shared/agents/resolve.js';
+import { resolveModel } from '../../shared/models/router.js';
 import type { ModelPreference } from '../../shared/types/index.js';
 
 import { ctkPaths } from '../../shared/paths/ctk-home.js';
@@ -18,54 +20,15 @@ function readPreference(): ModelPreference {
   return 'inherit';
 }
 
-export function modelCommand(phase: string): void {
-  const pref = readPreference();
-
-  // pinned:<model> — absolute override
-  if (pref.startsWith('pinned:')) {
-    output(pref.slice(7));
-    return;
+export function modelCommand(phase: string, opts: { agent?: string } = {}): void {
+  let agent;
+  try {
+    agent = resolveAgentId(opts.agent);
+  } catch (e) {
+    outputError((e as Error).message);
+    process.exit(1);
   }
-
-  const current = readMainModel();
-
-  switch (pref) {
-    case 'inherit':
-      output(current);
-      break;
-
-    case 'auto':
-    case 'smart':
-      // Smart routing: only force a model when the phase has a clear reason.
-      // All other phases INHERIT the main model — sub-agents using the ctk mini-DSL
-      // (ctk_understand, ctk_find, etc.) stay coherent with the main conversation.
-      switch (phase) {
-        case 'sdd-propose':
-        case 'sdd-design':
-        case 'orchestrator':
-          // Architectural reasoning — force opus
-          output('opus');
-          break;
-        case 'sdd-archive':
-          // Mechanical close-out — force haiku
-          output('haiku');
-          break;
-        default:
-          // sdd-explore, sdd-spec, sdd-tasks, sdd-apply, sdd-verify,
-          // explore, implement, review, general → inherit
-          output(current);
-      }
-      break;
-
-    case 'opus':
-    case 'sonnet':
-    case 'haiku':
-      output(pref);
-      break;
-
-    default:
-      output(current);
-  }
+  output(resolveModel({ agent, current: readMainModel(agent), pref: readPreference(), phase }));
 }
 
 const VALID_PREFS = ['inherit', 'auto', 'smart', 'opus', 'sonnet', 'haiku'];

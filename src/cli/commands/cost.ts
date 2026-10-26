@@ -4,7 +4,7 @@ import {
   getSessionTokens,
   getLatestTurnUsage,
 } from '../../shared/jsonl-parser/index.js';
-import { computeCost, resolveModelKey } from '../../shared/pricing.js';
+import { computeCost, getModelInfo, resolveModelKey } from '../../shared/pricing.js';
 import { output, outputError, isJsonMode, formatTokens, formatCost, readMainModel, formatTokensWithColor, formatCostWithColor } from '../../shared/output.js';
 import { c, padRight } from '../../shared/terminal.js';
 
@@ -20,7 +20,7 @@ export async function costCommand(options: { quiet?: boolean }): Promise<void> {
   const tokens = await getSessionTokens(sessionFile);
   const model = readMainModel();
   const modelKey = resolveModelKey(model);
-  const cost = computeCost(modelKey, tokens);
+  const cost = computeCost(model, tokens);
 
   if (isJsonMode()) {
     output({
@@ -41,7 +41,8 @@ export async function costCommand(options: { quiet?: boolean }): Promise<void> {
   }
 }
 
-const CONTEXT_WINDOW = 200_000;
+/** Only used when the model's window is unknown to ctk. */
+const FALLBACK_CONTEXT_WINDOW = 200_000;
 
 export async function contextCommand(): Promise<void> {
   const sessionFile = getLatestSessionFile();
@@ -54,13 +55,14 @@ export async function contextCommand(): Promise<void> {
   // Current window = last turn (input + cache_read + output)
   const lastTurn = await getLatestTurnUsage(sessionFile);
   const window = lastTurn.inputTokens + lastTurn.cacheReadTokens + lastTurn.outputTokens;
-  const pct = Math.round((window * 100) / CONTEXT_WINDOW);
+  const model = readMainModel();
+  const contextWindow = getModelInfo(model).contextWindow ?? FALLBACK_CONTEXT_WINDOW;
+  const pct = Math.round((window * 100) / contextWindow);
 
   // Cumulative cost
   const cumulative = await getSessionTokens(sessionFile);
-  const model = readMainModel();
   const modelKey = resolveModelKey(model);
-  const cost = computeCost(modelKey, cumulative);
+  const cost = computeCost(model, cumulative);
 
   if (isJsonMode()) {
     output({

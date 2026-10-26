@@ -155,7 +155,8 @@ program
 
 program
   .command("model <phase>")
-  .description("Print model alias for an SDD phase (respects user preference)")
+  .description("Print the sub-agent model for an SDD phase or tier high|mid|low (respects user preference)")
+  .option("--agent <id>", "target agent (claude-code|codex); default: auto-detect")
   .action(modelCommand);
 
 program

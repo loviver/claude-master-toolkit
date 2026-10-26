@@ -41,6 +41,10 @@ describe('CodexAdapter', () => {
     expect(c.sessionEndReason).toBe(false);
   });
 
+  it('exposes no session-id env (verified: Codex only sets CODEX_MANAGED_*)', () => {
+    expect(a.sessionIdEnv()).toBeNull();
+  });
+
   it('readMainModel reads model from config.toml', () => {
     mkdirSync(join(home, '.codex'));
     writeFileSync(join(home, '.codex', 'config.toml'), '# c\nmodel = "gpt-5-codex"\n[mcp_servers.x]\ncommand = "y"\n');

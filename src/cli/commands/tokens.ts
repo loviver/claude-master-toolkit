@@ -76,7 +76,7 @@ export async function estimateCommand(file: string): Promise<void> {
       if (data.input_tokens) {
         const model = resolveModelKey('sonnet');
         const pricing = getPricing(model);
-        const cost = (data.input_tokens * pricing.input) / 1_000_000;
+        const cost = pricing ? (data.input_tokens * pricing.input) / 1_000_000 : 0;
 
         if (isJsonMode()) {
           output({

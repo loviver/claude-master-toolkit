@@ -33,6 +33,12 @@ const MODEL_ALIASES: Record<string, string> = {
 let PRICING_TABLE: Record<string, ModelPricing> = { ...FALLBACK_PRICING };
 // Full model-id → pricing from LiteLLM (populated after refresh)
 let LITELLM_TABLE: Record<string, ModelPricing> = {};
+// Full model-id → max input tokens from LiteLLM
+let CONTEXT_TABLE: Record<string, number> = {};
+
+const ANTHROPIC_DEFAULT_CONTEXT = 200_000;
+const ANTHROPIC_1M_CONTEXT = 1_000_000;
+const TIERS = ['opus', 'sonnet', 'haiku'] as const;
 
 // ---------------------------------------------------------------------------
 // Disk cache helpers
@@ -41,6 +47,7 @@ let LITELLM_TABLE: Record<string, ModelPricing> = {};
 interface DiskCache {
   fetchedAt: number;
   litellmTable: Record<string, ModelPricing>;
+  contextTable?: Record<string, number>;
 }
 
 function readDiskCache(): DiskCache | null {
@@ -72,7 +79,12 @@ type LiteLLMEntry = {
   output_cost_per_token?: number;
   cache_read_input_token_cost?: number;
   cache_creation_input_token_cost?: number;
+  max_input_tokens?: number;
 };
+
+/** Model ids ctk prices: Anthropic + OpenAI (GPT / o-series / Codex). */
+const PRICED_MODEL = /^(claude-|gpt-|o\d|codex)/;
+const OPENAI_MODEL = /^(gpt-|o\d|codex)/;
 
 function mapLiteLLMEntry(e: LiteLLMEntry): ModelPricing | null {
   if (!e.input_cost_per_token || !e.output_cost_per_token) return null;
@@ -84,18 +96,32 @@ function mapLiteLLMEntry(e: LiteLLMEntry): ModelPricing | null {
   };
 }
 
-function buildLiteLLMTable(raw: Record<string, unknown>): Record<string, ModelPricing> {
+export function buildLiteLLMTable(raw: Record<string, unknown>): Record<string, ModelPricing> {
   const table: Record<string, ModelPricing> = {};
   for (const [model, entry] of Object.entries(raw)) {
-    if (!model.startsWith('claude-')) continue;
+    if (!PRICED_MODEL.test(model)) continue;
     const mapped = mapLiteLLMEntry(entry as LiteLLMEntry);
     if (mapped) table[model] = mapped;
   }
   return table;
 }
 
-function applyLiteLLMTable(table: Record<string, ModelPricing>): void {
+export function buildContextTable(raw: Record<string, unknown>): Record<string, number> {
+  const table: Record<string, number> = {};
+  for (const [model, entry] of Object.entries(raw)) {
+    if (!PRICED_MODEL.test(model)) continue;
+    const n = (entry as LiteLLMEntry).max_input_tokens;
+    if (typeof n === 'number' && n > 0) table[model] = n;
+  }
+  return table;
+}
+
+export function applyLiteLLMTable(
+  table: Record<string, ModelPricing>,
+  contextTable: Record<string, number> = {},
+): void {
   LITELLM_TABLE = table;
+  CONTEXT_TABLE = contextTable;
   // Rebuild tier table from live data using heuristic matching
   const tiers: Record<string, ModelPricing> = {};
   for (const [model, pricing] of Object.entries(table)) {
@@ -115,7 +141,7 @@ function applyLiteLLMTable(table: Record<string, ModelPricing>): void {
 
 const cached = readDiskCache();
 if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-  applyLiteLLMTable(cached.litellmTable);
+  applyLiteLLMTable(cached.litellmTable, cached.contextTable);
 }
 
 // ---------------------------------------------------------------------------
@@ -128,8 +154,9 @@ export async function refreshPricingFromLiteLLM(): Promise<void> {
     if (!res.ok) return;
     const raw = (await res.json()) as Record<string, unknown>;
     const table = buildLiteLLMTable(raw);
-    applyLiteLLMTable(table);
-    writeDiskCache({ fetchedAt: Date.now(), litellmTable: table });
+    const contextTable = buildContextTable(raw);
+    applyLiteLLMTable(table, contextTable);
+    writeDiskCache({ fetchedAt: Date.now(), litellmTable: table, contextTable });
   } catch {
     // silently fall back to hardcoded / cached values
   }
@@ -139,28 +166,50 @@ export async function refreshPricingFromLiteLLM(): Promise<void> {
 // Sync public API (unchanged signatures)
 // ---------------------------------------------------------------------------
 
+const isAnthropic = (m: string): boolean =>
+  m.startsWith('claude') || TIERS.some((t) => m.startsWith(t));
+
 export function resolveModelKey(model: string): string {
-  // Exact LiteLLM match first
-  if (LITELLM_TABLE[model]) return model;
-  if (PRICING_TABLE[model]) return model;
+  // Claude ids collapse to their tier (the dashboard groups by opus|sonnet|haiku).
   if (MODEL_ALIASES[model]) return MODEL_ALIASES[model];
+  if (isAnthropic(model)) {
+    for (const t of TIERS) if (model.includes(t)) return t;
+  }
+  // Priced non-Claude models (e.g. OpenAI) keep their own id.
+  if (LITELLM_TABLE[model]) return model;
 
-  if (model.includes('opus'))   return 'opus';
-  if (model.includes('sonnet')) return 'sonnet';
-  if (model.includes('haiku'))  return 'haiku';
-
-  return 'sonnet';
+  // Never guess a price: an unrecognised model stays unknown.
+  return 'unknown';
 }
 
-export function getPricing(model: string): ModelPricing {
-  // Prefer exact LiteLLM entry, then tier table
+/** Pricing for a model, or null when ctk cannot price it. */
+export function getPricing(model: string): ModelPricing | null {
   if (LITELLM_TABLE[model]) return LITELLM_TABLE[model];
+  return PRICING_TABLE[resolveModelKey(model)] ?? null;
+}
+
+export interface ModelInfo {
+  key: string;
+  family: 'anthropic' | 'openai' | 'unknown';
+  known: boolean;
+  pricing: ModelPricing | null;
+  contextWindow: number | null;
+}
+
+export function getModelInfo(model: string): ModelInfo {
   const key = resolveModelKey(model);
-  return PRICING_TABLE[key] ?? PRICING_TABLE['sonnet'];
+  const pricing = getPricing(model);
+  const family = isAnthropic(model) ? 'anthropic' : OPENAI_MODEL.test(model) ? 'openai' : 'unknown';
+  let contextWindow: number | null = CONTEXT_TABLE[model] ?? null;
+  if (contextWindow === null && family === 'anthropic') {
+    contextWindow = model.includes('[1m]') ? ANTHROPIC_1M_CONTEXT : ANTHROPIC_DEFAULT_CONTEXT;
+  }
+  return { key, family, known: pricing !== null, pricing, contextWindow };
 }
 
 export function computeCost(model: string, tokens: TokenUsage): number {
   const p = getPricing(model);
+  if (!p) return 0;
   return (
     (tokens.inputTokens        * p.input +
      tokens.outputTokens       * p.output +

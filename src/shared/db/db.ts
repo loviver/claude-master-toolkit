@@ -11,6 +11,8 @@ function resolveDbPath(): string {
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let _sqlite: Database.Database | null = null;
 
+export type AppDb = ReturnType<typeof drizzle<typeof schema>>;
+
 export function getDb() {
   if (_db) return _db;
 

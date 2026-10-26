@@ -6,7 +6,7 @@ const IDS: readonly AgentId[] = ['claude-code', 'opencode', 'cursor', 'codex'];
 
 function sniffAgent(): AgentId | null {
   const e = process.env;
-  if (e['CODEX_SESSION_ID'] || e['CODEX_THREAD_ID'] || e['CODEX_HOME']) return 'codex';
+  if (e['CODEX_MANAGED_BY_NPM'] || e['CODEX_MANAGED_PACKAGE_ROOT'] || e['CODEX_THREAD_ID'] || e['CODEX_HOME']) return 'codex';
   if (e['CLAUDECODE'] || e['CLAUDE_SESSION_ID']) return 'claude-code';
   return null;
 }

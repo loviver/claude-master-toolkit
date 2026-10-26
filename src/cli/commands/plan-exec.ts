@@ -127,8 +127,8 @@ export function planStatusCommand(executionId: string): void {
       currentNodeId: exec.currentNodeId,
       timeline: exec.timeline,
       nodeStates: Array.from(exec.nodeStates.entries()).map(([id, state]) => ({
-        nodeId: id,
         ...state,
+        nodeId: id,
       })),
     });
   } catch (err) {

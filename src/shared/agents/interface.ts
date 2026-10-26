@@ -65,5 +65,7 @@ export interface AgentAdapter {
   sessionIdEnv(): string | null;
   /** Model configured by the user for the main thread, or null if unknown. */
   readMainModel(homeDir: string): string | null;
+  /** Concrete model for a tier, or null when the agent has no verified tier mapping (-> inherit). */
+  tierModel(tier: 'high' | 'mid' | 'low'): string | null;
   supportsMCP(): boolean;
 }
