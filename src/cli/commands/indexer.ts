@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { createHash } from 'crypto';
 import { output, outputError } from '../../shared/output.js';
 import { openTsProject, type IndexedSymbol } from '../../shared/indexer/ts-indexer.js';
+import { IndexErrors } from '../../shared/indexer/index-errors.js';
 import type { FileImport } from '../../shared/indexer/types.js';
 import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
 import { openDb } from '../../shared/indexer/db-raw.js';
@@ -96,7 +97,7 @@ export async function indexBuildCommand(
 
   let reindexed = 0;
   let skipped = 0;
-  let errored = 0;
+  const errors = new IndexErrors(projectPath);
   let dirty = false;
   const now = Date.now();
 
@@ -113,8 +114,8 @@ export async function indexBuildCommand(
     let syms: IndexedSymbol[];
     try {
       syms = extract(absFile);
-    } catch {
-      errored++;
+    } catch (err) {
+      errors.add(absFile, err);
       return;
     }
 
@@ -230,7 +231,9 @@ export async function indexBuildCommand(
     files: files.length,
     reindexed,
     skipped,
-    errored,
+    errored: errors.count,
+    // A failed file is absent from the index (callers/deps silently shrink): say which and why.
+    ...(errors.count > 0 ? { errors: errors.report(), errorCauses: errors.byMessage() } : {}),
     elapsedMs: Date.now() - start,
   });
   process.exit(0);
