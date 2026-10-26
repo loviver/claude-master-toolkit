@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+- Dashboard **Code Graph** view (`/code-graph`): live 3D map of the AST index at module, file or symbol level, with scope drill-down, impact view (`focus` + depth), search, branch-risk overlay and "just reindexed" highlighting. Server routes `/api/code-graph`, `/api/code-graph/projects`, `/api/code-graph/revision`, `/api/code-graph/risk`.
+- Code Graph readability: names stay on screen and declutter as you zoom, nodes gather into one island per zone with the zone name at its centre, search frames the node together with its callers and deps, and an **Overview** button reframes the whole graph.
+
+### Changed
+- Git stats run `git` through `execFileSync` (no shell).
+
+### Fixed
+- Two ctk builds sharing `~/.ctk` no longer erase each other's index: only an index **older** than the running build is rebuilt. A stale long-lived process (e.g. an MCP server started before an upgrade) leaves a newer index untouched and warns on stderr, and `ctk index build` refuses to write into an index built by a newer ctk.
+
+### Removed (breaking)
+- Workflow UI in the dashboard and the `/api/plans` routes.
+
 ## 0.4.0
 
 ### Added

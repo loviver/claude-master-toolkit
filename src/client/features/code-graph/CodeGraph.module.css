@@ -239,6 +239,48 @@
   color: #a39e93;
 }
 
+/* Always-on names. Positioned per frame from JS; hidden until the declutter pass places them. */
+.labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.zoneLabel,
+.nodeLabel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  will-change: transform;
+  text-shadow: 0 0 3px #16140f, 0 0 6px #16140f;
+}
+
+.zoneLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #e3ddd2; /* --gray-200 */
+  opacity: 0.85;
+}
+
+.nodeLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: #cbc5b8; /* --gray-300 */
+}
+
+.selectedLabel {
+  font-weight: 700;
+  color: #fafaf7; /* --gray-50 */
+}
+
+.legendHint {
+  color: #a39e93; /* --gray-400 */
+}
+
 .legend {
   position: absolute;
   left: var(--space-3);

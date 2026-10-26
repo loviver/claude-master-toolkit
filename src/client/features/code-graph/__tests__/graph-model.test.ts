@@ -2,13 +2,19 @@ import { describe, it, expect } from 'vitest';
 import type { CodeGraphDTO, CodeGraphNodeDTO, CodeGraphProjectDTO } from '../../../lib/types';
 import {
   buildAdjacency,
+  clusterForce,
   defaultLevel,
   drillTarget,
   escapeHtml,
   kindCategory,
+  labelCandidates,
   linkEnds,
   mergeGraph,
+  neighbourhood,
+  placeLabels,
   searchNodes,
+  zoneCentroids,
+  type RenderNode,
 } from '../graph-model';
 
 function node(id: string, over: Partial<CodeGraphNodeDTO> = {}): CodeGraphNodeDTO {
@@ -65,6 +71,85 @@ describe('buildAdjacency', () => {
     expect([...adj.get('core')!.callers].sort()).toEqual(['a', 'b']);
     expect([...adj.get('core')!.deps]).toEqual(['util']);
     expect(adj.get('util')!.deps.size).toBe(0);
+  });
+});
+
+describe('neighbourhood', () => {
+  const adj = buildAdjacency([
+    { source: 'a', target: 'core', type: 'call', weight: 1 },
+    { source: 'core', target: 'util', type: 'call', weight: 1 },
+    { source: 'util', target: 'far', type: 'call', weight: 1 },
+  ]);
+
+  it('is the node plus its direct callers and deps', () => {
+    expect([...neighbourhood('core', adj)].sort()).toEqual(['a', 'core', 'util']);
+  });
+
+  it('is just the node when it has no edges', () => {
+    expect([...neighbourhood('alone', adj)]).toEqual(['alone']);
+  });
+});
+
+describe('labelCandidates', () => {
+  const nodes = [
+    node('low', { rank: 0.1 }),
+    node('mid', { rank: 0.5 }),
+    node('top', { rank: 1 }),
+    node('sel', { rank: 0.05 }),
+  ];
+  const adj = buildAdjacency([
+    { source: 'low', target: 'sel', type: 'call', weight: 1 },
+    { source: 'sel', target: 'mid', type: 'call', weight: 1 },
+  ]);
+
+  it('without a selection offers the most central nodes first, capped', () => {
+    expect(labelCandidates(nodes, null, adj, 2).map((n) => n.id)).toEqual(['top', 'mid']);
+  });
+
+  it('with a selection offers the selection first, then only its neighbours by rank', () => {
+    expect(labelCandidates(nodes, 'sel', adj, 10).map((n) => n.id)).toEqual(['sel', 'mid', 'low']);
+  });
+});
+
+describe('zoneCentroids', () => {
+  it('averages laid-out positions per group, biggest zone first, skipping unplaced nodes', () => {
+    const nodes: RenderNode[] = [
+      { ...node('a', { group: 'src/auth' }), x: 0, y: 0, z: 0 },
+      { ...node('b', { group: 'src/auth' }), x: 10, y: 20, z: 30 },
+      { ...node('c', { group: 'src/bank' }), x: 5, y: 5, z: 5 },
+      node('d', { group: 'src/bank' }),
+    ];
+    expect(zoneCentroids(nodes)).toEqual([
+      { group: 'src/auth', count: 2, x: 5, y: 10, z: 15 },
+      { group: 'src/bank', count: 1, x: 5, y: 5, z: 5 },
+    ]);
+  });
+});
+
+describe('placeLabels', () => {
+  it('keeps labels in priority order and drops any that would overlap a placed one', () => {
+    const placed = placeLabels([
+      { id: 'first', x: 0, y: 0, w: 50, h: 10 },
+      { id: 'overlaps', x: 40, y: 5, w: 50, h: 10 },
+      { id: 'clear', x: 0, y: 20, w: 50, h: 10 },
+    ]);
+    expect([...placed]).toEqual(['first', 'clear']);
+  });
+});
+
+describe('clusterForce', () => {
+  it('nudges each node toward the centre of its own zone, scaled by alpha', () => {
+    const nodes: RenderNode[] = [
+      { ...node('a', { group: 'g1' }), x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 },
+      { ...node('b', { group: 'g1' }), x: 10, y: 0, z: 0, vx: 0, vy: 0, vz: 0 },
+      { ...node('c', { group: 'g2' }), x: 100, y: 0, z: 0, vx: 0, vy: 0, vz: 0 },
+    ];
+    const force = clusterForce(0.5);
+    force.initialize(nodes);
+    force(1);
+    expect(nodes[0].vx).toBeCloseTo(2.5);
+    expect(nodes[1].vx).toBeCloseTo(-2.5);
+    expect(nodes[2].vx).toBe(0);
   });
 });
 

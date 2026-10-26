@@ -6,7 +6,7 @@ import { openTsProject, type IndexedSymbol } from '../../shared/indexer/ts-index
 import { IndexErrors } from '../../shared/indexer/index-errors.js';
 import type { FileImport } from '../../shared/indexer/types.js';
 import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
-import { openDb } from '../../shared/indexer/db-raw.js';
+import { assertIndexWritable, openDb } from '../../shared/indexer/db-raw.js';
 import { findSymbol, getDeps, getCallers } from '../../shared/indexer/queries.js';
 import { qualifyId, parseQualifiedId } from '../../shared/indexer/ids.js';
 import { repoMap } from '../../shared/indexer/repo-map.js';
@@ -67,6 +67,7 @@ export async function indexBuildCommand(
     treeSitter.canHandle(absFile) ? [] : ts.imports(absFile);
 
   const db = openDb();
+  assertIndexWritable(db);
 
   if (opts.force) {
     db.prepare('DELETE FROM symbols WHERE project_path = ?').run(projectPath);

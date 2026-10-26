@@ -80,18 +80,13 @@ Not installed on Codex: the Claude persona, and the `sdd-*` / `delegate` skills 
 
 ---
 
-## What's new in 0.4.0
+## What's new in 0.5.0
 
 Breaking changes are marked **⚠**. Full history in [CHANGELOG.md](./CHANGELOG.md).
 
-- **`ctk_map`** — repo map: the most structurally important symbols (PageRank over the call/reference graph) with signatures, grouped by file, cut to a token budget. Call it first to get oriented instead of reading files. CLI: `ctk index map`.
-- **Index self‑heals** — SessionStart refreshes the index in ctk‑active projects, so a schema bump or stale index no longer needs a manual `ctk index build`. Code tools on an unindexed project return an error with the fix instead of empty results.
-- **⚠ Leaner `ctk_find`** — returns `depsCount` / `callersCount` instead of the full lists (use `ctk_callers` / `ctk_deps` / `ctk_understand` for them) and flags `signatureTruncated` when a signature was cut.
-- **⚠ `ctk_callers` without duplication** — `definitions` is only present when several definitions share the name.
-- **Typed `const` signatures** — `export const useX: Hook<T> = impl` now indexes `useX: Hook<T>` instead of `null`.
-- **⚠ Memory over MCP is `mem_*`** — `mem_save`, `mem_recall`, `mem_context`, `mem_get`, `mem_trace`, `mem_session`. The `pandorica_*` aliases and the `ctk pandorica` CLI are removed (use `ctk mem`).
-- **⚠ Index schema v5** — rebuilt automatically at session start (see *Upgrading the index*).
-- **Bench oracle** — `scripts/bench/oracle.ts` verifies bench ground truth with the type‑checker.
+- **Code Graph** — `ctk dashboard` → *Code Graph*: live 3D map of the AST index (modules, files, symbols) with drill-down, impact view, search and branch-risk overlay. Names declutter as you zoom, zones form labelled islands, and search frames a node with its callers and deps.
+- **Index survives mixed ctk versions** — a process running an older ctk (typically an MCP server started before an upgrade) no longer wipes a newer index, and `ctk index build` refuses to write into one.
+- **⚠ Workflow UI removed** — the dashboard workflow editor and the `/api/plans` routes are gone.
 
 ---
 
@@ -187,7 +182,7 @@ The embedder is pluggable and **off nothing is lost** — if it's unavailable, r
 
 #### Upgrading the index (0.4.0)
 
-The index schema moved to **v5**. The first time 0.4.0 opens the database it clears the symbol index of **every** project. In projects initialized with `ctk init`, the SessionStart hook rebuilds it in the background, so nothing is needed. Elsewhere run `ctk index build --path <project>` once; until then the code tools answer with an error that says exactly that. Pandorica memories are not affected.
+The index schema moved to **v5**. The first time 0.4.0 opens the database it clears the symbol index of **every** project. In projects initialized with `ctk init`, the SessionStart hook rebuilds it in the background, so nothing is needed. Elsewhere run `ctk index build --path <project>` once; until then the code tools answer with an error that says exactly that. Pandorica memories are not affected. Since 0.5.0 an older ctk process never clears a newer index: restart it (e.g. reconnect the ctk MCP server) to pick up the current build.
 
 ### Briefs & findings (sub‑agent coordination)
 

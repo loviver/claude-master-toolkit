@@ -69,7 +69,7 @@ import {
   planGenerateCommand,
 } from "./commands/plan-exec.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const VALID_PANDORICA_TYPES =
   "bugfix|decision|architecture|discovery|pattern|config|preference|session_summary";
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { openDb } from '../db-raw.js';
+import { INDEXER_SCHEMA_VERSION, assertIndexWritable, openDb } from '../db-raw.js';
 
 let tmp: string;
 let saved: string | undefined;
@@ -59,5 +59,35 @@ describe('openDb schema v3 columns', () => {
     expect(cols(b, 'indexed_files')).toContain('imports');
     expect(b.prepare('SELECT COUNT(*) AS n FROM indexed_files').get()).toEqual({ n: 0 });
     b.close();
+  });
+});
+
+describe('openDb across ctk versions sharing one DB', () => {
+  const seedNewer = () => {
+    const a = openDb();
+    a.prepare('INSERT INTO indexed_files (project_path, file, hash, indexed_at) VALUES (?,?,?,?)').run('/p', 'a.ts', 'h', 1);
+    a.pragma(`user_version = ${INDEXER_SCHEMA_VERSION + 1}`);
+    a.close();
+  };
+
+  it('never wipes or downgrades an index built by a newer ctk (a stale long-lived process must not erase it)', () => {
+    seedNewer();
+    const b = openDb();
+    expect(b.prepare('SELECT COUNT(*) AS n FROM indexed_files').get()).toEqual({ n: 1 });
+    expect(b.pragma('user_version', { simple: true })).toBe(INDEXER_SCHEMA_VERSION + 1);
+    b.close();
+  });
+
+  it('refuses index writes from an older ctk, so it cannot mix stale-format rows into a newer index', () => {
+    seedNewer();
+    const b = openDb();
+    expect(() => assertIndexWritable(b)).toThrow(/newer ctk/);
+    b.close();
+  });
+
+  it('allows index writes on a current index', () => {
+    const db = openDb();
+    expect(() => assertIndexWritable(db)).not.toThrow();
+    db.close();
   });
 });

@@ -79,6 +79,91 @@ export function buildAdjacency(links: RenderLink[]): Map<string, Neighbours> {
   return adj;
 }
 
+/** A node with everything one hop away: what the camera frames when it flies to it. */
+export function neighbourhood(id: string, adjacency: Map<string, Neighbours>): Set<string> {
+  const n = adjacency.get(id);
+  return new Set([id, ...(n?.callers ?? []), ...(n?.deps ?? [])]);
+}
+
+const byRank = (a: CodeGraphNodeDTO, b: CodeGraphNodeDTO) => b.rank - a.rank || a.id.localeCompare(b.id);
+
+/**
+ * Nodes that may carry an always-on name, most important first. Whether each one is
+ * actually drawn is decided per frame by `placeLabels`, so zooming in reveals more.
+ */
+export function labelCandidates<N extends CodeGraphNodeDTO>(
+  nodes: N[],
+  selectedId: string | null,
+  adjacency: Map<string, Neighbours>,
+  max: number,
+): N[] {
+  if (!selectedId) return [...nodes].sort(byRank).slice(0, max);
+  const near = neighbourhood(selectedId, adjacency);
+  const selected = nodes.find((n) => n.id === selectedId);
+  const rest = nodes.filter((n) => n.id !== selectedId && near.has(n.id)).sort(byRank);
+  return (selected ? [selected, ...rest] : rest).slice(0, max);
+}
+
+export interface ZoneCentroid {
+  group: string;
+  count: number;
+  x: number; y: number; z: number;
+}
+
+/** Where each zone (group) sits in the layout, biggest zone first; unplaced nodes don't count. */
+export function zoneCentroids(nodes: RenderNode[]): ZoneCentroid[] {
+  const zones = new Map<string, ZoneCentroid>();
+  for (const n of nodes) {
+    if (n.x === undefined || n.y === undefined || n.z === undefined) continue;
+    const z = zones.get(n.group) ?? zones.set(n.group, { group: n.group, count: 0, x: 0, y: 0, z: 0 }).get(n.group)!;
+    z.count++; z.x += n.x; z.y += n.y; z.z += n.z;
+  }
+  for (const z of zones.values()) { z.x /= z.count; z.y /= z.count; z.z /= z.count; }
+  return [...zones.values()].sort((a, b) => b.count - a.count || a.group.localeCompare(b.group));
+}
+
+export interface LabelBox {
+  id: string;
+  /** Screen-space top-left corner and size, in px. */
+  x: number; y: number; w: number; h: number;
+}
+
+/** Greedy declutter: walk boxes in priority order and keep each one that overlaps none kept so far. */
+export function placeLabels(boxes: LabelBox[]): Set<string> {
+  const kept: LabelBox[] = [];
+  for (const b of boxes) {
+    const hit = kept.some((k) => b.x < k.x + k.w && k.x < b.x + b.w && b.y < k.y + k.h && k.y < b.y + b.h);
+    if (!hit) kept.push(b);
+  }
+  return new Set(kept.map((b) => b.id));
+}
+
+export interface ClusterForce {
+  (alpha: number): void;
+  initialize(nodes: RenderNode[]): void;
+}
+
+/** d3-style force pulling every node toward the centre of its zone, so zones read as islands. */
+export function clusterForce(strength: number): ClusterForce {
+  let nodes: RenderNode[] = [];
+  const force = ((alpha: number) => {
+    const centres = new Map<string, { x: number; y: number; z: number; count: number }>();
+    for (const n of nodes) {
+      const c = centres.get(n.group) ?? centres.set(n.group, { x: 0, y: 0, z: 0, count: 0 }).get(n.group)!;
+      c.x += n.x ?? 0; c.y += n.y ?? 0; c.z += n.z ?? 0; c.count++;
+    }
+    const k = alpha * strength;
+    for (const n of nodes) {
+      const c = centres.get(n.group)!;
+      n.vx = (n.vx ?? 0) + (c.x / c.count - (n.x ?? 0)) * k;
+      n.vy = (n.vy ?? 0) + (c.y / c.count - (n.y ?? 0)) * k;
+      n.vz = (n.vz ?? 0) + (c.z / c.count - (n.z ?? 0)) * k;
+    }
+  }) as ClusterForce;
+  force.initialize = (ns) => { nodes = ns; };
+  return force;
+}
+
 export function searchNodes<N extends CodeGraphNodeDTO>(nodes: N[], query: string, max = 8): N[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];

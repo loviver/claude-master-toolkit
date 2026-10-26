@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Orbit, Radio, ShieldAlert, X } from 'lucide-react';
+import { Maximize2, Orbit, Radio, ShieldAlert, X } from 'lucide-react';
 import { Button, Card, EmptyState, Input, PageHeader, Select, Skeleton } from '../../components/ui';
 import { formatProjectName, formatRelativeTime } from '../../lib/format';
 import type { CodeGraphLevel } from '../../lib/types';
@@ -92,6 +92,7 @@ export function CodeGraphPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [flyTo, setFlyTo] = useState<{ id: string; nonce: number } | null>(null);
+  const [fitAll, setFitAll] = useState(0);
 
   const revision = useCodeGraphRevision(projectPath, live);
   const rev = revision.data?.revision;
@@ -225,6 +226,9 @@ export function CodeGraphPage() {
         </div>
 
         <div className={styles.toggles}>
+          <Button size="sm" variant="ghost" title="Frame the whole graph" onClick={() => setFitAll((n) => n + 1)}>
+            <Maximize2 size={14} /> Overview
+          </Button>
           <Button size="sm" variant={live ? 'default' : 'ghost'} aria-pressed={live} onClick={() => setLive((v) => !v)}>
             <Radio size={14} className={live ? styles.liveDot : undefined} /> Live
           </Button>
@@ -311,6 +315,7 @@ export function CodeGraphPage() {
               overlay={overlay}
               flyTo={flyTo}
               fitKey={viewKey}
+              fitAll={fitAll}
               onSelect={select}
             />
           )}
@@ -322,6 +327,7 @@ export function CodeGraphPage() {
             {live && <li><i style={{ background: STATE_COLORS.hot }} />Just reindexed</li>}
             {showRisk && <li><i style={{ background: STATE_COLORS.touched }} />Changed on branch</li>}
             {showRisk && <li><i style={{ background: STATE_COLORS.blast }} />Blast radius</li>}
+            <li className={styles.legendHint}>Bigger = more depended on · zoom in for more names</li>
           </ul>
         </div>
 
