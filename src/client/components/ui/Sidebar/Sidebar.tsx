@@ -11,6 +11,7 @@ import {
   Settings as SettingsIcon,
   FolderKanban,
   Network,
+  Orbit,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Icon } from '../Icon/Icon';
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/',          label: 'Overview',    icon: LayoutDashboard },
   { to: '/sessions',  label: 'Sessions',    icon: ListOrdered },
   { to: '/graph',     label: 'Graph',       icon: Network },
+  { to: '/code-graph', label: 'Code Graph', icon: Orbit },
   { to: '/projects',  label: 'Projects',    icon: FolderKanban },
   { to: '/models',    label: 'Models',      icon: Cpu },
   { to: '/tools',     label: 'Tools',       icon: Wrench },

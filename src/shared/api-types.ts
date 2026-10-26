@@ -157,3 +157,81 @@ export interface TurnPairDTO {
     toolCallsStructured?: ToolCallStructuredDTO[];
   };
 }
+
+// ── Code graph (AST index rendered as a navigable graph) ──
+
+/** Granularity of the code graph: directories, files, or individual symbols. */
+export type CodeGraphLevel = 'module' | 'file' | 'symbol';
+/** `call` edges come from resolved call sites (deps), `ref` from type/const references. */
+export type CodeGraphLinkType = 'call' | 'ref';
+
+export interface CodeGraphNodeDTO {
+  /** `dir` (module), `file` (file) or `file::symbol` (symbol). */
+  id: string;
+  label: string;
+  /** `module` | `file` | the symbol kind (function, class, method, type, ...). */
+  kind: string;
+  /** Owning file; null for module nodes. */
+  file: string | null;
+  /** Cluster key: the first two directory segments, `.` for the repo root. */
+  group: string;
+  /** PageRank normalized so the top node of the level is 1. */
+  rank: number;
+  /** Symbols folded into this node (1 at symbol level). */
+  size: number;
+  exported: boolean;
+  signature: string | null;
+  startLine: number | null;
+  endLine: number | null;
+  /** Newest `indexed_files.indexed_at` behind this node (epoch ms, 0 if unknown). */
+  indexedAt: number;
+}
+
+export interface CodeGraphLinkDTO {
+  source: string;
+  target: string;
+  type: CodeGraphLinkType;
+  /** Number of symbol edges folded into this link. */
+  weight: number;
+}
+
+export interface CodeGraphStatsDTO {
+  totalNodes: number;
+  totalLinks: number;
+  /** Edges dropped because the indexer could not resolve their target. */
+  unresolved: number;
+  /** True when `limit` cut nodes off. */
+  truncated: boolean;
+}
+
+export interface CodeGraphDTO {
+  project: string;
+  level: CodeGraphLevel;
+  revision: string;
+  nodes: CodeGraphNodeDTO[];
+  links: CodeGraphLinkDTO[];
+  stats: CodeGraphStatsDTO;
+}
+
+export interface CodeGraphProjectDTO {
+  projectPath: string;
+  symbols: number;
+  files: number;
+  indexedAt: number;
+}
+
+export interface CodeGraphRevisionDTO {
+  project: string;
+  revision: string;
+}
+
+/** The current branch's diff vs base, projected onto the node ids of one level. */
+export interface CodeGraphRiskDTO {
+  base: string;
+  tier: string;
+  score: number;
+  /** Nodes the diff touches. */
+  touched: string[];
+  /** Nodes that call touched code (blast radius), excluding touched ones. */
+  blast: string[];
+}

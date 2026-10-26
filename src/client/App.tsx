@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
 import { Layout } from './components/Layout';
@@ -12,6 +13,12 @@ import { Memories } from './features/memories/Memories';
 import { Projects } from './features/projects/Projects';
 import { GraphExplorer } from './features/graph/GraphExplorer';
 import { Settings } from './features/settings/Settings';
+import { Skeleton } from './components/ui';
+
+// three.js is heavy: the code graph ships as its own chunk, loaded only when visited.
+const CodeGraphPage = lazy(() =>
+  import('./features/code-graph/CodeGraphPage').then((m) => ({ default: m.CodeGraphPage })),
+);
 
 export function App() {
   return (
@@ -23,6 +30,10 @@ export function App() {
             <Route path="/sessions"      element={<SessionList />} />
             <Route path="/sessions/:id"  element={<SessionDetail />} />
             <Route path="/graph"         element={<GraphExplorer />} />
+            <Route
+              path="/code-graph"
+              element={<Suspense fallback={<Skeleton height={640} radius="md" />}><CodeGraphPage /></Suspense>}
+            />
             <Route path="/projects"      element={<Projects />} />
             <Route path="/models"        element={<Models />} />
             <Route path="/tools"         element={<Tools />} />

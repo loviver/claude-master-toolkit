@@ -85,6 +85,7 @@
     ]
   },
   "dependencies": {
+    "3d-force-graph": "^1.80.1",
     "@fastify/cors": "^10.0.2",
     "@fastify/static": "^9.1.1",
     "@modelcontextprotocol/sdk": "1.29.0",

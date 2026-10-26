@@ -14,6 +14,15 @@ export type {
   TurnPairDTO,
   TurnToolCall,
   ToolCallStructuredDTO,
+  CodeGraphLevel,
+  CodeGraphLinkType,
+  CodeGraphNodeDTO,
+  CodeGraphLinkDTO,
+  CodeGraphStatsDTO,
+  CodeGraphDTO,
+  CodeGraphProjectDTO,
+  CodeGraphRevisionDTO,
+  CodeGraphRiskDTO,
 } from '../../shared/api-types';
 import type {
   ModelKey,

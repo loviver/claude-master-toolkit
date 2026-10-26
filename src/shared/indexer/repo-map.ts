@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { parseQualifiedId, qualifyId } from './ids.js';
+import { EDGE_WEIGHT, loadSymbolGraph, type SymbolRow } from './symbol-graph.js';
 
 /**
  * Repo map: the project's most structurally important symbols, ranked by PageRank over
@@ -10,12 +10,9 @@ import { parseQualifiedId, qualifyId } from './ids.js';
 const DAMPING = 0.85;
 const MAX_ITERATIONS = 30;
 const TOLERANCE = 1e-9;
-/** Call edges outweigh type/const references when ranking. */
-const DEP_WEIGHT = 1;
-const REF_WEIGHT = 0.5;
 const DEFAULT_BUDGET = 1024;
 
-type Edge = [from: string, to: string, weight: number];
+export type Edge = [from: string, to: string, weight: number];
 
 /**
  * Weighted PageRank. `focus` personalizes the teleport vector (uniform when absent or
@@ -71,18 +68,9 @@ export interface RepoMapResult {
   totalSymbols: number;
 }
 
-interface MapRow {
-  file: string;
-  symbol: string;
-  kind: string;
-  signature: string | null;
-  deps: string | null;
-  refs: string | null;
-}
-
 const estimateTokens = (text: string) => Math.ceil(text.length / 4);
 
-function matchesFocus(row: MapRow, focus: string[]): boolean {
+function matchesFocus(row: SymbolRow, focus: string[]): boolean {
   return focus.some((f) => row.file === f || row.file.endsWith(`/${f}`) || row.symbol === f);
 }
 
@@ -91,23 +79,11 @@ export function repoMap(
   projectPath: string,
   opts: { focus?: string[]; budget?: number } = {},
 ): RepoMapResult {
-  const rows = db
-    .prepare(`SELECT file, symbol, kind, signature, deps, refs FROM symbols WHERE project_path = ?`)
-    .all(projectPath) as MapRow[];
-  if (rows.length === 0) return { files: [], truncated: false, totalSymbols: 0 };
+  const graph = loadSymbolGraph(db, projectPath);
+  const { byId } = graph;
+  if (byId.size === 0) return { files: [], truncated: false, totalSymbols: 0 };
 
-  const byId = new Map(rows.map((r) => [qualifyId(r.file, r.symbol), r]));
-  const edges: Edge[] = [];
-  const addEdges = (from: string, json: string | null, weight: number) => {
-    for (const target of json ? (JSON.parse(json) as string[]) : []) {
-      // Bare ids are unresolved (dynamic dispatch) and targets outside the index carry no rank.
-      if (parseQualifiedId(target) && byId.has(target)) edges.push([from, target, weight]);
-    }
-  };
-  for (const [id, r] of byId) {
-    addEdges(id, r.deps, DEP_WEIGHT);
-    addEdges(id, r.refs, REF_WEIGHT);
-  }
+  const edges: Edge[] = graph.edges.map((e) => [e.from, e.to, EDGE_WEIGHT[e.type]]);
 
   const focus = opts.focus?.length
     ? new Set([...byId].filter(([, r]) => matchesFocus(r, opts.focus!)).map(([id]) => id))

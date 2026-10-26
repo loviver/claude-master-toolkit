@@ -24,6 +24,12 @@ export function getDb() {
   return _db;
 }
 
+/** The raw better-sqlite3 handle behind getDb(), for shared queries that take one (indexer). */
+export function getSqlite(): Database.Database {
+  getDb();
+  return _sqlite!;
+}
+
 export function closeDb(): void {
   if (_sqlite) {
     _sqlite.close();
