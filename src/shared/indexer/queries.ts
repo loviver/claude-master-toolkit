@@ -47,10 +47,12 @@ function rowToMatch(r: SymbolRow): SymbolMatch {
     range: [r.start_line, r.end_line],
     exported: !!r.exported,
     tokens: r.tokens_estimate,
-    deps: r.deps ? JSON.parse(r.deps) : [],
-    callers: r.callers ? JSON.parse(r.callers) : [],
+    depsCount: parseList(r.deps).length,
+    callersCount: parseList(r.callers).length,
   };
 }
+
+const parseList = (json: string | null): string[] => (json ? JSON.parse(json) : []);
 
 export interface FindOpts {
   kind?: string;
@@ -257,7 +259,10 @@ export function getCallers(
     union(referrers, seenReferrers, resolvedRefs);
   }
 
-  return { symbol: name, callers, referrers, definitions };
+  // A single definition's grouping would repeat the flat lists verbatim.
+  return definitions.length > 1
+    ? { symbol: name, callers, referrers, definitions }
+    : { symbol: name, callers, referrers };
 }
 
 const UNDERSTAND_LIST_CAP = 15;
@@ -290,10 +295,8 @@ export function understand(
 
   return {
     ...match,
-    deps: match.deps.slice(0, UNDERSTAND_LIST_CAP),
-    callers: match.callers.slice(0, UNDERSTAND_LIST_CAP),
-    depsCount: match.deps.length,
-    callersCount: match.callers.length,
+    deps: parseList(row.deps).slice(0, UNDERSTAND_LIST_CAP),
+    callers: parseList(row.callers).slice(0, UNDERSTAND_LIST_CAP),
     body,
     ambiguous: candidates.length > 1,
     alternatives,

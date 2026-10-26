@@ -25,7 +25,7 @@ Ten MCP tools exposed by `ctk` server. PREFER over Read/Grep for code exploratio
 Returns `{signature, body, range, file, deps, callers, tokens, exported}` in one call. USE FIRST.
 
 ### ctk_find(name, kind?, exported?)
-Search AST index. `kind` ∈ class|function|method|type|interface|const|enum.
+Search AST index. `kind` ∈ class|function|method|type|interface|const|enum. Returns location + signature + `depsCount`/`callersCount` only — lists via `ctk_callers`/`ctk_deps`.
 
 ### ctk_deps(file) / ctk_callers(symbol)
 Pre-computed from index. No file read.

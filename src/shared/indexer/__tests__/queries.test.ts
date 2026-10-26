@@ -170,6 +170,18 @@ describe('findSymbol — ranking and file filter', () => {
 
     expect(res.map((m) => m.symbol)).toEqual(['CurrencyConverter.formatCurrency']);
   });
+
+  it('returns dep/caller counts instead of the full lists', () => {
+    const many = Array.from({ length: 20 }, (_, i) => `f${i}.ts::c${i}`);
+    insertSym({ file: 'a.ts', symbol: 'hot', exported: true, deps: many.slice(0, 3), callers: many });
+
+    const [match] = findSymbol(db, PROJECT, 'hot');
+
+    expect(match.callersCount).toBe(20);
+    expect(match.depsCount).toBe(3);
+    expect(match).not.toHaveProperty('callers');
+    expect(match).not.toHaveProperty('deps');
+  });
 });
 
 describe('getCallers — per-definition grouping', () => {
@@ -182,8 +194,8 @@ describe('getCallers — per-definition grouping', () => {
     const res = getCallers(db, PROJECT, 'helper');
 
     expect(res.callers).toHaveLength(2);
-    expect(res.definitions.map((d) => d.file).sort()).toEqual(['a.ts', 'b.ts']);
-    expect(res.definitions.find((d) => d.file === 'a.ts')?.callers).toEqual([
+    expect(res.definitions!.map((d) => d.file).sort()).toEqual(['a.ts', 'b.ts']);
+    expect(res.definitions!.find((d) => d.file === 'a.ts')?.callers).toEqual([
       { file: 'm.ts', symbol: 'runA', line: 10 },
     ]);
   });
@@ -197,7 +209,17 @@ describe('getCallers — per-definition grouping', () => {
     const res = getCallers(db, PROJECT, 'helper', { file: 'b.ts' });
 
     expect(res.callers).toEqual([{ file: 'n.ts', symbol: 'runB', line: 20 }]);
-    expect(res.definitions).toHaveLength(1);
+    expect(res.definitions).toBeUndefined();
+  });
+
+  it('omits definitions for a single-definition symbol (no duplicated payload)', () => {
+    insertSym({ file: 'a.ts', symbol: 'solo', callers: ['m.ts::runA'] });
+    insertSym({ file: 'm.ts', symbol: 'runA', startLine: 10 });
+
+    const res = getCallers(db, PROJECT, 'solo');
+
+    expect(res.callers).toEqual([{ file: 'm.ts', symbol: 'runA', line: 10 }]);
+    expect(res).not.toHaveProperty('definitions');
   });
 });
 
@@ -324,7 +346,6 @@ describe('phase 2 query layer', () => {
     const res = getCallers(db, PROJECT, 'Filters');
     expect(res.callers).toEqual([{ file: 'm.ts', symbol: 'build', line: 7 }]);
     expect(res.referrers).toEqual([{ file: 'x.ts', symbol: 'use', line: 3 }]);
-    expect(res.definitions[0].referrers).toEqual([{ file: 'x.ts', symbol: 'use', line: 3 }]);
   });
 
   it('include=calls drops referrers; include=refs drops callers', () => {

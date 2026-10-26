@@ -36,7 +36,8 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
       description:
         'Search the AST-indexed symbol database. Fast lookup without reading files. ' +
-        'Returns matches with file, range, signature, deps, callers, token estimate.',
+        'Returns matches with file, range, signature, depsCount/callersCount, token estimate. ' +
+        'For the lists use ctk_callers / ctk_deps / ctk_understand.',
       inputSchema: {
         name: z.string().describe('Symbol name (exact or suffix match for methods)'),
         kind: z.enum(['class', 'function', 'method', 'type', 'interface', 'const', 'enum']).optional(),
@@ -71,7 +72,7 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
       description:
         'Reverse lookup from the index. `callers` = call edges (calls, `new`, JSX usage); `referrers` = non-call usage ' +
-        '(type annotations, constant refs). Grouped per definition in `definitions`; pass `file` to pin one. ' +
+        '(type annotations, constant refs). When several definitions match, `definitions` groups them per definition; pass `file` to pin one. ' +
         "For types/interfaces/constants use include 'refs' or 'all' (default) — include 'calls' returns nothing for them. " +
         'Each entry is the calling SYMBOL (`line` = its definition); `callSites` lists the lines inside it where the call happens (absent on indexes built before v4).',
       inputSchema: {

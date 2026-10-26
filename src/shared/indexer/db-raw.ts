@@ -8,7 +8,8 @@ import { migrate } from '../db/migrate.js';
 // v3: adds symbols.refs/referrers + indexed_files.imports, JSX/`new` call edges and
 // arrow-fn signatures — a v2 index lacks all of it, so it must rebuild.
 // v4: adds symbols.dep_sites (call-site lines per dep) — older rows lack it, so rebuild.
-const INDEXER_SCHEMA_VERSION = 4;
+// v5: typed non-function consts get a signature (`useX: Hook<T>`) — v4 rows hold null.
+const INDEXER_SCHEMA_VERSION = 5;
 
 // migrate() only runs on a fresh DB, so an existing v2 DB needs its columns added here.
 const V3_COLUMNS: ReadonlyArray<[table: string, col: string]> = [

@@ -67,7 +67,9 @@ function extractSignature(node: Node): string | null {
         const ret = init.getReturnTypeNode()?.getText() ?? '';
         return `${name}(${params})${ret ? `: ${ret}` : ''}`;
       }
-      return null;
+      // `const useX: Hook<T> = impl` — the annotation IS the signature.
+      const typeNode = (node as any).getTypeNode?.();
+      return typeNode ? `${(node as any).getName?.() ?? ''}: ${typeNode.getText()}` : null;
     }
     if (kind === SyntaxKind.InterfaceDeclaration) {
       const itf = node as any;

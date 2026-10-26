@@ -6,8 +6,9 @@ export interface SymbolMatch {
   range: [number, number];
   exported: boolean;
   tokens: number;
-  deps: string[];
-  callers: string[];
+  /** Counts only — the lists live in `ctk_deps` / `ctk_callers` / `understand`. */
+  depsCount: number;
+  callersCount: number;
 }
 
 export interface SymbolAlternative {
@@ -23,9 +24,9 @@ export interface UnderstandResult extends SymbolMatch {
   ambiguous: boolean;
   /** Other definitions of the same name (max 10). Pass `file` to pin one. */
   alternatives: SymbolAlternative[];
-  /** `deps`/`callers` are capped; these carry the full counts. */
-  depsCount: number;
-  callersCount: number;
+  /** Capped lists; `depsCount`/`callersCount` carry the full counts. */
+  deps: string[];
+  callers: string[];
 }
 
 export interface FileImport {
@@ -67,8 +68,8 @@ export interface CallersResult {
   callers: CallerInfo[];
   /** Non-call usage (type annotations, constant refs), flat union. */
   referrers: CallerInfo[];
-  /** Same callers grouped per matched definition. */
-  definitions: CallerDefinition[];
+  /** Same callers grouped per matched definition — only when several definitions match. */
+  definitions?: CallerDefinition[];
 }
 
 export type FindingType = 'bug' | 'assumption' | 'decision' | 'deadend' | 'pattern';

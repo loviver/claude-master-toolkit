@@ -110,6 +110,17 @@ describe('ts-indexer signatures', () => {
     );
   });
 
+  it('falls back to the declared type for a non-function const', () => {
+    const p = mkProject();
+    const f = p.createSourceFile(
+      '/hooks.ts',
+      `declare const useSelector: any;\ntype Hook<T> = (s: T) => unknown;\nexport const useSel: Hook<number> = useSelector;\nexport const LIMIT = 5;`,
+    );
+    const syms = collectSymbols(f, '/', '/hooks.ts');
+    expect(symOf(syms, 'useSel').signature).toBe('useSel: Hook<number>');
+    expect(symOf(syms, 'LIMIT').signature).toBeNull();
+  });
+
   it('gives an interface its members on one line, truncated to 200 chars', () => {
     const p = mkProject();
     const long = Array.from({ length: 40 }, (_, i) => `field${i}: string;`).join('\n');
