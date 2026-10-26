@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { computeNodeWeights, weightToWidth, MIN_NODE_W, MAX_NODE_W } from '../node-weight';
-import type { SessionGraphNode } from '../../../lib/types';
+import type { SessionGraphNodeDTO } from '../../../lib/types';
 
-function mk(id: string, over: Partial<SessionGraphNode> = {}): SessionGraphNode {
+function mk(id: string, over: Partial<SessionGraphNodeDTO> = {}): SessionGraphNodeDTO {
   return {
     id,
     turnIdx: 0,
@@ -22,7 +22,7 @@ function mk(id: string, over: Partial<SessionGraphNode> = {}): SessionGraphNode 
     parentId: null,
     timestamp: 0,
     ...over,
-  } as SessionGraphNode;
+  } as SessionGraphNodeDTO;
 }
 
 describe('computeNodeWeights', () => {

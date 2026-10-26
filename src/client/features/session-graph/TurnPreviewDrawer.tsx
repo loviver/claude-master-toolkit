@@ -10,12 +10,12 @@ import {
   Lock, Maximize2, Minimize2, Package, Tag,
 } from 'lucide-react';
 import { useTurnContent } from '../../hooks/queries/useSessions';
-import type { SessionGraphNode, TurnPairDTO } from '../../lib/types';
+import type { SessionGraphNodeDTO, TurnPairDTO } from '../../lib/types';
 import styles from './TurnPreviewDrawer.module.css';
 
 interface Props {
   sessionId: string;
-  turns: SessionGraphNode[];
+  turns: SessionGraphNodeDTO[];
   selectedId: string | null;
   open: boolean;
   onSelect: (id: string) => void;
@@ -104,7 +104,7 @@ export function TurnPreviewDrawer({ sessionId, turns, selectedId, open, onSelect
 
 // ─── Hero ────────────────────────────────────────────────────────────
 
-function Hero({ turn, agentRole }: { turn: SessionGraphNode | null; agentRole: string | null }) {
+function Hero({ turn, agentRole }: { turn: SessionGraphNodeDTO | null; agentRole: string | null }) {
   if (!turn) return null;
   return (
     <div className={styles.hero}>
@@ -143,7 +143,7 @@ function fmtDuration(ms: number): string {
 
 // ─── Stats grid ───────────────────────────────────────────────────────
 
-function StatsGrid({ turn }: { turn: SessionGraphNode }) {
+function StatsGrid({ turn }: { turn: SessionGraphNodeDTO }) {
   const cells: Array<{ label: string; value: string; Icon: React.ComponentType<{ size?: number }> }> = [
     { label: 'Input', value: turn.inputTokens.toLocaleString(), Icon: ArrowDown },
     { label: 'Output', value: turn.outputTokens.toLocaleString(), Icon: ArrowUp },
@@ -190,7 +190,7 @@ function MetaChip({ name, value, expandable }: { name: string; value: string; ex
   );
 }
 
-function MetadataBlock({ ae, turn }: { ae: TurnPairDTO['assistantEvent']; turn: SessionGraphNode | null }) {
+function MetadataBlock({ ae, turn }: { ae: TurnPairDTO['assistantEvent']; turn: SessionGraphNodeDTO | null }) {
   const rawEntries: Array<{ name: string; value: string; expandable?: boolean } | null> = [
     ae.slug ? { name: 'slug', value: ae.slug } : null,
     ae.permissionMode ? { name: 'permissionMode', value: ae.permissionMode } : null,
@@ -231,7 +231,7 @@ function MetadataBlock({ ae, turn }: { ae: TurnPairDTO['assistantEvent']; turn: 
 
 // ─── Body ─────────────────────────────────────────────────────────────
 
-function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraphNode | null }) {
+function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraphNodeDTO | null }) {
   const ae = pair.assistantEvent;
   return (
     <div className={styles.sections}>

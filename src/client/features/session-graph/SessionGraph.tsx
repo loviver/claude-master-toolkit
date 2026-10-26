@@ -3,7 +3,7 @@ import type { Node, Edge } from '@xyflow/react';
 import { Network } from 'lucide-react';
 import { useSessionGraphLive } from '../../hooks/queries/useSessions';
 import { Card, CardContent, EmptyState, Skeleton, GraphCanvas, Button } from '../../components/ui';
-import type { SessionGraph as SessionGraphType, SessionGraphNode } from '../../lib/types';
+import type { SessionGraphDTO, SessionGraphNodeDTO } from '../../lib/types';
 import type { GraphNodeData, TurnNodeData, ClusterNodeData } from '../../components/ui/GraphCanvas/types';
 import { clusterTurns, type GraphItem } from './clustering';
 import { TurnPreviewDrawer } from './TurnPreviewDrawer';
@@ -22,7 +22,7 @@ const NODE_H = 140;
 const X_GAP = 40;
 const Y_GAP = 56;
 
-function turnToData(n: SessionGraphNode, importance: number): TurnNodeData {
+function turnToData(n: SessionGraphNodeDTO, importance: number): TurnNodeData {
   const toolsErr = n.toolsErrorCount ?? 0;
   return {
     kind: 'turn',
@@ -93,7 +93,7 @@ interface LayoutItem {
 
 function buildLayout(
   items: GraphItem[],
-  graph: SessionGraphType,
+  graph: SessionGraphDTO,
 ): { nodes: Node[]; edges: Edge[]; containerOf: Map<string, string> } {
   // Map original turn id -> its containing item id (cluster OR turn itself)
   const containerOf = new Map<string, string>();

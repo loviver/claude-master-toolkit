@@ -1,14 +1,14 @@
-import type { SessionGraphNode } from '../../lib/types';
+import type { SessionGraphNodeDTO } from '../../lib/types';
 
 export interface TurnItem {
   kind: 'turn';
-  node: SessionGraphNode;
+  node: SessionGraphNodeDTO;
 }
 
 export interface ClusterItem {
   kind: 'cluster';
   id: string;                          // synthetic "cluster-<firstId>-<lastId>"
-  turns: SessionGraphNode[];
+  turns: SessionGraphNodeDTO[];
   signature: { phase: string; toolsKey: string; modelKey: string };
   stats: {
     totalTokens: number;
@@ -23,13 +23,13 @@ export type GraphItem = TurnItem | ClusterItem;
 
 const MIN_CLUSTER = 3;
 
-function sigOf(n: SessionGraphNode): string {
+function sigOf(n: SessionGraphNodeDTO): string {
   const tools = [...n.tools].sort().join('|');
   return `${n.modelKey}::${n.phase ?? 'unknown'}::${tools}`;
 }
 
 export function clusterTurns(
-  nodes: SessionGraphNode[],
+  nodes: SessionGraphNodeDTO[],
   expanded: Set<string>,
   enabled: boolean,
 ): GraphItem[] {

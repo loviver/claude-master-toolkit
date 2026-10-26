@@ -4,7 +4,7 @@ import { fetchApi, toQueryString } from './api';
 import { useSessionStream, useDebouncedInvalidator } from '../useSessionStream';
 import type { FilterState } from '../../lib/filters';
 import type {
-  SessionSummary, SessionDetail, GitStats, SessionGraph, TurnContentDTO, TurnPairDTO,
+  SessionSummary, SessionDetail, GitStats, SessionGraphDTO, TurnContentDTO, TurnPairDTO,
 } from '../../lib/types';
 
 export function useSessions(filters?: Partial<FilterState> & { q?: string; limit?: number; offset?: number }) {
@@ -41,7 +41,7 @@ export function useSessionGitStats(id: string | undefined) {
 export function useSessionGraph(id: string | undefined) {
   return useQuery({
     queryKey: ['sessions', id, 'graph'],
-    queryFn: () => fetchApi<SessionGraph>(`/sessions/${id}/graph`),
+    queryFn: () => fetchApi<SessionGraphDTO>(`/sessions/${id}/graph`),
     enabled: !!id,
     staleTime: 30_000,
     refetchOnWindowFocus: false,

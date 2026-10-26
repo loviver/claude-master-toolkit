@@ -194,9 +194,6 @@ export interface ProjectStats {
   dominantModel: ModelKey;
 }
 
-// Legacy aliases — prefer the DTO names directly.
-export type { SessionGraphNodeDTO as SessionGraphNode, SessionGraphDTO as SessionGraph } from '../../shared/api-types';
-
 export interface Memory {
   id: string;
   title: string;
