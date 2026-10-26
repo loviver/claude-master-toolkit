@@ -73,7 +73,7 @@ Lives in `claude-dist/` — installed by symlinking into `~/.claude/`:
 - `ctk orchestrate <task>` — run the pipeline (prepare → apply → rollback-on-failure) with streamed progress events. Gated by ODD risk tier: DIRECT short-circuits to inline.
 - `ctk risk [--base <ref>] [--json]` — ADVISORY ODD risk score of the current branch (DIRECT|GUARDED|DELEGATE) measured off the AST index. MCP tool: `ctk_risk`.
 - `ctk model <phase>` — resolve the sub-agent model for a phase. MANDATORY before any `Agent` tool call (or use `/delegate`).
-- `ctk pandorica <save|search|context|session-summary|recent|get>` — persistent memory vault CLI. MCP tools: `mem_*` (v2) + legacy `pandorica_*` aliases.
+- `ctk mem <save|recall|context|trace|get|delete|summary|stats|export|import|reindex>` — persistent memory vault (Pandorica) CLI. MCP tools: `mem_save` / `mem_recall` / `mem_context` / `mem_get` / `mem_trace` / `mem_session`.
 
 ## Hook enforcement (post Phase 0.4)
 
@@ -82,6 +82,7 @@ Lives in `claude-dist/` — installed by symlinking into `~/.claude/`:
 - **SubagentStop** — opt-in (`CTK_HOOK_SUBAGENT_NAG=1`, default OFF). Non-blocking reminder to consolidate findings after apply/implement agents finish.
 - **UserPromptSubmit** — on `/sdd-*` prompts with no `.ctk/init.marker`, emits an init-required hint so `sdd-orchestrator` runs `sdd-init` first.
 - **PreToolUse:Edit|Write|MultiEdit** — parses `.ctk/skill-registry.md` and emits `[ctk-skill-hint] load <name>` when the target `file_path` matches a skill trigger. Toggle: `CTK_HOOK_EDIT_SKILL_INJECT=0`.
+- **SessionStart** — also runs the incremental reindex (same lock/toggle as PostToolUse) in ctk-active projects, so an index wiped by a schema bump heals before the first `ctk_*` query. Bash is the default hook runtime (TS only with `CTK_HOOKS=ts`): every hook change needs both.
 - **PostToolUse:Edit|Write|MultiEdit** — incremental `ctk index build` after a source-file (`ts/tsx/js/jsx/mjs/cjs/py/go/rs`) edit in a ctk-active project (gated on `.ctk/init.marker`), so the AST index ODD reads never goes stale. Runs **detached in the background** (zero turn latency) under a non-blocking `flock` so rapid edits don't pile up parallel SQLite writers. Toggle: `CTK_HOOK_REINDEX=0`. Test seam: `CTK_REINDEX_SYNC=1` runs inline.
 - **SessionEnd** — mechanical final sync + per-session state cleanup on clear/logout.
 - **Stop** — threshold configurable via `CTK_HOOK_SAVE_THRESHOLD` (default 3). `CTK_HOOK_SAVE_STRICT=1` blocks the turn (exit 2) when Edits ≥ threshold and zero `mem_save` / `ctk_record` calls.

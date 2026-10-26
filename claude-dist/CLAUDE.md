@@ -105,7 +105,7 @@ If `ctk` is unavailable, inherit the main model. Never impose a model the user d
 
 Installed into `~/.claude/hooks/` and registered in `settings.json` via `ctk install claude`:
 
-- **SessionStart** — warns if prior session in this cwd used >60% of the window; reminds of ctk MCP tools; purges stale state >7 days.
+- **SessionStart** — warns if prior session in this cwd used >60% of the window; reminds of ctk MCP tools; purges stale state >7 days; refreshes the AST index (incremental, detached) in ctk-active projects so a schema bump or stale index heals itself. Toggle: `CTK_HOOK_REINDEX=0`.
 - **UserPromptSubmit** — warns once per threshold crossing (70 / 85 / 95%). Dynamic context limit per model (overridable with `$CLAUDE_CONTEXT_WINDOW`).
 - **UserPromptSubmit `/task <name>`** — explicit task-switch. Blocks when git is dirty, otherwise persists the task name in `.ctk/current-task.txt`. Prevents mid-context drift without consolidating prior work.
 - **PreToolUse `Bash`** — blocks `git commit` invocations that embed AI attribution (`Co-Authored-By`, `Generated with [Claude Code]`, `🤖`, `noreply@anthropic.com`).
