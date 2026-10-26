@@ -1,6 +1,6 @@
 {
   "name": "claude-master-toolkit",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Operation layer for Claude Code: local dashboard, cost telemetry, context-guardian hooks, persistent memory (Pandorica), model router, MCP server, and a tree-sitter symbol index — all offline.",
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
     "dist",
     "bin",
     "claude-dist/CLAUDE.md",
+    "claude-dist/persona.md",
     "claude-dist/settings.patch.json",
     "claude-dist/agents",
     "claude-dist/hooks",

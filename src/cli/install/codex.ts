@@ -115,6 +115,11 @@ export function installCodex(ctx: InstallCtx): InstallReport {
     const target = join(ctx.pkgRoot, 'claude-dist', 'skills', name);
     const link = join(skillsRoot, name);
     const st = lstatSync(link, { throwIfNoEntry: false });
+    if (!existsSync(target)) {
+      if (st?.isSymbolicLink()) unlinkSync(link); // a link to nothing helps no one
+      report.warnings.push(`skill ${name} is not in the package (${target}), skipped: reinstall ctk`);
+      continue;
+    }
     if (st && !(st.isSymbolicLink() && readlinkSync(link) === target)) {
       if (!st.isSymbolicLink()) {
         report.warnings.push(`skill ${name}: ${link} already exists and is not ours, skipped`);

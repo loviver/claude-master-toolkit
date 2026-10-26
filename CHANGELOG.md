@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+### Fixed
+- The published package was missing `claude-dist/persona.md`, so `ctk install claude` left `~/.claude/persona.md` as a dangling link and sub-agents got no persona.
+- `ctk install claude` / `ctk install codex` no longer create links to files missing from the package: they warn and skip, and remove a stale link to the missing file.
+- New test installs both agents from exactly the files `npm pack` publishes and fails on any dangling link, so a packaging gap is caught before release.
+
 ## 0.5.0
 
 ### Added

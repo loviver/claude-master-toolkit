@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, lstatSync, readlinkSync, readdirSync,
+  cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, lstatSync, readlinkSync, readdirSync,
 } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -49,6 +49,16 @@ describe('installClaude', () => {
     expect(isLink(join(home, '.claude', 'hooks', 'guards', 'bash-guard.sh'))).toBe(true);
     for (const s of readdirSync(join(DIST, 'skills'))) expect(isLink(join(home, '.claude', 'skills', s)), s).toBe(true);
     for (const a of readdirSync(join(DIST, 'agents'))) expect(isLink(join(home, '.claude', 'agents', a)), a).toBe(true);
+  });
+
+  it('skips, with a warning, a file missing from the package instead of leaving a dangling link', () => {
+    const pkg = join(home, 'pkg');
+    cpSync(DIST, join(pkg, 'claude-dist'), { recursive: true });
+    rmSync(join(pkg, 'claude-dist', 'persona.md'));
+    const report = installClaude({ home, pkgRoot: pkg });
+    expect(lstatSync(join(home, '.claude', 'persona.md'), { throwIfNoEntry: false })).toBeUndefined();
+    expect(report.warnings.join('\n')).toMatch(/persona\.md is not in the package/);
+    expect(readManifest('claude-code')!.entries.some((e) => e.type === 'symlink' && e.path.endsWith('persona.md'))).toBe(false);
   });
 
   it('merges settings keeping the user hooks and keys', () => {

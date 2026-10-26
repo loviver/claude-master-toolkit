@@ -1,7 +1,7 @@
 import {
   copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'fs';
-import { dirname, join } from 'path';
+import { basename, dirname, join } from 'path';
 import { ctkPaths } from '../../shared/paths/ctk-home-paths.js';
 import { backupFile } from './fs-util.js';
 import { mergeJsonPatch, removeJsonKey, setJsonKey, unmergeJsonPatch } from './merge-json.js';
@@ -27,6 +27,11 @@ function readPatch(dist: string): Record<string, unknown> {
 /** Idempotent symlink. Returns false (and warns) when the destination is something the user owns. */
 function link(target: string, dest: string, type: 'file' | 'dir', report: InstallReport): boolean {
   const st = lstat(dest);
+  if (!existsSync(target)) {
+    if (st?.isSymbolicLink()) unlinkSync(dest); // a link to nothing helps no one
+    report.warnings.push(`${basename(target)} is not in the package (${target}), skipped: reinstall ctk`);
+    return false;
+  }
   if (st) {
     if (!st.isSymbolicLink()) {
       report.warnings.push(`${dest} already exists and is not a symlink, skipped`);
