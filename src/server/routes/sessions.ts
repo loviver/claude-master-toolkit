@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { desc, eq, sql } from 'drizzle-orm';
-import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { resolve, join } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
 import { syncFile, syncSession } from '../parser/index.js';
+import { getGitStats } from '../lib/git-stats.js';
 import { getDb } from '../../shared/db/db.js';
 import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../../shared/db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
@@ -556,61 +556,13 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // ── Git stats (cached w/ 60s TTL) ──
-  const gitStatsCache = new Map<string, { at: number; data: any }>();
+  // ── Git stats (cached w/ 60s TTL in getGitStats) ──
   app.get<{ Params: { id: string } }>('/sessions/:id/git-stats', async (req, reply) => {
-    const cached = gitStatsCache.get(req.params.id);
-    if (cached && Date.now() - cached.at < 60_000) return reply.send(cached.data);
-
     const db = getDb();
     const session = db.select().from(sessions).where(eq(sessions.id, req.params.id)).get();
     if (!session) return reply.status(404).send({ error: 'Session not found' });
 
-    const projectPath = resolve(session.projectPath);
-    const empty = { insertions: 0, deletions: 0, filesChanged: 0, available: false };
-    if (!existsSync(projectPath)) return reply.send(empty);
-
-    try {
-      execSync(`git -C "${projectPath}" rev-parse --git-dir`, { stdio: 'pipe', timeout: 2000 });
-
-      const startISO = new Date(session.startedAt - 2 * 60_000).toISOString();
-      const endISO = new Date(session.lastActiveAt + 30 * 60_000).toISOString();
-
-      let insertions = 0, deletions = 0;
-      const filesChanged = new Set<string>();
-
-      const absorb = (output: string) => {
-        for (const line of output.split('\n')) {
-          const parts = line.trim().split('\t');
-          if (parts.length >= 3) {
-            const ins = parseInt(parts[0], 10);
-            const dels = parseInt(parts[1], 10);
-            if (!isNaN(ins) && !isNaN(dels)) {
-              insertions += ins; deletions += dels;
-              if (parts[2]) filesChanged.add(parts[2]);
-            }
-          }
-        }
-      };
-
-      absorb(execSync(
-        `git -C "${projectPath}" log --numstat --format="" --after="${startISO}" --before="${endISO}"`,
-        { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
-      ));
-
-      try {
-        absorb(execSync(
-          `git -C "${projectPath}" diff --numstat HEAD`,
-          { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
-        ));
-      } catch { /* HEAD may not exist on empty repo */ }
-
-      const data = { insertions, deletions, filesChanged: filesChanged.size, available: true };
-      gitStatsCache.set(req.params.id, { at: Date.now(), data });
-      return reply.send(data);
-    } catch {
-      return reply.send(empty);
-    }
+    return reply.send(getGitStats(session.id, session.projectPath, session.startedAt, session.lastActiveAt));
   });
 
   // ── Manual sync trigger (called from hooks after each turn) ──
