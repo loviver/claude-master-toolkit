@@ -26,7 +26,7 @@ beforeEach(() => {
   db.exec(`CREATE TABLE symbols (
     project_path TEXT, file TEXT, symbol TEXT, kind TEXT, signature TEXT,
     start_line INTEGER, end_line INTEGER, exported INTEGER,
-    deps TEXT, callers TEXT, tokens_estimate INTEGER
+    deps TEXT, callers TEXT, refs TEXT, referrers TEXT, dep_sites TEXT, tokens_estimate INTEGER
   )`);
 });
 
@@ -249,7 +249,6 @@ import { getDeps } from '../queries.js';
 
 describe('phase 2 query layer', () => {
   beforeEach(() => {
-    db.exec(`ALTER TABLE symbols ADD COLUMN refs TEXT; ALTER TABLE symbols ADD COLUMN referrers TEXT;`);
     db.exec(`CREATE TABLE indexed_files (project_path TEXT, file TEXT, hash TEXT, indexed_at INTEGER, imports TEXT)`);
   });
 
@@ -324,7 +323,6 @@ describe('phase 2 query layer', () => {
 
   describe('getCallers — call sites', () => {
     it('attaches the call lines recorded on the calling symbol', () => {
-      db.exec(`ALTER TABLE symbols ADD COLUMN dep_sites TEXT`);
       insertSym({ file: 'u.ts', symbol: 'pick', exported: true, callers: ['m.ts::run'] });
       insertSym({ file: 'm.ts', symbol: 'run', startLine: 2, deps: ['u.ts::pick'] });
       db.prepare(`UPDATE symbols SET dep_sites = ? WHERE symbol = 'run'`).run(JSON.stringify({ 'u.ts::pick': [3, 4] }));
@@ -334,7 +332,7 @@ describe('phase 2 query layer', () => {
       expect(res.callers).toEqual([{ file: 'm.ts', symbol: 'run', line: 2, callSites: [3, 4] }]);
     });
 
-    it('omits callSites when the caller has none recorded (older index)', () => {
+    it('omits callSites when the caller has none recorded', () => {
       insertSym({ file: 'u.ts', symbol: 'pick', exported: true, callers: ['m.ts::run'] });
       insertSym({ file: 'm.ts', symbol: 'run', startLine: 2 });
 

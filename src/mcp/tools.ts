@@ -74,7 +74,7 @@ export function registerTools(server: McpServer): void {
         'Reverse lookup from the index. `callers` = call edges (calls, `new`, JSX usage); `referrers` = non-call usage ' +
         '(type annotations, constant refs). When several definitions match, `definitions` groups them per definition; pass `file` to pin one. ' +
         "For types/interfaces/constants use include 'refs' or 'all' (default) — include 'calls' returns nothing for them. " +
-        'Each entry is the calling SYMBOL (`line` = its definition); `callSites` lists the lines inside it where the call happens (absent on indexes built before v4).',
+        'Each entry is the calling SYMBOL (`line` = its definition); `callSites` lists the lines inside it where the call happens.',
       inputSchema: {
         symbol: z.string().describe('Symbol name'),
         file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),

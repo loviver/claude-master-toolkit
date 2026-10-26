@@ -33,8 +33,7 @@ interface SymbolRow {
   exported: number;
   deps: string | null;
   callers: string | null;
-  // Absent on pre-v3 rows/test fixtures.
-  referrers?: string | null;
+  referrers: string | null;
   tokens_estimate: number;
 }
 
@@ -204,12 +203,8 @@ export function getCallers(
 
   // Qualified id → exact (file, symbol) lookup: no cross-file bleed. A bare id
   // (unresolved caller) falls back to every same-named symbol — best-effort.
-  // `dep_sites` is absent on pre-v4 DBs / test fixtures.
-  const hasSites = (db.prepare(`PRAGMA table_info(symbols)`).all() as { name: string }[]).some(
-    (c) => c.name === 'dep_sites',
-  );
   const lineStmt = db.prepare(
-    `SELECT start_line${hasSites ? ', dep_sites' : ''} FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
+    `SELECT start_line, dep_sites FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
   );
   const bareStmt = db.prepare(
     `SELECT file, symbol, start_line FROM symbols WHERE project_path = ? AND symbol = ?`,
@@ -221,7 +216,7 @@ export function getCallers(
       const parsed = parseQualifiedId(id);
       if (parsed) {
         const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
-          | { start_line: number; dep_sites?: string | null }
+          | { start_line: number; dep_sites: string | null }
           | undefined;
         const info: CallerInfo = { file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 };
         if (target && row?.dep_sites) {

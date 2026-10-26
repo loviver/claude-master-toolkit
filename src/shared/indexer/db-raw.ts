@@ -11,16 +11,16 @@ import { migrate } from '../db/migrate.js';
 // v5: typed non-function consts get a signature (`useX: Hook<T>`) — v4 rows hold null.
 const INDEXER_SCHEMA_VERSION = 5;
 
-// migrate() only runs on a fresh DB, so an existing v2 DB needs its columns added here.
-const V3_COLUMNS: ReadonlyArray<[table: string, col: string]> = [
+// migrate() only runs on a fresh DB, so an existing DB from an older ctk needs its index columns added here.
+const INDEX_COLUMNS: ReadonlyArray<[table: string, col: string]> = [
   ['symbols', 'refs'],
   ['symbols', 'referrers'],
   ['symbols', 'dep_sites'],
   ['indexed_files', 'imports'],
 ];
 
-function ensureV3Columns(db: Database.Database): void {
-  for (const [table, col] of V3_COLUMNS) {
+function ensureIndexColumns(db: Database.Database): void {
+  for (const [table, col] of INDEX_COLUMNS) {
     const have = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
     if (!have) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
   }
@@ -40,7 +40,7 @@ export function openDb(): Database.Database {
 
   const current = db.pragma('user_version', { simple: true }) as number;
   if (current !== INDEXER_SCHEMA_VERSION) {
-    ensureV3Columns(db);
+    ensureIndexColumns(db);
     try {
       db.exec('DELETE FROM symbols; DELETE FROM indexed_files;');
     } catch {

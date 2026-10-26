@@ -54,7 +54,7 @@ export interface CallerInfo {
   file: string;
   symbol: string;
   line: number;
-  /** Lines inside the caller where the call happens. Absent on indexes built before call-site tracking. */
+  /** Lines inside the caller where the call happens. Absent when none were recorded. */
   callSites?: number[];
 }
 
