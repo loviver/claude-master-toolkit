@@ -10,6 +10,9 @@
 
 set -euo pipefail
 
+# shellcheck source=./ts-shim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ts-shim.sh"
+
 [[ "${CTK_HOOK_SUBAGENT_NAG:-0}" == "1" ]] || exit 0
 
 command -v jq >/dev/null 2>&1 || exit 0

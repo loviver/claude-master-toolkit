@@ -30,4 +30,15 @@ export default defineConfig([
     sourcemap: false,
     external: ["@modelcontextprotocol/sdk", "better-sqlite3", "ts-morph", "typescript"],
   },
+  {
+    // Light entry for agent hooks: no commander, drizzle or ts-morph.
+    entry: { hook: "src/hooks/entry.ts" },
+    format: ["esm"],
+    target: "node18",
+    outDir: "dist",
+    clean: false,
+    splitting: false,
+    sourcemap: false,
+    external: ["better-sqlite3"],
+  },
 ]);

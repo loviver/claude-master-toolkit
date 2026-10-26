@@ -12,21 +12,9 @@ import { homedir } from 'os';
 import { join } from 'path';
 import Database from 'better-sqlite3';
 
-/** Neutral root for ctk's own state. Not tied to any agent's config dir. */
-export function ctkHome(): string {
-  return process.env['CTK_HOME'] ?? join(homedir(), '.ctk');
-}
+import { ctkHome, ctkPaths } from './ctk-home-paths.js';
 
-export const ctkPaths = {
-  db: () => process.env['CTK_DB_PATH'] ?? join(ctkHome(), 'ctk.sqlite'),
-  modelPref: () => join(ctkHome(), 'model-preference'),
-  modelsCache: () => process.env['CTK_MODEL_CACHE'] ?? join(ctkHome(), 'models'),
-  briefsDir: () => join(ctkHome(), 'briefs'),
-  logs: () => join(ctkHome(), 'logs'),
-  /** Keyed by agent AND session so two agents never share/overwrite state. */
-  hookState: (agent: string, sessionId: string) =>
-    join(ctkHome(), 'hooks-state', agent, sessionId),
-};
+export { ctkHome, ctkPaths };
 
 function legacyStateDir(): string {
   return join(homedir(), '.claude', 'state', 'claude-master-toolkit');

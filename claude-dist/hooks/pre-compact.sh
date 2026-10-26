@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+# shellcheck source=./ts-shim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ts-shim.sh"
+
 command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT="$(cat 2>/dev/null || echo '{}')"

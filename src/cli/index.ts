@@ -193,6 +193,17 @@ program
   .action(statuslineCommand);
 
 program
+  .command("hook <event>")
+  .description("Run an agent hook (stdin = hook payload). Used by agent hook configs.")
+  .option("--agent <id>", "agent id (claude-code | codex); default: auto-detect")
+  .action(async (event: string, opts: { agent?: string }) => {
+    const { runHook, parseArgs } = await import("../hooks/entry.js");
+    const { readStdin, writeOutput } = await import("../hooks/runtime/io.js");
+    const args = parseArgs([event, ...(opts.agent ? ["--agent", opts.agent] : [])]);
+    writeOutput(await runHook(args, await readStdin()));
+  });
+
+program
   .command("git-log [count]")
   .description("Compact git log: last N commits (default 10)")
   .action(gitLogCommand);
