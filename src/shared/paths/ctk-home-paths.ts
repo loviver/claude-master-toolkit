@@ -12,6 +12,9 @@ export const ctkPaths = {
   modelsCache: () => process.env['CTK_MODEL_CACHE'] ?? join(ctkHome(), 'models'),
   briefsDir: () => join(ctkHome(), 'briefs'),
   logs: () => join(ctkHome(), 'logs'),
+  /** One manifest per installed agent: exactly what `ctk install <agent>` wrote. */
+  installs: () => join(ctkHome(), 'installs'),
+  backups: () => join(ctkHome(), 'backups'),
   /** Keyed by agent AND session so two agents never share/overwrite state. */
   hookState: (agent: string, sessionId: string) =>
     join(ctkHome(), 'hooks-state', agent, sessionId),

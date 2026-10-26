@@ -29,3 +29,9 @@ Fixtures: `src/hooks/__tests__/fixtures/codex/`, `src/shared/sessions/__tests__/
 - MCP tool-call payload (`mcp__server__tool`) — needs `[mcp_servers.*]` registered.
 - `PermissionRequest` payload (needs an approval-requiring command).
 - Stop-continuation output contract; `hooks.json` vs `[hooks]` merge behaviour.
+
+## From the official docs (not yet exercised on a live Codex)
+- **MCP**: `[mcp_servers.<name>]` in `~/.codex/config.toml` (`command`, `args`, `env`, `startup_timeout_sec`, `enabled`, `required`); `codex mcp add` exists. ctk writes a managed block (`# >>> ctk:mcp ... <<<`) instead of re-serializing the file, so comments and `[hooks.state.*]` survive byte-for-byte.
+- **Custom subagents**: one TOML per agent in `~/.codex/agents/`; required `name`, `description`, `developer_instructions`; `model` optional. `sandbox_mode`, `approval_policy`, `model_provider` and `mcp_servers` in an agent file do **not** override the parent, so MCP must be registered in the parent `config.toml`.
+- **AGENTS.md**: global file is `~/.codex/AGENTS.md`; `AGENTS.override.md` (if present) wins and AGENTS.md is then ignored. Whole instruction chain is capped at `project_doc_max_bytes` (32 KiB default).
+- `ctk install codex` (Phase 5) installs MCP + the neutral skills only. Agents (`render-agent.ts` is ready and tested) and AGENTS.md wait for Phase 8; hooks.json registration waits for the Phase 6 Codex normalizer.

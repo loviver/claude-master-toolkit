@@ -12,8 +12,8 @@ import { gitLogCommand, gitChangedCommand } from "./commands/git.js";
 import { findCommand } from "./commands/find.js";
 import { testSummaryCommand } from "./commands/test.js";
 import { dashboardCommand } from "./commands/dashboard.js";
-import { installClaudeCommand } from "./commands/install.js";
-import { uninstallClaudeCommand } from "./commands/uninstall.js";
+import { installClaudeCommand, installCodexCommand, installAllCommand } from "./commands/install.js";
+import { uninstallClaudeCommand, uninstallCodexCommand, uninstallAllCommand } from "./commands/uninstall.js";
 import { initCommand } from "./commands/init.js";
 import { skillRegistryCommand } from "./commands/skill-registry.js";
 import { planCommand } from "./commands/plan.js";
@@ -104,15 +104,37 @@ install
   .option("--skip-caveman", "Skip caveman plugin install")
   .action(installClaudeCommand);
 
+install
+  .command("codex")
+  .description("Install Codex stack into ~/.codex (MCP block in config.toml + neutral skills)")
+  .action(installCodexCommand);
+
+install
+  .command("all")
+  .description("Install every supported agent found on this machine")
+  .option("--skip-caveman", "Skip caveman plugin install")
+  .action(installAllCommand);
+
 const uninstall = program
   .command("uninstall")
   .description("Uninstall integration stacks");
 
 uninstall
   .command("claude")
-  .description("Uninstall Claude Code stack from ~/.claude (restore backup)")
+  .description("Uninstall Claude Code stack from ~/.claude (only what ctk installed; ~/.ctk untouched)")
   .option("--remove-caveman", "Also uninstall caveman plugin")
   .action(uninstallClaudeCommand);
+
+uninstall
+  .command("codex")
+  .description("Uninstall Codex stack from ~/.codex (only what ctk installed)")
+  .action(uninstallCodexCommand);
+
+uninstall
+  .command("all")
+  .description("Uninstall every agent stack")
+  .option("--remove-caveman", "Also uninstall caveman plugin")
+  .action(uninstallAllCommand);
 
 program
   .command("init")
