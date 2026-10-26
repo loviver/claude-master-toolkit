@@ -182,6 +182,16 @@ describe('findSymbol — ranking and file filter', () => {
     expect(match).not.toHaveProperty('callers');
     expect(match).not.toHaveProperty('deps');
   });
+
+  it('flags a truncated signature so the agent knows to slice', () => {
+    insertSym({ file: 't.ts', symbol: 'Big', kind: 'interface', exported: true });
+    insertSym({ file: 't.ts', symbol: 'Small', kind: 'interface', exported: true });
+    db.prepare(`UPDATE symbols SET signature = ? WHERE symbol = 'Big'`).run('interface Big { a: string; b…');
+    db.prepare(`UPDATE symbols SET signature = ? WHERE symbol = 'Small'`).run('interface Small { a: string }');
+
+    expect(findSymbol(db, PROJECT, 'Big')[0].signatureTruncated).toBe(true);
+    expect(findSymbol(db, PROJECT, 'Small')[0]).not.toHaveProperty('signatureTruncated');
+  });
 });
 
 describe('getCallers — per-definition grouping', () => {

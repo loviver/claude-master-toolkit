@@ -3,6 +3,8 @@ export interface SymbolMatch {
   symbol: string;
   kind: string;
   signature: string | null;
+  /** Set when `signature` was cut at the length cap — use `ctk_slice` for the full text. */
+  signatureTruncated?: true;
   range: [number, number];
   exported: boolean;
   tokens: number;

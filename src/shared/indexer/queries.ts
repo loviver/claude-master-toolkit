@@ -44,6 +44,8 @@ function rowToMatch(r: SymbolRow): SymbolMatch {
     symbol: r.symbol,
     kind: r.kind,
     signature: r.signature,
+    // The indexer caps long signatures with a trailing ellipsis (ts-indexer SIGNATURE_MAX).
+    ...(r.signature?.endsWith('…') ? { signatureTruncated: true } : {}),
     range: [r.start_line, r.end_line],
     exported: !!r.exported,
     tokens: r.tokens_estimate,

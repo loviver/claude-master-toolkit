@@ -37,7 +37,7 @@ export function registerTools(server: McpServer): void {
       description:
         'Search the AST-indexed symbol database. Fast lookup without reading files. ' +
         'Returns matches with file, range, signature, depsCount/callersCount, token estimate. ' +
-        'For the lists use ctk_callers / ctk_deps / ctk_understand.',
+        'For the lists use ctk_callers / ctk_deps / ctk_understand. `signatureTruncated: true` → use ctk_slice for the full text.',
       inputSchema: {
         name: z.string().describe('Symbol name (exact or suffix match for methods)'),
         kind: z.enum(['class', 'function', 'method', 'type', 'interface', 'const', 'enum']).optional(),
