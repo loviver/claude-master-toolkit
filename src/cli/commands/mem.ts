@@ -16,6 +16,12 @@ import {
 import { recallHybrid } from '../../shared/memories/hybrid.js';
 import { getCachedEmbedder, reindexAll, readEmbedderConfig } from '../../shared/memories/embedding/index.js';
 import { embedTimeoutMs } from '../../shared/memories/embedding/timeout.js';
+import {
+  installTransformers,
+  resolveTransformersEntry,
+  TRANSFORMERS_SPEC,
+} from '../../shared/memories/embedding/transformers-ext.js';
+import { ctkPaths } from '../../shared/paths/ctk-home.js';
 import type {
   ContentSource,
   MemSaveOpts,
@@ -124,7 +130,9 @@ export async function memReindexCommand(): Promise<void> {
       outputError(
         kind === 'none'
           ? 'mem reindex: embedder disabled (set pandorica.embedder or CTK_EMBEDDER to local|ollama|api)'
-          : `mem reindex: embedder '${kind}' failed to load — see the warning above`,
+          : kind === 'local' && !resolveTransformersEntry(ctkPaths.ext())
+            ? 'mem reindex: semantic recall not enabled — run `ctk mem semantic enable`'
+            : `mem reindex: embedder '${kind}' failed to load — see the warning above`,
       );
       return;
     }
@@ -135,6 +143,19 @@ export async function memReindexCommand(): Promise<void> {
     output({ reindexed: embedded, total, model: embedder.id });
   });
   process.exit(0);
+}
+
+export async function memSemanticEnableCommand(): Promise<void> {
+  const dir = ctkPaths.ext();
+  process.stderr.write(`[ctk] installing ${TRANSFORMERS_SPEC} into ${dir} (CPU only, CUDA download skipped)\n`);
+  try {
+    await installTransformers({ dir });
+  } catch (err) {
+    outputError(`mem semantic enable: ${(err as Error).message}`);
+    return;
+  }
+  process.stderr.write('[ctk] downloading the embedding model (~110MB, once) and reindexing the vault\n');
+  await memReindexCommand();
 }
 
 export function memContextCommand(opts: MemContextOpts): void {

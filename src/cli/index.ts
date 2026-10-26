@@ -39,6 +39,7 @@ import {
   memSaveCommand,
   memRecallCommand,
   memReindexCommand,
+  memSemanticEnableCommand,
   memContextCommand,
   memTraceCommand,
   memGetCommand,
@@ -461,6 +462,13 @@ mem
   .command("reindex")
   .description("(Re)compute semantic embeddings for every memory in the vault")
   .action(memReindexCommand);
+
+mem
+  .command("semantic")
+  .description("Opt-in semantic recall (transformers.js, installed into ~/.ctk/ext)")
+  .command("enable")
+  .description("Install transformers.js (CPU only) and embed the whole vault")
+  .action(memSemanticEnableCommand);
 
 mem
   .command("context")

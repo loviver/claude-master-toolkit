@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.3
+
+### Fixed
+- `npm i -g claude-master-toolkit` looked frozen after the deprecation warnings: the optional `@huggingface/transformers` dependency pulled `onnxruntime-node`, whose postinstall silently downloads ~236MB of CUDA binaries on linux/x64. transformers.js is no longer a dependency, so the global install only builds `better-sqlite3` and tree-sitter.
+
+### Added
+- `ctk mem semantic enable`: opt-in semantic recall. Installs transformers.js into `~/.ctk/ext` with the CUDA download skipped (`ONNXRUNTIME_NODE_INSTALL=skip`), npm output visible on stderr, no stdin and a 15 min timeout, then downloads the model with progress and reindexes the vault.
+
+### Changed
+- Without transformers.js, recall is keyword-only and prints no warning. `ctk mem reindex` points to `ctk mem semantic enable` instead of a generic load failure.
+- **Upgrading from ≤0.5.2 with semantic recall in use:** run `ctk mem semantic enable` once; existing vectors are kept.
+
 ## 0.5.2
 
 ### Fixed

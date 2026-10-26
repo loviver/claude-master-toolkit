@@ -140,6 +140,7 @@ All commands accept `--json` for machine‑readable output.
 | `ctk mem save --title ... --type ...` | Save a memory (`decision`, `bugfix`, `architecture`, `pattern`, `preference`, `reference`, `note`, `session_summary`). |
 | `ctk mem recall <q>`                  | Hybrid search (keyword + semantic).                       |
 | `ctk mem reindex`                     | (Re)compute semantic embeddings for the whole vault.      |
+| `ctk mem semantic enable`             | Opt in to semantic recall: install transformers.js into `~/.ctk/ext` (CPU only) and embed the vault. |
 | `ctk mem context`                     | Recent memories for current project/session.              |
 | `ctk mem trace`                       | Timeline of memories by creation date.                    |
 | `ctk mem get <id>`                    | Full untruncated memory.                                  |
@@ -165,7 +166,7 @@ The embedder is pluggable and **off nothing is lost** — if it's unavailable, r
 | `pandorica.embedEndpoint` / `CTK_EMBED_ENDPOINT` | ollama: `http://localhost:11434` · api: OpenAI | for `ollama` / `api`                             |
 | `CTK_EMBED_API_KEY` / `OPENAI_API_KEY`    | —                                                  | for `api`                                        |
 
-`local` uses transformers.js (installed as an **optional** dependency; the model downloads once, then fully offline). After upgrading, run `ctk mem reindex` once to embed existing memories; new memories saved through the MCP server embed automatically.
+`local` uses transformers.js, which is **not** installed with the toolkit (it pulls ~470MB of native ONNX binaries). Run `ctk mem semantic enable` once: it installs transformers.js into `~/.ctk/ext` (CPU only, the CUDA download is skipped), downloads the model (~110MB, then fully offline) and embeds the vault. Until then recall is keyword-only, with no warning. New memories saved through the MCP server embed automatically once it is enabled.
 
 ### MCP code tools
 

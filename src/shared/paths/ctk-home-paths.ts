@@ -10,6 +10,8 @@ export const ctkPaths = {
   db: () => process.env['CTK_DB_PATH'] ?? join(ctkHome(), 'ctk.sqlite'),
   modelPref: () => join(ctkHome(), 'model-preference'),
   modelsCache: () => process.env['CTK_MODEL_CACHE'] ?? join(ctkHome(), 'models'),
+  /** Opt-in runtime packages (transformers.js) installed outside the toolkit's own tree. */
+  ext: () => join(ctkHome(), 'ext'),
   briefsDir: () => join(ctkHome(), 'briefs'),
   logs: () => join(ctkHome(), 'logs'),
   /** One manifest per installed agent: exactly what `ctk install <agent>` wrote. */

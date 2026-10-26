@@ -4,6 +4,7 @@ import type { Embedder } from './port.js';
 import { canonicalMemoryText } from './text.js';
 import { encodeVector, decodeVector } from '../vector.js';
 import { withTimeout, embedTimeoutMs } from './timeout.js';
+import { isTransformersMissing } from './transformers-ext.js';
 
 export type { Embedder } from './port.js';
 
@@ -73,6 +74,8 @@ export async function resolveEmbedder(cfg: EmbedderConfig, opts: ResolveOpts = {
     const p = init();
     return opts.timeoutMs ? await withTimeout(p, opts.timeoutMs, `embedder '${cfg.kind}' init`) : await p;
   } catch (err) {
+    // Semantic recall is opt-in: a never-installed transformers.js is the normal state, not a fault.
+    if (isTransformersMissing(err)) return null;
     console.warn(
       `[ctk] embedder '${cfg.kind}' unavailable: ${(err as Error).message}. Recall stays keyword-only.`,
     );
