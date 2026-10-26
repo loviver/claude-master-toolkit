@@ -5,7 +5,23 @@ import { migrate } from '../db/migrate.js';
 
 // v2: dep/caller edges are file-qualified (`file::symbol`). Bumping wipes any
 // v1 index (bare-name edges) so it rebuilds in the new collision-proof format.
-const INDEXER_SCHEMA_VERSION = 2;
+// v3: adds symbols.refs/referrers + indexed_files.imports, JSX/`new` call edges and
+// arrow-fn signatures — a v2 index lacks all of it, so it must rebuild.
+const INDEXER_SCHEMA_VERSION = 3;
+
+// migrate() only runs on a fresh DB, so an existing v2 DB needs its columns added here.
+const V3_COLUMNS: ReadonlyArray<[table: string, col: string]> = [
+  ['symbols', 'refs'],
+  ['symbols', 'referrers'],
+  ['indexed_files', 'imports'],
+];
+
+function ensureV3Columns(db: Database.Database): void {
+  for (const [table, col] of V3_COLUMNS) {
+    const have = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+    if (!have) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
+  }
+}
 
 export function openDb(): Database.Database {
   let db = openSqlite(ctkPaths.db());
@@ -21,6 +37,7 @@ export function openDb(): Database.Database {
 
   const current = db.pragma('user_version', { simple: true }) as number;
   if (current !== INDEXER_SCHEMA_VERSION) {
+    ensureV3Columns(db);
     try {
       db.exec('DELETE FROM symbols; DELETE FROM indexed_files;');
     } catch {

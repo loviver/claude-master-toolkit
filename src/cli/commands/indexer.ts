@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { createHash } from 'crypto';
 import { output, outputError } from '../../shared/output.js';
 import { openTsProject, type IndexedSymbol } from '../../shared/indexer/ts-indexer.js';
+import type { FileImport } from '../../shared/indexer/types.js';
 import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
 import { openDb } from '../../shared/indexer/db-raw.js';
 import { findSymbol, getDeps, getCallers } from '../../shared/indexer/queries.js';
@@ -46,7 +47,9 @@ export async function indexBuildCommand(
 
   const start = Date.now();
   const hasTsConfig = existsSync(`${projectPath}/tsconfig.json`);
-  const ts = hasTsConfig ? openTsProject(projectPath) : { files: [] as string[], extract: (_: string) => [] as IndexedSymbol[] };
+  const ts = hasTsConfig
+    ? openTsProject(projectPath)
+    : { files: [] as string[], extract: (_: string) => [] as IndexedSymbol[], imports: (_: string) => [] as FileImport[] };
   const treeSitter = new TreeSitterIndexer();
   const nonTsFiles = walkDir(projectPath, (f) => treeSitter.canHandle(f));
   const files: string[] = [...ts.files, ...nonTsFiles];
@@ -58,6 +61,8 @@ export async function indexBuildCommand(
     }
     return ts.extract(absFile);
   };
+  const extractImports = (absFile: string): FileImport[] =>
+    treeSitter.canHandle(absFile) ? [] : ts.imports(absFile);
 
   const db = openDb();
 
@@ -73,9 +78,9 @@ export async function indexBuildCommand(
     'DELETE FROM symbols WHERE project_path = ? AND file = ?',
   );
   const upsertFile = db.prepare(`
-    INSERT INTO indexed_files (project_path, file, hash, indexed_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(project_path, file) DO UPDATE SET hash = excluded.hash, indexed_at = excluded.indexed_at
+    INSERT INTO indexed_files (project_path, file, hash, indexed_at, imports)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(project_path, file) DO UPDATE SET hash = excluded.hash, indexed_at = excluded.indexed_at, imports = excluded.imports
   `);
   const deleteFileEntry = db.prepare(
     'DELETE FROM indexed_files WHERE project_path = ? AND file = ?',
@@ -83,10 +88,10 @@ export async function indexBuildCommand(
   const insertSymbol = db.prepare(`
     INSERT OR IGNORE INTO symbols
       (project_path, file, symbol, kind, signature, summary, start_line, end_line,
-       exported, deps, callers, tokens_estimate, content_hash, updated_at)
+       exported, deps, callers, refs, tokens_estimate, content_hash, updated_at)
     VALUES
       (@projectPath, @file, @symbol, @kind, @signature, NULL, @startLine, @endLine,
-       @exported, @deps, NULL, @tokensEstimate, @contentHash, @updatedAt)
+       @exported, @deps, NULL, @refs, @tokensEstimate, @contentHash, @updatedAt)
   `);
 
   let reindexed = 0;
@@ -125,12 +130,19 @@ export async function indexBuildCommand(
         endLine: s.endLine,
         exported: s.exported ? 1 : 0,
         deps: JSON.stringify(s.deps),
+        refs: JSON.stringify(s.refs ?? []),
         tokensEstimate: s.tokensEstimate,
         contentHash: s.contentHash,
         updatedAt: now,
       });
     }
-    upsertFile.run(projectPath, relFile, fileHash, now);
+    let imports: FileImport[] = [];
+    try {
+      imports = extractImports(absFile);
+    } catch {
+      // imports are best-effort; symbols are already extracted
+    }
+    upsertFile.run(projectPath, relFile, fileHash, now, JSON.stringify(imports));
     reindexed++;
     dirty = true;
   });
@@ -155,24 +167,29 @@ export async function indexBuildCommand(
   });
   deleteStaleTx();
 
-  // Recompute callers only when dirty. Edges are file-qualified (`file::symbol`)
+  // Recompute callers/referrers only when dirty. Edges are file-qualified (`file::symbol`)
   // so same-named symbols in different files don't collide.
   if (dirty) {
     const recomputeTx = db.transaction(() => {
       const allRows = db
-        .prepare('SELECT symbol, file, deps FROM symbols WHERE project_path = ?')
-        .all(projectPath) as { symbol: string; file: string; deps: string | null }[];
+        .prepare('SELECT symbol, file, deps, refs FROM symbols WHERE project_path = ?')
+        .all(projectPath) as { symbol: string; file: string; deps: string | null; refs: string | null }[];
 
       // key = dep id (qualified `tfile::tname`, or bare for an unresolved call);
       // value = set of qualified caller ids that reference it.
       const callerMap = new Map<string, Set<string>>();
+      // Same shape for non-call refs: target id → qualified ids that reference it.
+      const referrerMap = new Map<string, Set<string>>();
+      const addEdge = (map: Map<string, Set<string>>, target: string, from: string) => {
+        if (!map.has(target)) map.set(target, new Set());
+        map.get(target)!.add(from);
+      };
       for (const r of allRows) {
         const callerId = qualifyId(r.file, r.symbol);
         const deps: string[] = r.deps ? JSON.parse(r.deps) : [];
-        for (const d of deps) {
-          if (!callerMap.has(d)) callerMap.set(d, new Set());
-          callerMap.get(d)!.add(callerId);
-        }
+        for (const d of deps) addEdge(callerMap, d, callerId);
+        const refs: string[] = r.refs ? JSON.parse(r.refs) : [];
+        for (const t of refs) addEdge(referrerMap, t, callerId);
       }
 
       db.prepare('UPDATE symbols SET callers = NULL WHERE project_path = ?').run(projectPath);
@@ -191,6 +208,15 @@ export async function indexBuildCommand(
           // Unresolved (bare) dep target — fuzzy write to every same-named symbol.
           updateByName.run(payload, projectPath, dep);
         }
+      }
+
+      db.prepare('UPDATE symbols SET referrers = NULL WHERE project_path = ?').run(projectPath);
+      const updateReferrers = db.prepare(
+        'UPDATE symbols SET referrers = ? WHERE project_path = ? AND file = ? AND symbol = ?',
+      );
+      for (const [target, from] of referrerMap.entries()) {
+        const parsed = parseQualifiedId(target);
+        if (parsed) updateReferrers.run(JSON.stringify(Array.from(from)), projectPath, parsed.file, parsed.symbol);
       }
     });
     recomputeTx();
@@ -231,10 +257,13 @@ export function indexDepsCommand(file: string): void {
   }
 }
 
-export function indexCallersCommand(name: string, opts: { file?: string } = {}): void {
+export function indexCallersCommand(
+  name: string,
+  opts: { file?: string; include?: 'calls' | 'refs' | 'all' } = {},
+): void {
   const db = openDb();
   try {
-    const result = getCallers(db, process.cwd(), name, { file: opts.file });
+    const result = getCallers(db, process.cwd(), name, { file: opts.file, include: opts.include });
     output(result);
   } finally {
     db.close();

@@ -37,13 +37,72 @@ function mapPandoricaType(t: PandoricaType): MemoryType {
   return t as MemoryType;
 }
 
-function withDb<T>(fn: (db: ReturnType<typeof openDb>) => T): T {
-  const db = openDb();
-  try {
-    return fn(db);
-  } finally {
-    db.close();
+// One connection per MCP process. Opening costs the pragmas + schema/version checks on
+// every call; the server is long-lived, so it is paid once. Closed on shutdown (server.ts).
+let sharedDb: ReturnType<typeof openDb> | null = null;
+let lastOpen: { openMs: number; reused: boolean } | null = null;
+
+function acquireDb(): ReturnType<typeof openDb> {
+  if (sharedDb?.open) {
+    lastOpen = { openMs: 0, reused: true };
+    return sharedDb;
   }
+  const t0 = performance.now();
+  sharedDb = openDb();
+  lastOpen = { openMs: performance.now() - t0, reused: false };
+  return sharedDb;
+}
+
+export function closeSharedDb(): void {
+  try {
+    sharedDb?.close();
+  } catch {
+    // already closed / closing on exit — nothing to recover
+  }
+  sharedDb = null;
+}
+
+function withDb<T>(fn: (db: ReturnType<typeof openDb>) => T): T {
+  return fn(acquireDb());
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+function emitTrace(tool: string, t0: number, result: unknown): void {
+  const total = performance.now() - t0;
+  const open = lastOpen;
+  const text = (result as { content?: Array<{ text?: string }> } | undefined)?.content?.[0]?.text ?? '';
+  const line = {
+    tool,
+    ms: round1(total),
+    ...(open ? { openMs: round1(open.openMs), reused: open.reused } : {}),
+    queryMs: round1(total - (open?.openMs ?? 0)),
+    bytes: Buffer.byteLength(text),
+  };
+  // stderr only: stdout carries the stdio protocol.
+  process.stderr.write(`[ctk-mcp:trace] ${JSON.stringify(line)}\n`);
+}
+
+/** CTK_MCP_TRACE=1 → one stderr line per tool call. Checked per call; zero cost when off. */
+function withTrace<T extends Record<string, (...args: any[]) => unknown>>(h: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [name, fn] of Object.entries(h)) {
+    out[name] = (...args: unknown[]) => {
+      if (!process.env['CTK_MCP_TRACE']) return fn(...args);
+      lastOpen = null;
+      const t0 = performance.now();
+      const result = fn(...args);
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        return (result as Promise<unknown>).then((r) => {
+          emitTrace(name, t0, r);
+          return r;
+        });
+      }
+      emitTrace(name, t0, result);
+      return result;
+    };
+  }
+  return out as T;
 }
 
 const PROJECT_PATH = (cwd?: string) =>
@@ -70,7 +129,7 @@ function errorResult(msg: string) {
   };
 }
 
-export const handlers = {
+const rawHandlers = {
   ctk_understand(args: { symbol: string; file?: string; cwd?: string }) {
     return withDb((db) => {
       const result = understand(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file });
@@ -94,9 +153,11 @@ export const handlers = {
     return withDb((db) => jsonResult(getDeps(db, PROJECT_PATH(args.cwd), args.file)));
   },
 
-  ctk_callers(args: { symbol: string; file?: string; cwd?: string }) {
+  ctk_callers(args: { symbol: string; file?: string; include?: 'calls' | 'refs' | 'all'; cwd?: string }) {
     return withDb((db) =>
-      jsonResult(getCallers(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file })),
+      jsonResult(
+        getCallers(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file, include: args.include }),
+      ),
     );
   },
 
@@ -290,3 +351,5 @@ export const handlers = {
     }
   },
 };
+
+export const handlers = withTrace(rawHandlers);

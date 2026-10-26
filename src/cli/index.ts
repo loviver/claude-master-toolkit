@@ -281,8 +281,9 @@ index
 
 index
   .command("callers <symbol>")
-  .description("Who calls this symbol")
+  .description("Who calls / references this symbol")
   .option("--file <path>", "Pin to a definition by exact path or path suffix")
+  .option("--include <kind>", "calls|refs|all (default all)")
   .action(indexCallersCommand);
 
 program

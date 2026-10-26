@@ -207,3 +207,57 @@ describe('ranking tiebreak — popularity', () => {
     expect(understand(db, PROJECT, 'fmt')?.file).toBe('z/popular.ts');
   });
 });
+
+// ─── Phase 2: refs / imports in the query layer ────────────────
+
+import { getDeps } from '../queries.js';
+
+describe('phase 2 query layer', () => {
+  beforeEach(() => {
+    db.exec(`ALTER TABLE symbols ADD COLUMN refs TEXT; ALTER TABLE symbols ADD COLUMN referrers TEXT;`);
+    db.exec(`CREATE TABLE indexed_files (project_path TEXT, file TEXT, hash TEXT, indexed_at INTEGER, imports TEXT)`);
+  });
+
+  it('getDeps returns refs and the file imports alongside deps/exports', () => {
+    insertSym({ file: 'a.ts', symbol: 'pick', exported: true, deps: ['u.ts::helper'] });
+    db.prepare(`UPDATE symbols SET refs = ? WHERE symbol = 'pick'`).run(JSON.stringify(['c.ts::COLORS']));
+    db.prepare(`INSERT INTO indexed_files VALUES (?, 'a.ts', 'h', 1, ?)`).run(
+      PROJECT,
+      JSON.stringify([{ module: 'react', names: ['useState'], external: true }]),
+    );
+
+    const res = getDeps(db, PROJECT, 'a.ts');
+
+    expect(res.exports).toEqual(['pick']);
+    expect(res.deps).toEqual(['u.ts::helper']);
+    expect(res.refs).toEqual(['c.ts::COLORS']);
+    expect(res.imports).toEqual([{ module: 'react', names: ['useState'], external: true }]);
+  });
+
+  it('getDeps tolerates a file with no stored imports', () => {
+    insertSym({ file: 'b.ts', symbol: 'x' });
+    expect(getDeps(db, PROJECT, 'b.ts').imports).toEqual([]);
+  });
+
+  function seedFilters(): void {
+    insertSym({ file: 't.ts', symbol: 'Filters', kind: 'interface', exported: true, callers: ['m.ts::build'] });
+    db.prepare(`UPDATE symbols SET referrers = ? WHERE symbol = 'Filters'`).run(JSON.stringify(['x.ts::use']));
+    insertSym({ file: 'm.ts', symbol: 'build', startLine: 7 });
+    insertSym({ file: 'x.ts', symbol: 'use', startLine: 3 });
+  }
+
+  it('getCallers reports call edges as callers and type/const usage as referrers', () => {
+    seedFilters();
+    const res = getCallers(db, PROJECT, 'Filters');
+    expect(res.callers).toEqual([{ file: 'm.ts', symbol: 'build', line: 7 }]);
+    expect(res.referrers).toEqual([{ file: 'x.ts', symbol: 'use', line: 3 }]);
+    expect(res.definitions[0].referrers).toEqual([{ file: 'x.ts', symbol: 'use', line: 3 }]);
+  });
+
+  it('include=calls drops referrers; include=refs drops callers', () => {
+    seedFilters();
+    expect(getCallers(db, PROJECT, 'Filters', { include: 'calls' }).referrers).toEqual([]);
+    expect(getCallers(db, PROJECT, 'Filters', { include: 'refs' }).callers).toEqual([]);
+    expect(getCallers(db, PROJECT, 'Filters', { include: 'refs' }).referrers).toHaveLength(1);
+  });
+});

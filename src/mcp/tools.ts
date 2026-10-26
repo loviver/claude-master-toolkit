@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { handlers } from './handlers.js';
-import { wfHandlers } from './workflow-tools.js';
+
+// workflow-tools pulls drizzle-orm (~250 ms of the MCP cold start) and only wf_* calls need it,
+// so it is imported on first use. Needs `splitting: true` on the mcp entry (tsup.config.ts):
+// without it the bundler hoists drizzle's import back to the top of dist/mcp.js.
+type WfHandlers = typeof import('./workflow-tools.js').wfHandlers;
+const loadWf = async (): Promise<WfHandlers> => (await import('./workflow-tools.js')).wfHandlers;
 
 const FindingTypeSchema = z.enum(['bug', 'assumption', 'decision', 'deadend', 'pattern']);
 const cwdParam = z.string().optional().describe('Absolute project path. Pass process.cwd() when invoking from a sub-agent to avoid CWD mismatch.');
@@ -43,7 +48,8 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_deps',
     {
-      description: 'List exports and dependency symbols of a file. No file read required.',
+      description:
+        'List exports, call deps, non-call refs (types/consts) and file imports (incl. external packages). No file read required.',
       inputSchema: {
         file: z.string().describe('Relative file path from project root'),
         cwd: cwdParam,
@@ -55,10 +61,13 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_callers',
     {
-      description: 'Reverse lookup: which symbols call this one. Pre-computed from index.',
+      description:
+        'Reverse lookup from the index. `callers` = call edges (calls, `new`, JSX usage); `referrers` = non-call usage ' +
+        '(type annotations, constant refs). Grouped per definition in `definitions`; pass `file` to pin one.',
       inputSchema: {
         symbol: z.string().describe('Symbol name'),
         file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),
+        include: z.enum(['calls', 'refs', 'all']).optional().describe("Which edges to return (default 'all')"),
         cwd: cwdParam,
       },
     },
@@ -275,7 +284,7 @@ export function registerTools(server: McpServer): void {
         project_path: z.string().optional().describe('Defaults to process.cwd()'),
       },
     },
-    (args) => wfHandlers.wf_create(args),
+    async (args) => (await loadWf()).wf_create(args),
   );
 
   server.registerTool(
@@ -286,7 +295,7 @@ export function registerTools(server: McpServer): void {
         project_path: z.string().optional(),
       },
     },
-    (args) => wfHandlers.wf_list(args),
+    async (args) => (await loadWf()).wf_list(args),
   );
 
   server.registerTool(
@@ -297,7 +306,7 @@ export function registerTools(server: McpServer): void {
         plan_id: z.string(),
       },
     },
-    (args) => wfHandlers.wf_get(args),
+    async (args) => (await loadWf()).wf_get(args),
   );
 
   server.registerTool(
@@ -311,7 +320,7 @@ export function registerTools(server: McpServer): void {
         definition: wfDefinitionSchema.optional(),
       },
     },
-    (args) => wfHandlers.wf_update(args),
+    async (args) => (await loadWf()).wf_update(args),
   );
 
   server.registerTool(
@@ -325,7 +334,7 @@ export function registerTools(server: McpServer): void {
         project_path: z.string().optional().describe('Defaults to process.cwd()'),
       },
     },
-    (args) => wfHandlers.wf_generate(args),
+    async (args) => (await loadWf()).wf_generate(args),
   );
 
   server.registerTool(
@@ -338,7 +347,7 @@ export function registerTools(server: McpServer): void {
         plan_id: z.string(),
       },
     },
-    async (args) => wfHandlers.wf_execute(args),
+    async (args) => (await loadWf()).wf_execute(args),
   );
 
   server.registerTool(
@@ -349,7 +358,7 @@ export function registerTools(server: McpServer): void {
         execution_id: z.string(),
       },
     },
-    (args) => wfHandlers.wf_status(args),
+    async (args) => (await loadWf()).wf_status(args),
   );
 
   const mutationOpSchema = z.discriminatedUnion('op', [
@@ -378,7 +387,7 @@ export function registerTools(server: McpServer): void {
         by_node_id: z.string().optional().describe('Id of the node that requested the mutation'),
       },
     },
-    (args) => wfHandlers.wf_mutate(args as Parameters<typeof wfHandlers.wf_mutate>[0]),
+    async (args) => (await loadWf()).wf_mutate(args as Parameters<WfHandlers['wf_mutate']>[0]),
   );
 
   server.registerTool(
@@ -389,6 +398,6 @@ export function registerTools(server: McpServer): void {
         execution_id: z.string(),
       },
     },
-    (args) => wfHandlers.wf_mutation_log(args),
+    async (args) => (await loadWf()).wf_mutation_log(args),
   );
 }

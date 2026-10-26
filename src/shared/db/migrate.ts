@@ -169,6 +169,11 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_indexed_files_project ON indexed_files(project_path);
   `);
 
+  // Indexer schema v3: non-call refs, their reverse edges, and per-file imports
+  addColumnSafe('symbols', 'refs', 'TEXT');
+  addColumnSafe('symbols', 'referrers', 'TEXT');
+  addColumnSafe('indexed_files', 'imports', 'TEXT');
+
   // v6: Benchmarks — ctk A/B data with export/import provenance
   db.exec(BENCH_SCHEMA_SQL);
 

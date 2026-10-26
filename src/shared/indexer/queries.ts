@@ -17,6 +17,7 @@ import type {
   BriefData,
   BriefStatus,
   BriefValidation,
+  FileImport,
 } from './types.js';
 import { parseQualifiedId } from './ids.js';
 
@@ -32,6 +33,8 @@ interface SymbolRow {
   exported: number;
   deps: string | null;
   callers: string | null;
+  // Absent on pre-v3 rows/test fixtures.
+  referrers?: string | null;
   tokens_estimate: number;
 }
 
@@ -117,25 +120,40 @@ export function getDeps(
   file: string,
 ): DepsResult {
   const rows = db.prepare(
-    `SELECT symbol, exported, deps FROM symbols WHERE project_path = ? AND file = ?`,
-  ).all(projectPath, file) as Array<{ symbol: string; exported: number; deps: string | null }>;
+    `SELECT symbol, exported, deps, refs FROM symbols WHERE project_path = ? AND file = ?`,
+  ).all(projectPath, file) as Array<{
+    symbol: string;
+    exported: number;
+    deps: string | null;
+    refs: string | null;
+  }>;
 
   const exports: string[] = [];
   const allDeps = new Set<string>();
+  const allRefs = new Set<string>();
   for (const r of rows) {
     if (r.exported) exports.push(r.symbol);
     const d: string[] = r.deps ? JSON.parse(r.deps) : [];
     d.forEach((x) => allDeps.add(x));
+    const f: string[] = r.refs ? JSON.parse(r.refs) : [];
+    f.forEach((x) => allRefs.add(x));
   }
-  return { file, exports, deps: Array.from(allDeps) };
+
+  const imp = db.prepare(
+    `SELECT imports FROM indexed_files WHERE project_path = ? AND file = ?`,
+  ).get(projectPath, file) as { imports: string | null } | undefined;
+  const imports: FileImport[] = imp?.imports ? JSON.parse(imp.imports) : [];
+
+  return { file, exports, deps: Array.from(allDeps), refs: Array.from(allRefs), imports };
 }
 
 export function getCallers(
   db: Database.Database,
   projectPath: string,
   name: string,
-  opts: { file?: string } = {},
+  opts: { file?: string; include?: 'calls' | 'refs' | 'all' } = {},
 ): CallersResult {
+  const include = opts.include ?? 'all';
   // Each matched definition keeps its own callers; the flat list is their union
   // (a bare query for a name defined in several files wants all of them).
   const defs = resolveCandidates(db, projectPath, name, { file: opts.file });
@@ -171,22 +189,31 @@ export function getCallers(
   };
 
   const definitions: CallerDefinition[] = [];
-  const seen = new Set<string>();
+  const seenCallers = new Set<string>();
+  const seenReferrers = new Set<string>();
   const callers: CallerInfo[] = [];
-  for (const d of defs) {
-    const ids: string[] = d.callers ? JSON.parse(d.callers) : [];
-    const resolved = resolveIds(ids);
-    definitions.push({ file: d.file, callers: resolved });
-    for (const c of resolved) {
+  const referrers: CallerInfo[] = [];
+  const union = (into: CallerInfo[], seen: Set<string>, from: CallerInfo[]) => {
+    for (const c of from) {
       const key = `${c.file}::${c.symbol}::${c.line}`;
       if (!seen.has(key)) {
         seen.add(key);
-        callers.push(c);
+        into.push(c);
       }
     }
+  };
+
+  for (const d of defs) {
+    const callIds: string[] = include !== 'refs' && d.callers ? JSON.parse(d.callers) : [];
+    const refIds: string[] = include !== 'calls' && d.referrers ? JSON.parse(d.referrers) : [];
+    const resolvedCalls = resolveIds(callIds);
+    const resolvedRefs = resolveIds(refIds);
+    definitions.push({ file: d.file, callers: resolvedCalls, referrers: resolvedRefs });
+    union(callers, seenCallers, resolvedCalls);
+    union(referrers, seenReferrers, resolvedRefs);
   }
 
-  return { symbol: name, callers, definitions };
+  return { symbol: name, callers, referrers, definitions };
 }
 
 const UNDERSTAND_LIST_CAP = 15;

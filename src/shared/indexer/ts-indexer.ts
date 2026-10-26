@@ -2,6 +2,7 @@ import { Project, SyntaxKind, Node, type SourceFile } from 'ts-morph';
 import { createHash } from 'crypto';
 import { relative, resolve } from 'path';
 import { qualifyId } from './ids.js';
+import type { FileImport } from './types.js';
 
 export interface IndexedSymbol {
   projectPath: string;
@@ -13,6 +14,8 @@ export interface IndexedSymbol {
   endLine: number;
   exported: boolean;
   deps: string[];
+  /** Non-call references to in-project top-level symbols (types, consts…). Qualified `file::symbol`. */
+  refs: string[];
   tokensEstimate: number;
   contentHash: string;
 }
@@ -34,6 +37,8 @@ const KIND_MAP: Record<number, string> = {
   [SyntaxKind.VariableDeclaration]: 'const',
 };
 
+const SIGNATURE_MAX = 200;
+
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -52,9 +57,26 @@ function extractSignature(node: Node): string | null {
       const ret = fn.getReturnTypeNode?.()?.getText() ?? '';
       return `${name}(${params})${ret ? `: ${ret}` : ''}`;
     }
-    if (kind === SyntaxKind.ClassDeclaration || kind === SyntaxKind.InterfaceDeclaration) {
-      const cls = node as any;
-      return `${kind === SyntaxKind.ClassDeclaration ? 'class' : 'interface'} ${cls.getName?.() ?? ''}`;
+    if (kind === SyntaxKind.VariableDeclaration) {
+      const init = (node as any).getInitializer?.();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+        const name = (node as any).getName?.() ?? '';
+        const params = init.getParameters().map((p) => p.getText()).join(', ');
+        const ret = init.getReturnTypeNode()?.getText() ?? '';
+        return `${name}(${params})${ret ? `: ${ret}` : ''}`;
+      }
+      return null;
+    }
+    if (kind === SyntaxKind.InterfaceDeclaration) {
+      const itf = node as any;
+      const members = (itf.getMembers?.() ?? [])
+        .map((m: Node) => m.getText().replace(/\s+/g, ' ').replace(/[;,]$/, ''))
+        .join('; ');
+      const sig = `interface ${itf.getName?.() ?? ''}${members ? ` { ${members} }` : ''}`;
+      return sig.length > SIGNATURE_MAX ? `${sig.slice(0, SIGNATURE_MAX - 1)}…` : sig;
+    }
+    if (kind === SyntaxKind.ClassDeclaration) {
+      return `class ${(node as any).getName?.() ?? ''}`;
     }
     if (kind === SyntaxKind.TypeAliasDeclaration) {
       return (node as any).getText?.().split('\n')[0] ?? null;
@@ -98,17 +120,87 @@ function resolveCallTarget(expr: Node, projectPath: string): string | null {
   return root && /^[A-Za-z_]/.test(root) ? root : null;
 }
 
+/** `<div>` / `<svg>` are intrinsic elements, not project symbols. */
+const isIntrinsicTag = (tag: Node): boolean => Node.isIdentifier(tag) && /^[a-z]/.test(tag.getText());
+
 function extractDeps(node: Node, projectPath: string): string[] {
   const deps = new Set<string>();
   node.forEachDescendant((child) => {
-    if (child.getKind() === SyntaxKind.CallExpression) {
-      const expr = (child as any).getExpression?.();
-      if (!expr) return;
-      const resolved = resolveCallTarget(expr, projectPath);
-      if (resolved) deps.add(resolved);
+    const kind = child.getKind();
+    let expr: Node | undefined;
+    if (kind === SyntaxKind.CallExpression || kind === SyntaxKind.NewExpression) {
+      expr = (child as any).getExpression?.();
+    } else if (kind === SyntaxKind.JsxOpeningElement || kind === SyntaxKind.JsxSelfClosingElement) {
+      // A component rendered in JSX is a caller of that component.
+      const tag = (child as any).getTagNameNode?.() as Node | undefined;
+      if (tag && !isIntrinsicTag(tag)) expr = tag;
     }
+    if (!expr) return;
+    const resolved = resolveCallTarget(expr, projectPath);
+    if (resolved) deps.add(resolved);
   });
   return Array.from(deps).slice(0, 30);
+}
+
+function isTopLevelDeclaration(decl: Node): boolean {
+  const top = Node.isVariableDeclaration(decl) ? decl.getVariableStatement()?.getParent() : decl.getParent();
+  return !!top && Node.isSourceFile(top);
+}
+
+/**
+ * Resolve an identifier to the qualified id of an in-project TOP-LEVEL symbol.
+ * Locals, members, builtins and `node_modules`/`.d.ts` declarations return null.
+ */
+function resolveRefTarget(id: Node, projectPath: string): string | null {
+  try {
+    const sym = id.getSymbol();
+    if (!sym) return null;
+    const target = sym.getAliasedSymbol() ?? sym;
+    const decl = target.getDeclarations()[0];
+    if (!decl || !isTopLevelDeclaration(decl)) return null;
+    const fp = decl.getSourceFile().getFilePath();
+    if (fp.endsWith('.d.ts') || fp.includes('node_modules')) return null;
+    const name = target.getName();
+    if (!name || !/^[A-Za-z_]/.test(name)) return null;
+    return qualifyId(relative(projectPath, fp), name);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Non-call references (type annotations, constants, enums…) to in-project
+ * symbols. Kept apart from `deps` so call-edge blast radius isn't inflated by
+ * type usage. Excludes the symbol itself and anything already a call edge.
+ */
+function extractRefs(node: Node, projectPath: string, ownId: string, deps: string[]): string[] {
+  const refs = new Set<string>();
+  const skip = new Set([ownId, ...deps]);
+  for (const id of node.getDescendantsOfKind(SyntaxKind.Identifier)) {
+    const parent = id.getParent();
+    // `obj.prop`: the property name is a member, never a top-level symbol.
+    if (parent && Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) continue;
+    const resolved = resolveRefTarget(id, projectPath);
+    if (resolved && !skip.has(resolved)) refs.add(resolved);
+  }
+  return Array.from(refs).slice(0, 50);
+}
+
+export function collectImports(sourceFile: SourceFile): FileImport[] {
+  return sourceFile.getImportDeclarations().map((imp) => {
+    const module = imp.getModuleSpecifierValue();
+    const names: string[] = [];
+    const def = imp.getDefaultImport();
+    if (def) names.push(def.getText());
+    const ns = imp.getNamespaceImport();
+    if (ns) names.push(`* as ${ns.getText()}`);
+    for (const n of imp.getNamedImports()) names.push(n.getName());
+    const resolved = imp.getModuleSpecifierSourceFile();
+    const external = resolved
+      ? resolved.getFilePath().includes('node_modules') || resolved.getFilePath().endsWith('.d.ts')
+      : !module.startsWith('.');
+    return { module, names, external };
+  });
 }
 
 export function collectSymbols(
@@ -121,6 +213,7 @@ export function collectSymbols(
 
   const pushSymbol = (node: Node, name: string, kind: string, exported: boolean) => {
     const text = node.getText();
+    const deps = extractDeps(node, projectPath);
     out.push({
       projectPath,
       file: relFile,
@@ -130,7 +223,8 @@ export function collectSymbols(
       startLine: node.getStartLineNumber(),
       endLine: node.getEndLineNumber(),
       exported,
-      deps: extractDeps(node, projectPath),
+      deps,
+      refs: extractRefs(node, projectPath, qualifyId(relFile, name), deps),
       tokensEstimate: estimateTokens(text),
       contentHash: hashContent(text),
     });
@@ -191,6 +285,7 @@ export interface ProjectSourceFiles {
   absRoot: string;
   files: string[];
   extract: (absPath: string) => IndexedSymbol[];
+  imports: (absPath: string) => FileImport[];
 }
 
 const TS_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
@@ -214,7 +309,12 @@ export function openTsProject(projectPath: string): ProjectSourceFiles {
     return collectSymbols(sf, absRoot, absPath);
   };
 
-  return { absRoot, files, extract };
+  const imports = (absPath: string): FileImport[] => {
+    const sf = project.getSourceFile(absPath);
+    return sf ? collectImports(sf) : [];
+  };
+
+  return { absRoot, files, extract, imports };
 }
 
 export function indexProject(projectPath: string): {

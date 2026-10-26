@@ -169,6 +169,7 @@ export class TreeSitterIndexer implements LanguageIndexer {
         endLine: node.endPosition.row + 1,
         exported: spec.isExported(node, bareName ?? name),
         deps: extractDeps(node, spec.callNodeTypes),
+        refs: [],
         tokensEstimate: estimateTokens(text),
         contentHash: hashContent(text),
       });

@@ -28,10 +28,21 @@ export interface UnderstandResult extends SymbolMatch {
   callersCount: number;
 }
 
+export interface FileImport {
+  module: string;
+  names: string[];
+  external: boolean;
+}
+
 export interface DepsResult {
   file: string;
   exports: string[];
+  /** Call edges (calls, `new`, JSX usage). */
   deps: string[];
+  /** Non-call references to in-project symbols (types, consts). */
+  refs: string[];
+  /** File-level imports, including external packages. */
+  imports: FileImport[];
 }
 
 export interface CallerInfo {
@@ -43,12 +54,15 @@ export interface CallerInfo {
 export interface CallerDefinition {
   file: string;
   callers: CallerInfo[];
+  referrers: CallerInfo[];
 }
 
 export interface CallersResult {
   symbol: string;
-  /** Flat union across every matched definition (backward compatible). */
+  /** Call edges (calls, `new`, JSX), flat union across matched definitions. */
   callers: CallerInfo[];
+  /** Non-call usage (type annotations, constant refs), flat union. */
+  referrers: CallerInfo[];
   /** Same callers grouped per matched definition. */
   definitions: CallerDefinition[];
 }

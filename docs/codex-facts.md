@@ -50,3 +50,14 @@ Not yet exercised on a live Codex run: re-check after the first real session wit
 - Codex edits through Bash, so skill hints and reindex use `src/hooks/lib/shell-writes.ts` (`>` `>>` `>|` `&>`, `tee`, `sed -i`, `bash -c`). Not covered: `cp`, `mv`, `install`, `perl -i`, `python -c`, `git apply/checkout`, variable/command-substitution targets.
 - Until Phase 7 (rollout parser): no session sync and no edit/save nag on Codex; the context warning reads `token_count.last_token_usage.total_tokens` and Codex's own `model_context_window`.
 - Still open: persisting the Codex session id (keyed by cwd) for the MCP server (no env var, and whether the MCP process cwd equals the session cwd is unverified); captures for `apply_patch`, MCP, `PermissionRequest`.
+
+## MCP latency (measured 2026-10-26 against a 1.39 GB `ctk.sqlite`, boxful-admin index)
+Measured locally with a stdio JSON-RPC client against the real `dist/mcp.js`, not from inside Codex.
+- **Warm calls are fast**: `ctk_find` / `understand` / `callers` / `deps` take 1-11 ms end to end (50 consecutive finds: ~2.5 ms avg with a connection per call, ~1 ms with the shared connection).
+- **Cold start was the slow part**: 500-690 ms to answer `initialize`, ~257 ms of it from `drizzle-orm`, pulled in by `workflow-tools` (only the `wf_*` tools use it). Now lazy-loaded via a split chunk: ~225 ms.
+  - Needs `splitting: true` on the `mcp` entry in `tsup.config.ts`, otherwise the bundler hoists drizzle's static import back to the top of `dist/mcp.js`. Chunks are emitted next to `mcp.js`; `files: ["dist"]` already ships them.
+- **Write contention is bounded**: with a process holding 30k-row `BEGIN IMMEDIATE` transactions on the same DB, opening a connection per call peaked at ~215 ms (vs ~12-15 ms idle). Never seconds. The MCP server now keeps one connection for its lifetime.
+- **Not explained by ctk**: the 32.8 s / 46.0 s `ctk_understand("formatCurrency")` calls from the benchmark. Query and lock costs measured here are 2-3 orders of magnitude lower, so the cost is outside the query layer (Codex's MCP transport, a per-call server spawn, or its sandbox). To confirm from inside Codex, run with `CTK_MCP_TRACE=1` (stderr, one line per call):
+  `[ctk-mcp:trace] {"tool":"ctk_find","ms":15.1,"openMs":3.5,"reused":false,"queryMs":11.6,"bytes":1821}`
+  If `ms` is small but Codex reports seconds, the time is in the host. If `reused` is always `false`, Codex spawns a server per call.
+- Gotcha: v3 index code against an existing `~/.ctk` wipes every project's index (schema version bump), and the old `dist` wipes it back. Rebuild `dist`, then reindex all projects.

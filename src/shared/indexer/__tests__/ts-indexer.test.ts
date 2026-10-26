@@ -83,3 +83,124 @@ describe('ts-indexer dep resolution', () => {
     expect(deps).toContain('main.ts::helper');
   });
 });
+
+// ─── Phase 2: coverage (signatures, JSX, new, refs, imports) ───
+
+import { collectImports } from '../ts-indexer.js';
+
+function mkTsxProject(): Project {
+  return new Project({ useInMemoryFileSystem: true, compilerOptions: { jsx: 4 } });
+}
+
+function symOf(syms: ReturnType<typeof collectSymbols>, name: string) {
+  const s = syms.find((x) => x.symbol === name);
+  if (!s) throw new Error(`symbol ${name} not found`);
+  return s;
+}
+
+describe('ts-indexer signatures', () => {
+  it('extracts a signature for an arrow-function const', () => {
+    const p = mkProject();
+    const f = p.createSourceFile(
+      '/fmt.ts',
+      `export const formatDate = (d: Date, f?: string): string => '';`,
+    );
+    expect(symOf(collectSymbols(f, '/', '/fmt.ts'), 'formatDate').signature).toBe(
+      'formatDate(d: Date, f?: string): string',
+    );
+  });
+
+  it('gives an interface its members on one line, truncated to 200 chars', () => {
+    const p = mkProject();
+    const long = Array.from({ length: 40 }, (_, i) => `field${i}: string;`).join('\n');
+    const f = p.createSourceFile(
+      '/t.ts',
+      `export interface Small { page: number; q: string }\nexport interface Big {\n${long}\n}`,
+    );
+    const syms = collectSymbols(f, '/', '/t.ts');
+    const small = symOf(syms, 'Small').signature!;
+    expect(small).toContain('interface Small');
+    expect(small).toContain('page: number');
+    expect(small).not.toContain('\n');
+    expect(symOf(syms, 'Big').signature!.length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe('ts-indexer JSX and new edges', () => {
+  it('records a JSX component usage as a file-qualified dep, ignoring intrinsic tags', () => {
+    const p = mkTsxProject();
+    p.createSourceFile('/foo.tsx', `export function Foo() { return null; }`);
+    const main = p.createSourceFile(
+      '/main.tsx',
+      `import { Foo } from './foo';\nexport function App() { return <div><Foo /></div>; }`,
+    );
+    const deps = depsOf(collectSymbols(main, '/', '/main.tsx'), 'App');
+    expect(deps).toContain('foo.tsx::Foo');
+    expect(deps).not.toContain('div');
+  });
+
+  it('records `new X()` for an in-project class but drops builtins', () => {
+    const p = mkProject();
+    p.createSourceFile('/svc.ts', `export class Svc {}`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { Svc } from './svc';\nexport function run() { return [new Svc(), new Map()]; }`,
+    );
+    const deps = depsOf(collectSymbols(main, '/', '/main.ts'), 'run');
+    expect(deps).toContain('svc.ts::Svc');
+    expect(deps).not.toContain('Map');
+  });
+});
+
+describe('ts-indexer refs (non-call references)', () => {
+  it('records a type annotation as a ref, not a dep', () => {
+    const p = mkProject();
+    p.createSourceFile('/types.ts', `export interface Filters { a: number }`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { Filters } from './types';\nexport function use(f: Filters) { return f; }`,
+    );
+    const s = symOf(collectSymbols(main, '/', '/main.ts'), 'use');
+    expect(s.refs).toContain('types.ts::Filters');
+    expect(s.deps).not.toContain('types.ts::Filters');
+  });
+
+  it('records an imported constant identifier as a ref', () => {
+    const p = mkProject();
+    p.createSourceFile('/c.ts', `export const COLORS = { a: 1 };`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { COLORS } from './c';\nexport function pick() { return COLORS.a; }`,
+    );
+    expect(symOf(collectSymbols(main, '/', '/main.ts'), 'pick').refs).toContain('c.ts::COLORS');
+  });
+
+  it('does not record locals, builtins, call targets or the symbol itself', () => {
+    const p = mkProject();
+    p.createSourceFile('/u.ts', `export function helper() { return 1; }`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { helper } from './u';\n` +
+        `export function run(): number { const x = 1; return x + Math.max(1, 2) + helper(); }`,
+    );
+    const s = symOf(collectSymbols(main, '/', '/main.ts'), 'run');
+    expect(s.refs).toEqual([]);
+    expect(s.deps).toContain('u.ts::helper');
+  });
+});
+
+describe('collectImports', () => {
+  it('lists module, imported names and external flag per import', () => {
+    const p = mkProject();
+    p.createSourceFile('/foo.ts', `export const Foo = 1;`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { useState } from 'react';\nimport Def, * as ns from 'lib';\nimport { Foo } from './foo';\nexport const x = 1;`,
+    );
+    expect(collectImports(main)).toEqual([
+      { module: 'react', names: ['useState'], external: true },
+      { module: 'lib', names: ['Def', '* as ns'], external: true },
+      { module: './foo', names: ['Foo'], external: false },
+    ]);
+  });
+});
