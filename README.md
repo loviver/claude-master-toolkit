@@ -1,15 +1,15 @@
 # claude-master-toolkit
 
-**An operation layer for [Claude Code](https://claude.ai/code).**
+**An operation layer for [Claude Code](https://claude.ai/code) and [Codex](https://github.com/openai/codex).**
 
-`ctk` is a CLI and local dashboard that turns Claude Code's session JSONL files into something you can actually measure, search, and control — cost telemetry, context‑window warnings, persistent memory, model routing, and a web dashboard. All local, all offline, opt‑in per feature.
+`ctk` is a CLI and local dashboard that turns Claude Code's session JSONL files into something you can actually measure, search, and control — cost telemetry, context‑window warnings, persistent memory, model routing, and a web dashboard. The symbol index, persistent memory and hooks also run on Codex. All local, all offline, opt‑in per feature.
 
 ```bash
 npm install -g claude-master-toolkit
 ctk dashboard          # http://localhost:3200
 ```
 
-> This is not a replacement for Claude Code. It's a layer on top of it. You still need `claude` installed and logged in.
+> This is not a replacement for Claude Code or Codex. It's a layer on top of them. You still need `claude` and/or `codex` installed and logged in. Cost telemetry and the dashboard read Claude Code session files; the integration layer supports both agents.
 
 ---
 
@@ -22,13 +22,13 @@ ctk dashboard          # http://localhost:3200
 | **Context guardian**   | Hooks that warn when you cross 70 / 85 / 95 % of the window — before Claude Code does.                       | installed by `ctk install claude`         |
 | **Pandorica**          | Persistent memory vault (SQLite). Save decisions/bugs/patterns, search across sessions and projects.         | `ctk pandorica …`, MCP tools              |
 | **Model router**       | `ctk model <phase>` returns an alias (opus/sonnet/haiku) per SDD phase. Sub‑agents inherit it via `/delegate`. | `ctk model`, `ctk model-pref`             |
-| **Code indexer**       | Tree‑sitter + ts‑morph symbol index for TS, Go, Python, Rust. Type‑resolved, **file‑qualified** call/dep edges (collision‑proof); a PostToolUse hook keeps it fresh. Find / callers / deps in JSON. | `ctk index …`, `ctk understand`           |
+| **Code indexer**       | Tree‑sitter + ts‑morph symbol index for TS, Go, Python, Rust. Type‑resolved, **file‑qualified** call/dep edges (collision‑proof); a PostToolUse hook keeps it fresh. Find / callers (with call‑site lines) / deps (file or single symbol) in JSON. | `ctk index …`, `ctk understand`           |
 | **ODD risk routing**   | `ctk risk` scores a branch DIRECT / GUARDED / DELEGATE off the symbol index — blast radius, public API, spread, churn — to right‑size delegation. | `ctk risk`, MCP `ctk_risk`                |
-| **MCP server**         | Exposes Pandorica + indexer as MCP tools so Claude Code can call them directly.                              | registered on `ctk install claude`        |
-| **Bench harness**      | A/B runs (ctk vs baseline) from JSONL with export/import of the bench DB.                                    | `ctk bench …`                             |
+| **MCP server**         | Exposes Pandorica + indexer as MCP tools so Claude Code and Codex can call them directly.                    | registered on `ctk install claude` / `codex` |
+| **Bench harness**      | A/B runs (ctk vs baseline) from Claude Code JSONL with export/import of the bench DB. A Codex A/B harness lives in the repo (see Contributing). | `ctk bench …`                             |
 | **Bash primitives**    | `slice`, `find`, `git-log`, `git-changed`, `test-summary` — compact output for agent loops.                  | `ctk <cmd>`                               |
 
-Everything writes to `~/.claude/state/claude-master-toolkit/` and `~/.claude/projects/` (read‑only). Nothing phones home.
+ctk's own state lives in `~/.ctk/` (override with `CTK_HOME`); Claude Code session files under `~/.claude/projects/` are only read. Nothing phones home.
 
 ---
 
@@ -41,7 +41,7 @@ npm install -g claude-master-toolkit
 ctk dashboard
 ```
 
-This does **not** touch your Claude Code config. It reads session JSONL, writes its own SQLite under `~/.claude/state/claude-master-toolkit/`, and exposes a dashboard + CLI. Uninstall with `npm uninstall -g claude-master-toolkit`.
+This does **not** touch your Claude Code config. It reads session JSONL, writes its own SQLite under `~/.ctk/`, and exposes a dashboard + CLI. Uninstall with `npm uninstall -g claude-master-toolkit`.
 
 ### 2 · Integrated — hooks, skills, MCP, persona
 
@@ -60,6 +60,35 @@ This **modifies your Claude Code environment** (with a timestamped backup at `~/
 Revert anytime with `ctk uninstall claude` (restores the latest backup).
 
 **Read the persona before installing.** It's a "senior architect / passionate teacher" opinionated persona. If you don't want it, use standalone mode.
+
+### 3 · Codex
+
+```bash
+ctk install codex        # or `ctk install all` to cover every agent found on the machine
+```
+
+This edits `~/.codex/` and only touches what ctk owns (revert with `ctk uninstall codex`):
+
+- Adds an `ctk` MCP server block to `~/.codex/config.toml`
+- Adds `~/.ctk` to `[sandbox_workspace_write].writable_roots` — without it, `ctk` commands fail inside the Codex sandbox with `SQLITE_CANTOPEN` (SQLite needs to create `-wal`/`-shm`). If you already define that table, ctk warns and leaves it alone
+- Registers hooks in `~/.codex/hooks.json` for the events whose payload contract is verified (tool hooks match `Bash` only); your own entries are kept
+- Symlinks the agent‑neutral skills into the Codex skills dir
+
+Not installed on Codex: the Claude persona, and the `sdd-*` / `delegate` skills (they still reference Claude‑specific paths and the `Agent` tool).
+
+**Non‑interactive use (`codex exec`).** Codex needs approval for MCP tools unless the server marks them read‑only. ctk marks its read‑only tools (`ctk_find`, `ctk_understand`, `ctk_deps`, `ctk_callers`, `ctk_slice`, `ctk_recall`, `ctk_brief_*`, `ctk_risk`, `pandorica_search|context|get|recent`) with `readOnlyHint`, so they run unattended. Tools that write (`ctk_record`, `pandorica_save`, `pandorica_session_summary`) still require approval — by design.
+
+---
+
+## What's new in 0.3.0
+
+- **Codex support** — `ctk install codex` / `ctk uninstall codex`, hooks for Codex, MCP server registration and the sandbox grant for `~/.ctk`.
+- **Read‑only MCP tools run unattended** in `codex exec` (`readOnlyHint`); before, every `ctk_*` call failed with `MCP tool call requires approval`.
+- **`ctk_callers` returns `callSites`** — the lines where each caller makes the call.
+- **`ctk_deps` accepts `symbol`** and caps file‑level exports (`exportsCount` has the full count).
+- **Indexer** tracks non‑call references (types, constants) and file imports; `ctk_find` / `ctk_callers` / `ctk_understand` accept `file` to disambiguate same‑named symbols.
+- **`ctk index build` reports failures** — which files errored and why, instead of a bare count.
+- **Index schema v4** — re‑run `ctk index build` per project (see *Upgrading the index*).
 
 ---
 
@@ -82,10 +111,10 @@ All commands accept `--json` for machine‑readable output.
 | ---------------------------- | ------------------------------------------------------------- |
 | `ctk find <query> [path]`    | Ranked ripgrep, top 20.                                       |
 | `ctk slice <file> <symbol>`  | Extract one function / class / type (ts‑morph).               |
-| `ctk index build`            | Build a semantic symbol index for the current project.        |
+| `ctk index build`            | Build a semantic symbol index. Reports `errored` files with `errors` (file + message) and `errorCauses`. |
 | `ctk index find <symbol>`    | Locate a symbol (filter by kind / exported).                  |
 | `ctk index deps <file>`      | Imports + exports of a file.                                  |
-| `ctk index callers <symbol>` | Who calls this symbol.                                        |
+| `ctk index callers <symbol>` | Who calls / references this symbol. `--file` pins a definition, `--include calls\|refs\|all`. Each caller carries `callSites` (lines of the call). |
 | `ctk understand <symbol>`    | `find` + `slice` + `deps` + `callers` in one JSON payload.    |
 
 ### Git & tests
@@ -138,6 +167,22 @@ The embedder is pluggable and **off nothing is lost** — if it's unavailable, r
 
 `local` uses transformers.js (installed as an **optional** dependency; the model downloads once, then fully offline). After upgrading, run `ctk pandorica reindex` once to embed existing memories; new memories saved through the MCP server embed automatically.
 
+### MCP code tools
+
+| Tool | Notes |
+| ---- | ----- |
+| `ctk_find` | Locate a symbol. Same‑named definitions are ranked (exported first); pass `file` to pin one. |
+| `ctk_understand` | Signature + body + deps + callers in one call. `deps`/`callers` are capped — see `depsCount` / `callersCount`. Built‑ins/globals (e.g. `Intl`) are not listed as deps; only in‑project symbols are. |
+| `ctk_deps` | File‑level by default (exports capped at 50, full count in `exportsCount`). Pass `symbol` to scope exports, deps, refs and imports to that one symbol. |
+| `ctk_callers` | `callers` = call edges, `referrers` = type/const usage. For types, interfaces and constants use `include: "refs"` or `"all"` (default) — `"calls"` returns nothing for them. Each entry is the calling *symbol*; `callSites` lists the lines inside it where the call happens. |
+| `ctk_slice` | Raw extraction of one symbol block, for files the index doesn't cover. |
+
+`callSites` is produced by the ts‑morph indexer (TypeScript/JavaScript). Symbols indexed by tree‑sitter (Go, Python, Rust) have callers but no call‑site lines.
+
+#### Upgrading the index (0.3.0)
+
+The index schema moved to **v4**. The first time 0.3.0 opens the database it clears the symbol index of **every** project. Re‑run `ctk index build --path <project>` once per project; until then `ctk_find` / `ctk_callers` return empty results. Pandorica memories are not affected.
+
 ### Briefs & findings (sub‑agent coordination)
 
 `ctk brief new|read|validate|freeze` for strict sub‑agent task contracts. `ctk record` / `ctk recall` for a shared findings pool across agents.
@@ -182,13 +227,14 @@ Use the window metric to decide when to `/compact` (70 / 85 / 95 % of 200k). Use
 ## Data & privacy
 
 - **No telemetry, no accounts, no API keys required.** The only outbound call is the optional `count_tokens` pre‑flight in `ctk estimate`, which needs `ANTHROPIC_API_KEY` and is off by default.
-- SQLite lives under `~/.claude/state/claude-master-toolkit/ctk.sqlite`. Override with `CTK_DB_PATH=/custom/path.sqlite`.
+- SQLite lives at `~/.ctk/ctk.sqlite`. Move the whole home with `CTK_HOME=/custom/dir`, or just the database with `CTK_DB_PATH=/custom/path.sqlite`. Data from the old `~/.claude/state/claude-master-toolkit/` location is migrated automatically (skipped when `CTK_DB_PATH` is set).
 - `ctk install claude` writes symlinks and merges JSON into `~/.claude/` — backed up to `~/.claude/backups/cmt-<timestamp>/`. Run `ctk uninstall claude` to revert.
+- `ctk install codex` edits `~/.codex/config.toml` and `hooks.json`, and records exactly what it wrote under `~/.ctk/installs/`. Run `ctk uninstall codex` to revert.
 
 ## Requirements
 
 - Node.js **≥ 20**, < 25
-- Claude Code installed (`~/.claude/` must exist for the integration layer)
+- Claude Code installed (`~/.claude/` must exist for `ctk install claude`) and/or Codex (`~/.codex/` for `ctk install codex`)
 - macOS / Linux (install scripts rely on symlinks)
 
 ## Uninstall
@@ -196,6 +242,7 @@ Use the window metric to decide when to `/compact` (70 / 85 / 95 % of 200k). Use
 ```bash
 # Remove the integration layer (hooks, skills, persona). Restores the latest backup.
 ctk uninstall claude
+ctk uninstall codex          # only what ctk installed in ~/.codex
 
 # Then remove the package itself
 npm uninstall -g claude-master-toolkit
@@ -213,6 +260,17 @@ ctk install claude           # optional: install the integration layer from this
 ```
 
 `install.sh` / `uninstall.sh` are **developer scripts**, not user‑facing. End users install from npm.
+
+### Benchmarking ctk on Codex
+
+`scripts/bench/codex-bench.ts` (repo only, not in the npm package) compares agents with and without the ctk MCP through `codex exec --json`. Each task × variant × repetition runs in a fresh session with `--ignore-user-config` (no hooks, no user MCP); the only difference is the ctk server. Metrics are read from Codex's event stream and rollout log — token usage, tool calls, MCP server time (`item.duration`) — and answers are graded against ground truth in `scripts/bench/tasks.json`.
+
+```bash
+pnpm run build:cli                              # the MCP server and indexer run from dist/
+npx tsx scripts/bench/codex-bench.ts --reps 3   # results in .ctk/bench/codex-<date>.{md,json}
+```
+
+Measure MCP latency from `item.duration`, not from the wall time around the call: the latter includes client overhead and is not comparable with a shell `time`.
 
 ## License
 
