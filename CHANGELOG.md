@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.2
+
+### Fixed
+- `ctk index build` indexed **0 files** in monorepos (pnpm/turbo/npm workspaces) and said nothing: it only looked for a `tsconfig.json` at the root, and packages keep their own. It now discovers every `tsconfig.json` / `jsconfig.json` in the tree and follows `references` (solution-style configs, e.g. Vite's). Each file is indexed once, by the closest config that includes it, under the single repo-root project, so `ctk risk` and the `ctk_*` tools work from the root and resolve cross-package edges.
+- Files no tsconfig governs (a JS-only package, a project with no tsconfig at all) are indexed by a fallback project instead of being dropped. Files a tsconfig excludes stay excluded.
+- A tsconfig that fails to load (e.g. a missing `extends` package) is reported in `warnings` and no longer drops its package.
+- An index build that finds no source files warns on stderr and in `warnings` instead of exiting quietly. The output also lists the `tsconfigs` used.
+
+### Changed
+- TS projects are built lazily, one at a time: peak memory is bounded by the largest package instead of the sum of all, and an incremental build with no changed file parses nothing (3.4k-file monorepo: ~0.3 s instead of a full ~35 s parse).
+- `coverage/` is skipped when walking the tree, and files inside dot dirs (e.g. `.claude/worktrees/`) are no longer indexed even when a tsconfig includes them.
+
 ## 0.5.1
 
 ### Fixed

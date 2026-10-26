@@ -1,8 +1,10 @@
-import { resolve, relative, join } from 'path';
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { resolve, relative } from 'path';
+import { existsSync, readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { output, outputError } from '../../shared/output.js';
-import { openTsProject, type IndexedSymbol } from '../../shared/indexer/ts-indexer.js';
+import type { IndexedSymbol } from '../../shared/indexer/ts-indexer.js';
+import { openTsWorkspace } from '../../shared/indexer/ts-workspace.js';
+import { walkDir } from '../../shared/indexer/source-walk.js';
 import { IndexErrors } from '../../shared/indexer/index-errors.js';
 import type { FileImport } from '../../shared/indexer/types.js';
 import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
@@ -10,30 +12,6 @@ import { assertIndexWritable, openDb } from '../../shared/indexer/db-raw.js';
 import { findSymbol, getDeps, getCallers } from '../../shared/indexer/queries.js';
 import { qualifyId, parseQualifiedId } from '../../shared/indexer/ids.js';
 import { repoMap } from '../../shared/indexer/repo-map.js';
-
-const IGNORE_DIRS = new Set([
-  'node_modules', 'dist', '.git', 'target', '__pycache__',
-  '.venv', 'venv', 'build', '.next', '.cache', 'vendor',
-]);
-
-function walkDir(root: string, match: (file: string) => boolean, out: string[] = []): string[] {
-  let entries: import('fs').Dirent[];
-  try {
-    entries = readdirSync(root, { withFileTypes: true });
-  } catch {
-    return out;
-  }
-  for (const e of entries) {
-    const full = join(root, e.name);
-    if (e.isDirectory()) {
-      if (IGNORE_DIRS.has(e.name) || e.name.startsWith('.')) continue;
-      walkDir(full, match, out);
-    } else if (e.isFile() && match(full)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
 
 function hashFile(path: string): string {
   return createHash('sha1').update(readFileSync(path)).digest('hex').slice(0, 16);
@@ -48,10 +26,8 @@ export async function indexBuildCommand(
   }
 
   const start = Date.now();
-  const hasTsConfig = existsSync(`${projectPath}/tsconfig.json`);
-  const ts = hasTsConfig
-    ? openTsProject(projectPath)
-    : { files: [] as string[], extract: (_: string) => [] as IndexedSymbol[], imports: (_: string) => [] as FileImport[] };
+  // Discovers every tsconfig (monorepo packages, references) — never assume one at the root.
+  const ts = openTsWorkspace(projectPath);
   const treeSitter = new TreeSitterIndexer();
   const nonTsFiles = walkDir(projectPath, (f) => treeSitter.canHandle(f));
   const files: string[] = [...ts.files, ...nonTsFiles];
@@ -229,11 +205,20 @@ export async function indexBuildCommand(
   db.pragma('wal_checkpoint(TRUNCATE)');
   db.close();
 
+  // An empty index makes every ctk_* query answer "nothing here": say so instead of exiting quietly.
+  const warnings = [...ts.warnings];
+  if (files.length === 0) {
+    warnings.push(`no indexable source files under ${projectPath} (TS/JS, Python, Go, Rust)`);
+    process.stderr.write(`ctk index build: ${warnings[warnings.length - 1]}\n`);
+  }
+
   output({
     files: files.length,
     reindexed,
     skipped,
     errored: errors.count,
+    tsconfigs: ts.tsconfigs.map((c) => relative(projectPath, c)),
+    ...(warnings.length > 0 ? { warnings } : {}),
     // A failed file is absent from the index (callers/deps silently shrink): say which and why.
     ...(errors.count > 0 ? { errors: errors.report(), errorCauses: errors.byMessage() } : {}),
     elapsedMs: Date.now() - start,

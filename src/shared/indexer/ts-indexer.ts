@@ -1,6 +1,6 @@
-import { Project, SyntaxKind, Node, type SourceFile } from 'ts-morph';
+import { SyntaxKind, Node, type SourceFile } from 'ts-morph';
 import { createHash } from 'crypto';
-import { relative, resolve } from 'path';
+import { relative } from 'path';
 import { qualifyId } from './ids.js';
 import type { FileImport } from './types.js';
 
@@ -20,13 +20,6 @@ export interface IndexedSymbol {
   refs: string[];
   tokensEstimate: number;
   contentHash: string;
-}
-
-export interface IndexResult {
-  files: number;
-  symbols: number;
-  elapsedMs: number;
-  skipped: number;
 }
 
 const KIND_MAP: Record<number, string> = {
@@ -286,78 +279,9 @@ export function collectSymbols(
   return out;
 }
 
-function createProject(absRoot: string): Project {
-  return new Project({
-    tsConfigFilePath: `${absRoot}/tsconfig.json`,
-    skipAddingFilesFromTsConfig: false,
-    // Resolve import graph so the type-checker can follow aliases to real
-    // declarations — required for precise dep/caller edges (not name strings).
-    skipFileDependencyResolution: false,
-  });
-}
-
-export interface ProjectSourceFiles {
-  absRoot: string;
-  files: string[];
-  extract: (absPath: string) => IndexedSymbol[];
-  imports: (absPath: string) => FileImport[];
-}
-
 const TS_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
 export function isTsFile(file: string): boolean {
   const dot = file.lastIndexOf('.');
   return dot >= 0 && TS_EXTS.has(file.slice(dot));
-}
-
-export function openTsProject(projectPath: string): ProjectSourceFiles {
-  const absRoot = resolve(projectPath);
-  const project = createProject(absRoot);
-
-  const files = project.getSourceFiles()
-    .map((sf) => sf.getFilePath() as string)
-    .filter((p) => !p.includes('node_modules') && !p.includes('dist/'));
-
-  const extract = (absPath: string): IndexedSymbol[] => {
-    const sf = project.getSourceFile(absPath);
-    if (!sf) return [];
-    return collectSymbols(sf, absRoot, absPath);
-  };
-
-  const imports = (absPath: string): FileImport[] => {
-    const sf = project.getSourceFile(absPath);
-    return sf ? collectImports(sf) : [];
-  };
-
-  return { absRoot, files, extract, imports };
-}
-
-export function indexProject(projectPath: string): {
-  symbols: IndexedSymbol[];
-  result: IndexResult;
-} {
-  const start = Date.now();
-  const { absRoot, files, extract } = openTsProject(projectPath);
-
-  const allSymbols: IndexedSymbol[] = [];
-  let skipped = 0;
-
-  for (const file of files) {
-    try {
-      allSymbols.push(...extract(file));
-    } catch {
-      skipped++;
-    }
-  }
-
-  void absRoot;
-  return {
-    symbols: allSymbols,
-    result: {
-      files: files.length,
-      symbols: allSymbols.length,
-      elapsedMs: Date.now() - start,
-      skipped,
-    },
-  };
 }
