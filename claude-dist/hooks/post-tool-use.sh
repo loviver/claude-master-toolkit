@@ -42,23 +42,4 @@ CWD="$(echo "$INPUT" | jq -r '.cwd // ""')"
 # index in a random repo they happen to edit a file in).
 ctk_lib_init_done "$CWD" || exit 0
 
-LOCKFILE="$(ctk_lib_state_dir)/reindex-$(printf '%s' "$CWD" | sed 's|/|-|g').lock"
-
-# Reindex body ($1=lockfile $2=cwd): take a non-blocking lock (if flock exists),
-# then run an incremental build (hash-skip makes an up-to-date tree near-instant).
-BUILD='
-  if command -v flock >/dev/null 2>&1; then
-    exec 9>"$1" 2>/dev/null || exit 0
-    flock -n 9 || exit 0
-  fi
-  cd "$2" 2>/dev/null || exit 0
-  ctk index build >/dev/null 2>&1 || true
-'
-
-if [[ "${CTK_REINDEX_SYNC:-0}" == "1" ]]; then
-  bash -c "$BUILD" _ "$LOCKFILE" "$CWD" || true
-else
-  nohup bash -c "$BUILD" _ "$LOCKFILE" "$CWD" >/dev/null 2>&1 &
-fi
-
-exit 0
+ctk_lib_reindex "$CWD"

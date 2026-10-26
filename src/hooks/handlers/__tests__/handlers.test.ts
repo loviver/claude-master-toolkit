@@ -135,20 +135,49 @@ describe('sessionEndHandler', () => {
   });
 });
 
+/** `ctk` stub on PATH that logs its argv to a sentinel file; returns the sentinel path. */
+function stubReindex(): string {
+  const bin = join(tmp, 'bin');
+  mkdirSync(bin);
+  const sentinel = join(tmp, 'sentinel');
+  const stub = join(bin, 'ctk');
+  writeFileSync(stub, '#!/bin/sh\necho "$@" >> "$CTK_REINDEX_SENTINEL"\n');
+  chmodSync(stub, 0o755);
+  process.env['PATH'] = `${bin}:${saved['PATH']}`;
+  process.env['CTK_REINDEX_SENTINEL'] = sentinel;
+  process.env['CTK_REINDEX_SYNC'] = '1';
+  mkdirSync(join(tmp, '.ctk'));
+  writeFileSync(join(tmp, '.ctk', 'init.marker'), '');
+  return sentinel;
+}
+
+describe('sessionStartHandler (reindex)', () => {
+  let sentinel: string;
+  beforeEach(() => {
+    sentinel = stubReindex();
+  });
+  const start = () => ev({ event: 'SessionStart' });
+
+  it('refreshes the index at session start (heals a wiped/outdated index)', async () => {
+    await sessionStartHandler(start());
+    expect(readFileSync(sentinel, 'utf8')).toContain('index build');
+  });
+  it('CTK_HOOK_REINDEX=0 disables', async () => {
+    process.env['CTK_HOOK_REINDEX'] = '0';
+    await sessionStartHandler(start());
+    expect(existsSync(sentinel) && readFileSync(sentinel, 'utf8').includes('index build')).toBe(false);
+  });
+  it('needs init.marker', async () => {
+    rmSync(join(tmp, '.ctk', 'init.marker'));
+    await sessionStartHandler(start());
+    expect(existsSync(sentinel) && readFileSync(sentinel, 'utf8').includes('index build')).toBe(false);
+  });
+});
+
 describe('postToolUseHandler (reindex)', () => {
   let sentinel: string;
   beforeEach(() => {
-    const bin = join(tmp, 'bin');
-    mkdirSync(bin);
-    sentinel = join(tmp, 'sentinel');
-    const stub = join(bin, 'ctk');
-    writeFileSync(stub, '#!/bin/sh\necho "$@" >> "$CTK_REINDEX_SENTINEL"\n');
-    chmodSync(stub, 0o755);
-    process.env['PATH'] = `${bin}:${saved['PATH']}`;
-    process.env['CTK_REINDEX_SENTINEL'] = sentinel;
-    process.env['CTK_REINDEX_SYNC'] = '1';
-    mkdirSync(join(tmp, '.ctk'));
-    writeFileSync(join(tmp, '.ctk', 'init.marker'), '');
+    sentinel = stubReindex();
   });
   const edit = (file: string, kind: 'edit' | 'write' = 'edit') =>
     ev({ event: 'PostToolUse', tool: { canonical: kind, rawName: 'Edit', input: {}, filePaths: [file] } });

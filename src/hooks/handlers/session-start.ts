@@ -8,6 +8,7 @@ import { contextLimit, eventModel } from '../lib/context.js';
 import { contextPct } from '../guards/context-budget-guard.js';
 import { purgeStale } from '../lib/state.js';
 import { ctkAvailable, ctkOut } from '../lib/proc.js';
+import { reindex } from '../lib/reindex.js';
 
 /** Newest transcript of THIS project that is not the session now starting. */
 function previousSession(agent: string, cwd: string, currentId: string): string | undefined {
@@ -29,6 +30,11 @@ export const sessionStartHandler: HookHandler = (e) => {
     purgeStale(7);
   } catch {
     /* best effort */
+  }
+  // Heal a wiped (schema bump) or outdated index before the agent queries it. Incremental
+  // and detached: unchanged files are skipped by hash, so an up-to-date index costs ~nothing.
+  if (process.env['CTK_HOOK_REINDEX'] !== '0' && existsSync(join(e.cwd, '.ctk', 'init.marker'))) {
+    reindex(e.cwd);
   }
   const out: string[] = [];
 

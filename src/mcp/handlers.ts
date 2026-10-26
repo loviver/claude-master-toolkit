@@ -19,6 +19,7 @@ import {
   findSymbol,
   getDeps,
   getCallers,
+  projectIndexed,
   understand,
   rawSlice,
   recordFinding,
@@ -129,37 +130,47 @@ function errorResult(msg: string) {
   };
 }
 
+/**
+ * Index-backed tools: an unindexed project (never built, or wiped by a schema bump) is an
+ * error with the fix, never an empty answer the agent would read as "no callers".
+ */
+function withIndex<T>(
+  cwd: string | undefined,
+  fn: (db: ReturnType<typeof openDb>, project: string) => T,
+): T | ReturnType<typeof errorResult> {
+  const project = PROJECT_PATH(cwd);
+  return withDb((db) =>
+    projectIndexed(db, project)
+      ? fn(db, project)
+      : errorResult(`project not indexed (or index outdated): run ctk index build --path ${project}`),
+  );
+}
+
 const rawHandlers = {
   ctk_understand(args: { symbol: string; file?: string; cwd?: string }) {
-    return withDb((db) => {
-      const result = understand(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file });
-      if (!result)
-        return errorResult(
-          `symbol '${args.symbol}' not found. If this project is not indexed yet, run: ctk index build --path ${PROJECT_PATH(args.cwd)}`,
-        );
+    return withIndex(args.cwd, (db, project) => {
+      const result = understand(db, project, args.symbol, { file: args.file });
+      if (!result) return errorResult(`symbol '${args.symbol}' not found in the index of ${project}`);
       return jsonResult(result);
     });
   },
 
   ctk_find(args: { name: string; kind?: string; exported?: boolean; file?: string; cwd?: string }) {
-    return withDb((db) => {
+    return withIndex(args.cwd, (db, project) => {
       const opts: FindOpts = { kind: args.kind, exported: args.exported, file: args.file };
-      const matches = findSymbol(db, PROJECT_PATH(args.cwd), args.name, opts);
-      return jsonResult({ matches });
+      return jsonResult({ matches: findSymbol(db, project, args.name, opts) });
     });
   },
 
   ctk_deps(args: { file: string; symbol?: string; cwd?: string }) {
-    return withDb((db) =>
-      jsonResult(getDeps(db, PROJECT_PATH(args.cwd), args.file, { symbol: args.symbol })),
+    return withIndex(args.cwd, (db, project) =>
+      jsonResult(getDeps(db, project, args.file, { symbol: args.symbol })),
     );
   },
 
   ctk_callers(args: { symbol: string; file?: string; include?: 'calls' | 'refs' | 'all'; cwd?: string }) {
-    return withDb((db) =>
-      jsonResult(
-        getCallers(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file, include: args.include }),
-      ),
+    return withIndex(args.cwd, (db, project) =>
+      jsonResult(getCallers(db, project, args.symbol, { file: args.file, include: args.include })),
     );
   },
 

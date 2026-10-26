@@ -99,6 +99,27 @@ ctk_lib_init_done() {
   [[ -f "$project/.ctk/init.marker" ]]
 }
 
+# Incremental `ctk index build` for <cwd>, detached. A non-blocking flock (when
+# available) skips the run if one is already going; hash-skip makes an up-to-date
+# tree near-instant. CTK_REINDEX_SYNC=1 runs inline (test seam).
+ctk_lib_reindex() {
+  local cwd="$1" lockfile build
+  lockfile="$(ctk_lib_state_dir)/reindex-$(printf '%s' "$cwd" | sed 's|/|-|g').lock"
+  build='
+    if command -v flock >/dev/null 2>&1; then
+      exec 9>"$1" 2>/dev/null || exit 0
+      flock -n 9 || exit 0
+    fi
+    cd "$2" 2>/dev/null || exit 0
+    ctk index build >/dev/null 2>&1 || true
+  '
+  if [[ "${CTK_REINDEX_SYNC:-0}" == "1" ]]; then
+    bash -c "$build" _ "$lockfile" "$cwd" || true
+  else
+    nohup bash -c "$build" _ "$lockfile" "$cwd" >/dev/null 2>&1 &
+  fi
+}
+
 # Session-scoped counter file. Args: <name>. Echoes path.
 ctk_lib_counter_file() {
   local name="$1"

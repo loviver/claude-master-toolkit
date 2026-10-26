@@ -65,7 +65,17 @@ pandorica_reminder() {
   fi
 }
 
+# Heal a wiped (schema bump) or outdated index before the agent queries it.
+index_refresh() {
+  [[ "${CTK_HOOK_REINDEX:-1}" == "0" ]] && return 0
+  command -v ctk >/dev/null 2>&1 || return 0
+  local cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+  ctk_lib_init_done "$cwd" || return 0
+  ctk_lib_reindex "$cwd"
+}
+
 ctk_lib_purge_stale_state 7
+index_refresh
 context_guardian
 ctk_reminder
 pandorica_reminder

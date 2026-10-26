@@ -107,6 +107,11 @@ function resolveCandidates(
   return rankRows(rows, name);
 }
 
+/** True once `ctk index build` has recorded at least one file for the project. */
+export function projectIndexed(db: Database.Database, projectPath: string): boolean {
+  return !!db.prepare(`SELECT 1 FROM indexed_files WHERE project_path = ? LIMIT 1`).get(projectPath);
+}
+
 export function findSymbol(
   db: Database.Database,
   projectPath: string,
