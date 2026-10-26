@@ -11,7 +11,6 @@ import {
   Settings as SettingsIcon,
   FolderKanban,
   Network,
-  Workflow,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Icon } from '../Icon/Icon';
@@ -33,7 +32,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/phases',    label: 'Phases',      icon: GitBranch },
   { to: '/efficiency',label: 'Efficiency',  icon: Zap },
   { to: '/memories',   label: 'Memories',    icon: Bookmark },
-  { to: '/workflows',  label: 'Workflows',   icon: Workflow },
   { to: '/settings',   label: 'Settings',    icon: SettingsIcon },
 ];
 

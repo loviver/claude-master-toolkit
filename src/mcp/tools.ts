@@ -319,7 +319,7 @@ export function registerTools(server: McpServer): void {
     {
       description:
         'Create a workflow plan. Plans define a DAG of task/agent/decision nodes. ' +
-        'Execute with wf_execute. View in dashboard /workflows.',
+        'Execute with wf_execute; inspect with wf_get / wf_status.',
       inputSchema: {
         name: z.string().describe('Plan name'),
         definition: wfDefinitionSchema,

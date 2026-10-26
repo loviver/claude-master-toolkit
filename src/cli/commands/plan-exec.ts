@@ -205,7 +205,7 @@ export function planGenerateCommand(description: string, opts: any): void {
       id: plan.id,
       name: plan.name,
       nodes: plan.definition.nodes.length,
-      message: 'Plan generated. View in /workflows UI or execute with: ctk plan exec ' + plan.id,
+      message: 'Plan generated. Execute with: ctk plan exec ' + plan.id,
     });
   } catch (err) {
     outputError(`plan generate failed: ${(err as Error).message}`);
