@@ -64,6 +64,23 @@ function dbInUse(dbFile: string): boolean {
   }
 }
 
+/** A valid SQLite file with no tables: what a stale ctk copy leaves behind. Holds nothing to lose. */
+function isEmptyDb(dbFile: string): boolean {
+  let db: Database.Database | null = null;
+  try {
+    db = new Database(dbFile, { readonly: true });
+    return (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table'").get() as { n: number }).n === 0;
+  } catch {
+    return false;
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function moveEntry(src: string, dest: string): void {
   try {
     renameSync(src, dest);
@@ -93,7 +110,7 @@ export function migrateLegacyState(opts: { dryRun?: boolean } = {}): MigrationRe
   if (!hasLegacyState && !hasLegacyBriefs) return { status: 'nothing-to-migrate', moved: [] };
 
   const legacyDb = join(legacy, 'ctk.sqlite');
-  if (existsSync(legacyDb) && existsSync(join(target, 'ctk.sqlite'))) {
+  if (existsSync(legacyDb) && existsSync(join(target, 'ctk.sqlite')) && !isEmptyDb(legacyDb)) {
     return { status: 'conflict', moved: [] };
   }
 

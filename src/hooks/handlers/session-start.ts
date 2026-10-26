@@ -62,7 +62,7 @@ export const sessionStartHandler: HookHandler = (e) => {
 
   if (ctkAvailable()) {
     out.push(
-      'ctk MCP active — tools: ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read. Use /delegate for Agent calls.',
+      'ctk MCP active — tools: ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read.' + (e.agent === 'claude-code' ? ' Use /delegate for Agent calls.' : ''),
     );
     const recent = ctkOut(['--json', 'mem', 'trace', '--limit', '3']) ?? ctkOut(['--json', 'pandorica', 'recent', '--limit', '3']);
     let p =

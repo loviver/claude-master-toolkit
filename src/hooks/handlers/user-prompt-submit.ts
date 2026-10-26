@@ -3,7 +3,7 @@ import { join } from 'path';
 import type { HookHandler, HookResult } from '../runtime/types.js';
 import { taskGuard } from '../guards/task-guard.js';
 import { contextBudgetGuard, contextPct } from '../guards/context-budget-guard.js';
-import { lastTurnTokens } from '../lib/transcript.js';
+import { lastCodexContext, lastTurnTokens } from '../lib/transcript.js';
 import { contextLimit, eventModel } from '../lib/context.js';
 import { addWarned, readWarned } from '../lib/state.js';
 import { ctkOut, gitDirty } from '../lib/proc.js';
@@ -38,13 +38,15 @@ export const userPromptSubmitHandler: HookHandler = (e): HookResult => {
     };
   }
 
-  const tokens = lastTurnTokens(e.transcriptPath);
-  if (tokens <= 0) return { kind: 'noop' };
+  const codex = e.agent === 'codex';
+  const ctx = codex ? lastCodexContext(e.transcriptPath) : { tokens: lastTurnTokens(e.transcriptPath), window: undefined };
+  if (ctx.tokens <= 0) return { kind: 'noop' };
   const model = eventModel(e);
-  const limit = contextLimit(model);
+  const limit = ctx.window ?? contextLimit(model);
   const warned = readWarned(e);
-  const cost = contextPct(tokens, limit) >= 70 ? ctkOut(['cost', '--quiet'], e.cwd) : undefined;
-  const g = contextBudgetGuard({ tokens, limit, model, warned, cost });
+  // `ctk cost` prices the latest Claude session: meaningless for Codex.
+  const cost = !codex && contextPct(ctx.tokens, limit) >= 70 ? ctkOut(['cost', '--quiet'], e.cwd) : undefined;
+  const g = contextBudgetGuard({ tokens: ctx.tokens, limit, model, warned, cost });
   if (g.level) addWarned(e, g.level);
   return g.result;
 };

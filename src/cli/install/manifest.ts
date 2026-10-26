@@ -6,7 +6,7 @@ export type ManifestEntry =
   | { type: 'symlink'; path: string }
   | { type: 'json-key'; file: string; keyPath: string[] }
   /** Deep-merged JSON (e.g. settings.json hooks); uninstall subtracts exactly this patch. */
-  | { type: 'json-patch'; file: string; patch: Record<string, unknown> }
+  | { type: 'json-patch'; file: string; patch: Record<string, unknown>; createdFile?: boolean }
   | { type: 'toml-block'; file: string; id: string; createdFile?: boolean }
   /** A user file we replaced (e.g. CLAUDE.md -> symlink); put `backup` back on uninstall. */
   | { type: 'restore'; path: string; backup: string };

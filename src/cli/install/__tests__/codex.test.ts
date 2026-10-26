@@ -60,7 +60,7 @@ describe('installCodex', () => {
     const t = parse(cfg()) as any;
     expect(t.mcp_servers.ctk).toEqual({ command: 'node', args: [join(REPO, 'dist', 'mcp.js')] });
     expect(t.hooks.state['/home/u/.codex/hooks.json:PreToolUse:0:0'].trusted_hash).toBe('sha256:abc');
-    expect(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).toBe(USER_HOOKS);
+    expect(JSON.parse(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).hooks.PreToolUse[0]).toEqual(JSON.parse(USER_HOOKS).hooks.PreToolUse[0]);
   });
 
   it('symlinks only the neutral skills into ~/.codex/skills', () => {
@@ -103,7 +103,95 @@ describe('installCodex', () => {
     expect(cfg()).toBe(cfgAfter);
     expect(readManifest('codex')!.entries).toEqual(first.entries);
     expect(first.entries.filter((e) => e.type === 'symlink')).toHaveLength(CODEX_SKILLS.length);
-    expect(first.entries.filter((e) => e.type === 'toml-block')).toHaveLength(1);
+    expect(first.entries.filter((e) => e.type === 'toml-block').map((e: any) => e.id)).toEqual(['mcp', 'sandbox']);
+  });
+});
+
+const hooksJson = () => JSON.parse(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).hooks as Record<string, any[]>;
+const ctkCommands = (h: Record<string, any[]>) =>
+  Object.entries(h).flatMap(([ev, groups]) =>
+    groups.flatMap((g: any) => g.hooks.filter((x: any) => /hook\.js/.test(x.command)).map((x: any) => ({ ev, matcher: g.matcher, ...x }))),
+  );
+
+describe('installCodex: hooks.json registration', () => {
+  it('registers the verified events with the Codex agent flag and absolute runtime path', () => {
+    installCodex(ctx());
+    const cmds = ctkCommands(hooksJson());
+    expect(cmds.map((c) => c.ev).sort()).toEqual(['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']);
+    for (const c of cmds) {
+      expect(c.type).toBe('command');
+      expect(c.command).toBe(`node "${join(REPO, 'dist', 'hook.js')}" ${c.ev} --agent codex`);
+    }
+  });
+
+  it('PreToolUse/PostToolUse only match Bash (apply_patch/MCP/spawn have no verified contract)', () => {
+    installCodex(ctx());
+    const cmds = ctkCommands(hooksJson());
+    expect(cmds.find((c) => c.ev === 'PreToolUse')!.matcher).toBe('Bash');
+    expect(cmds.find((c) => c.ev === 'PostToolUse')!.matcher).toBe('Bash');
+  });
+
+  it('does not register events whose Codex output is unsupported or unverified', () => {
+    installCodex(ctx());
+    const events = Object.keys(hooksJson());
+    for (const ev of ['PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop', 'PermissionRequest']) {
+      expect(ctkCommands({ [ev]: hooksJson()[ev] ?? [] })).toEqual([]);
+      expect(events.includes(ev) ? ctkCommands({ [ev]: hooksJson()[ev]! }) : []).toEqual([]);
+    }
+  });
+
+  it('timeouts stay within Codex limits (SessionEnd max 3s)', () => {
+    installCodex(ctx());
+    for (const c of ctkCommands(hooksJson())) expect(c.timeout).toBeLessThanOrEqual(c.ev === 'SessionEnd' ? 3 : 600);
+  });
+
+  it('keeps the user hooks, is idempotent, and creates hooks.json when absent', () => {
+    installCodex(ctx());
+    installCodex(ctx());
+    const h = hooksJson();
+    expect(h['PreToolUse']!.some((g: any) => g.hooks.some((x: any) => x.command === 'capture.sh'))).toBe(true);
+    expect(ctkCommands(h)).toHaveLength(6);
+
+    rmSync(join(home, '.codex', 'hooks.json'));
+    installCodex(ctx());
+    expect(ctkCommands(hooksJson())).toHaveLength(6);
+  });
+
+  it('re-install from a moved package replaces the old ctk hook paths instead of stacking them', () => {
+    const oldRoot = join(home, 'old-pkg');
+    mkdirSync(join(oldRoot, 'dist'), { recursive: true });
+    installCodex({ home, pkgRoot: oldRoot });
+    installCodex(ctx());
+    const cmds = ctkCommands(hooksJson());
+    expect(cmds).toHaveLength(6);
+    expect(JSON.stringify(cmds)).not.toContain('old-pkg');
+    expect(hooksJson()['PreToolUse']!.some((g: any) => g.hooks.some((x: any) => x.command === 'capture.sh'))).toBe(true);
+  });
+
+  it('tells the user to trust the hooks in Codex and never writes [hooks.state] itself', () => {
+    const r = installCodex(ctx());
+    expect([...r.actions, ...r.warnings].join('\n')).toMatch(/\/hooks/);
+    expect((parse(cfg()) as any).hooks.state).toEqual((parse(USER_CFG) as any).hooks.state);
+  });
+
+  it('warns when dist/hook.js is missing (not built)', () => {
+    const r = installCodex({ home, pkgRoot: join(home, 'nowhere') });
+    expect(r.warnings.join('\n')).toMatch(/hook\.js/);
+  });
+
+  it('uninstall removes only the ctk hooks (user hooks and trust state untouched)', () => {
+    installCodex(ctx());
+    uninstallCodex(ctx());
+    expect(ctkCommands(hooksJson())).toEqual([]);
+    expect(hooksJson()['PreToolUse']).toEqual(JSON.parse(USER_HOOKS).hooks.PreToolUse);
+    expect(cfg()).toBe(USER_CFG);
+  });
+
+  it('uninstall deletes a hooks.json that install created and nothing else uses', () => {
+    rmSync(join(home, '.codex', 'hooks.json'));
+    installCodex(ctx());
+    uninstallCodex(ctx());
+    expect(existsSync(join(home, '.codex', 'hooks.json'))).toBe(false);
   });
 });
 
@@ -114,7 +202,7 @@ describe('uninstallCodex', () => {
     expect(cfg()).toBe(USER_CFG);
     for (const s of CODEX_SKILLS) expect(existsSync(join(home, '.codex', 'skills', s))).toBe(false);
     expect(readManifest('codex')).toBeNull();
-    expect(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).toBe(USER_HOOKS);
+    expect(JSON.parse(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8'))).toEqual(JSON.parse(USER_HOOKS));
   });
 
   it('leaves skills the user replaced after install', () => {
@@ -129,5 +217,31 @@ describe('uninstallCodex', () => {
   it('is a no-op when nothing is installed', () => {
     expect(() => uninstallCodex(ctx())).not.toThrow();
     expect(cfg()).toBe(USER_CFG);
+  });
+});
+
+describe('installCodex: sandbox write access to the ctk home', () => {
+  it('lets the workspace-write sandbox write to ~/.ctk (SQLite needs -wal/-shm) and leaves the rest of config.toml alone', () => {
+    const r = installCodex(ctx());
+    const t = parse(cfg()) as any;
+    expect(t.sandbox_workspace_write.writable_roots).toEqual([ctkHome]);
+    expect(cfg().startsWith(USER_CFG)).toBe(true);
+    expect(r.actions.join('\n')).toContain('sandbox');
+  });
+
+  it('uninstall removes the grant', () => {
+    installCodex(ctx());
+    uninstallCodex(ctx());
+    expect(cfg()).toBe(USER_CFG);
+  });
+
+  it('never fights a [sandbox_workspace_write] the user already owns: install succeeds, user table untouched, warns', () => {
+    const own = USER_CFG + '\n[sandbox_workspace_write]\nnetwork_access = true\n';
+    writeFileSync(join(home, '.codex', 'config.toml'), own);
+    const r = installCodex(ctx());
+    const t = parse(cfg()) as any;
+    expect(t.sandbox_workspace_write).toEqual({ network_access: true });
+    expect(t.mcp_servers.ctk).toBeDefined();
+    expect(r.warnings.join('\n')).toContain('writable_roots');
   });
 });

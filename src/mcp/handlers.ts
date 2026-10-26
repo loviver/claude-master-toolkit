@@ -76,7 +76,7 @@ export const handlers = {
       const result = understand(db, PROJECT_PATH(args.cwd), args.symbol);
       if (!result)
         return errorResult(
-          `symbol '${args.symbol}' not found. Run ctk index build first.`,
+          `symbol '${args.symbol}' not found. If this project is not indexed yet, run: ctk index build --path ${PROJECT_PATH(args.cwd)}`,
         );
       return jsonResult(result);
     });

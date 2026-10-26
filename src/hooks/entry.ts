@@ -4,7 +4,9 @@ import { dispatch } from './runtime/dispatch.js';
 import { readStdin, writeOutput } from './runtime/io.js';
 import type { HandlerMap, HookEvent, HookEventName, RenderedOutput } from './runtime/types.js';
 import { normalizeClaude } from './normalizers/claude-code.js';
+import { normalizeCodex } from './normalizers/codex.js';
 import { renderClaude } from './renderers/claude-code.js';
+import { renderCodex } from './renderers/codex.js';
 import { preToolUseHandler } from './handlers/pre-tool-use.js';
 import { postToolUseHandler } from './handlers/post-tool-use.js';
 import { userPromptSubmitHandler } from './handlers/user-prompt-submit.js';
@@ -32,9 +34,10 @@ const HANDLERS: HandlerMap = {
 type Normalizer = (raw: unknown) => HookEvent;
 type Renderer = (event: HookEventName, results: Parameters<typeof renderClaude>[1]) => RenderedOutput;
 
-// Phase 6 adds codex here; until then other agents are a silent no-op.
+// Unknown agents are a silent no-op.
 const AGENTS: Record<string, { normalize: Normalizer; render: Renderer }> = {
   'claude-code': { normalize: normalizeClaude, render: renderClaude },
+  codex: { normalize: normalizeCodex, render: renderCodex },
 };
 
 export interface HookArgs {

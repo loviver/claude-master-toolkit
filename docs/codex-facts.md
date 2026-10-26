@@ -35,3 +35,18 @@ Fixtures: `src/hooks/__tests__/fixtures/codex/`, `src/shared/sessions/__tests__/
 - **Custom subagents**: one TOML per agent in `~/.codex/agents/`; required `name`, `description`, `developer_instructions`; `model` optional. `sandbox_mode`, `approval_policy`, `model_provider` and `mcp_servers` in an agent file do **not** override the parent, so MCP must be registered in the parent `config.toml`.
 - **AGENTS.md**: global file is `~/.codex/AGENTS.md`; `AGENTS.override.md` (if present) wins and AGENTS.md is then ignored. Whole instruction chain is capped at `project_doc_max_bytes` (32 KiB default).
 - `ctk install codex` (Phase 5) installs MCP + the neutral skills only. Agents (`render-agent.ts` is ready and tested) and AGENTS.md wait for Phase 8; hooks.json registration waits for the Phase 6 Codex normalizer.
+
+## Hook output contract (official hooks doc, https://developers.openai.com/codex/hooks; Phase 6 renderer)
+Not yet exercised on a live Codex run: re-check after the first real session with ctk hooks trusted.
+- **PreToolUse**: deny = exit 2 + stderr (or `hookSpecificOutput.permissionDecision: "deny"`). `ask` is parsed but unsupported (hook marked failed, call continues). `allow` only with `updatedInput`. `additionalContext` supported.
+- **Stop**: exit 0 needs JSON on stdout (plain text is invalid). `decision: "block"` / exit 2 + stderr does NOT reject the turn: Codex starts a continuation prompt using the reason.
+- **SessionStart / UserPromptSubmit / SubagentStart**: plain stdout = developer context. **PostToolUse**: plain stdout ignored, JSON `additionalContext`. **PreCompact**: no `additionalContext`, only common fields (`systemMessage`, ...). **UserPromptSubmit** blocks with `{"decision":"block","reason"}`.
+- `hooks.json`: `{ "hooks": { "<Event>": [ { "matcher"?, "hooks": [ { "type": "command", "command", "timeout"?, "statusMessage"? } ] } ] } }`; default timeout 600s, SessionEnd 1s (max 3).
+- Docs say matchers use `Bash`, `apply_patch` (alias `Edit`/`Write`), `mcp__<server>__<tool>`, and `spawn_agent` (alias `Agent`); our capture shows the spawn tool is really `collaborationspawn_agent`, so ctk only relies on captured names.
+
+## Phase 6 decisions
+- Registered on Codex: SessionStart, UserPromptSubmit, PreToolUse(Bash), PostToolUse(Bash), Stop, SessionEnd.
+- Deliberate noops (no verified contract or no usable data): `apply_patch` (classified `other`, no paths), MCP calls (`mcp`, no guard acts), `PermissionRequest` (never normalized), subagent spawn (message encrypted: no /delegate hint), PreCompact reminder, SubagentStart/Stop.
+- Codex edits through Bash, so skill hints and reindex use `src/hooks/lib/shell-writes.ts` (`>` `>>` `>|` `&>`, `tee`, `sed -i`, `bash -c`). Not covered: `cp`, `mv`, `install`, `perl -i`, `python -c`, `git apply/checkout`, variable/command-substitution targets.
+- Until Phase 7 (rollout parser): no session sync and no edit/save nag on Codex; the context warning reads `token_count.last_token_usage.total_tokens` and Codex's own `model_context_window`.
+- Still open: persisting the Codex session id (keyed by cwd) for the MCP server (no env var, and whether the MCP process cwd equals the session cwd is unverified); captures for `apply_patch`, MCP, `PermissionRequest`.

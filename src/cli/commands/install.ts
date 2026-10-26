@@ -85,15 +85,14 @@ export async function installCodexCommand() {
   const pkgRoot = findPackageRoot();
   head("Codex");
   say(`Package root: ${pkgRoot}`);
+  warnOnConflict(pkgRoot);
   try {
     print(installCodex({ home: os.homedir(), pkgRoot }));
   } catch (e) {
     die((e as Error).message);
   }
   head("✓ Codex stack installed (undo: ctk uninstall codex)");
-  console.log(
-    "  Hooks, agents and AGENTS.md for Codex arrive in later phases; MCP + neutral skills are active now.\n",
-  );
+  console.log("  MCP, hooks and neutral skills are active. Agents and AGENTS.md for Codex arrive in a later phase.\n");
 }
 
 /** Installs every agent whose config dir exists; skips (with a note) the ones that are not installed. */

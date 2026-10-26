@@ -227,9 +227,17 @@ describe('userPromptSubmitHandler', () => {
     const t = transcript([
       { type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 150_000 } } },
     ]);
-    const r = await userPromptSubmitHandler(up('hi', { transcriptPath: t, model: 'claude-sonnet-5-5' }));
-    expect((r as { text: string }).text).toContain('Context Guardian: threshold crossed');
-    expect(await userPromptSubmitHandler(up('hi', { transcriptPath: t, model: 'claude-sonnet-5-5' }))).toEqual({ kind: 'noop' });
+    // Pin the window: the model's own window comes from the LiteLLM disk cache (machine state).
+    const prev = process.env['CLAUDE_CONTEXT_WINDOW'];
+    process.env['CLAUDE_CONTEXT_WINDOW'] = '200000';
+    try {
+      const r = await userPromptSubmitHandler(up('hi', { transcriptPath: t, model: 'claude-sonnet-5-5' }));
+      expect((r as { text: string }).text).toContain('Context Guardian: threshold crossed');
+      expect(await userPromptSubmitHandler(up('hi', { transcriptPath: t, model: 'claude-sonnet-5-5' }))).toEqual({ kind: 'noop' });
+    } finally {
+      if (prev === undefined) delete process.env['CLAUDE_CONTEXT_WINDOW'];
+      else process.env['CLAUDE_CONTEXT_WINDOW'] = prev;
+    }
   });
 
   it('/task persists name when git clean-or-absent (not a repo => clean)', async () => {

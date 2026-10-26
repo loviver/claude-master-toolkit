@@ -10,13 +10,26 @@ export const BUSY_TIMEOUT_MS = 5000;
  */
 export function openSqlite(path: string, opts: { readonly?: boolean } = {}): Database.Database {
   if (!opts.readonly) mkdirSync(dirname(path), { recursive: true });
-  const db = new Database(path, opts.readonly ? { readonly: true } : undefined);
-  // busy_timeout first: the pragmas below can themselves need a lock.
-  db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`);
-  if (!opts.readonly) {
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
+  let db: Database.Database | undefined;
+  try {
+    db = new Database(path, opts.readonly ? { readonly: true } : undefined);
+    // busy_timeout first: the pragmas below can themselves need a lock.
+    db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`);
+    if (!opts.readonly) {
+      db.pragma('journal_mode = WAL');
+      db.pragma('synchronous = NORMAL');
+    }
+    db.pragma('foreign_keys = ON');
+  } catch (e) {
+    db?.close();
+    if ((e as { code?: string }).code === 'SQLITE_CANTOPEN') {
+      throw new Error(
+        `cannot open ctk database at ${path}: the directory is not writable (SQLite needs to create -wal/-shm files). ` +
+          `Inside an agent sandbox, allow writes to ${dirname(path)} (Codex: [sandbox_workspace_write] writable_roots in config.toml, or re-run 'ctk install codex').`,
+        { cause: e },
+      );
+    }
+    throw e;
   }
-  db.pragma('foreign_keys = ON');
   return db;
 }

@@ -140,6 +140,19 @@ describe('migrateLegacyState', () => {
     expect(existsSync(join(legacyDir(), 'ctk.sqlite'))).toBe(true);
   });
 
+  it('an empty legacy database (no tables, e.g. created by a stale ctk copy) is not a conflict', () => {
+    mkdirSync(legacyDir(), { recursive: true });
+    new Database(join(legacyDir(), 'ctk.sqlite')).close(); // valid but table-less
+    writeFileSync(join(legacyDir(), 'x.nagged'), '');
+    mkdirSync(join(home, '.ctk'), { recursive: true });
+    writeFileSync(join(home, '.ctk', 'ctk.sqlite'), 'REAL');
+    const r = migrateLegacyState();
+    expect(r.status).toBe('migrated');
+    expect(readFileSync(join(home, '.ctk', 'ctk.sqlite'), 'utf8')).toBe('REAL'); // never overwritten
+    expect(existsSync(join(home, '.ctk', 'x.nagged'))).toBe(true);
+    expect(lstatSync(legacyDir()).isSymbolicLink()).toBe(true);
+  });
+
   it('skips when another process holds the legacy database open for writing', () => {
     seedLegacy();
     const holder = new Database(join(legacyDir(), 'ctk.sqlite'));

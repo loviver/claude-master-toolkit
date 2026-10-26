@@ -5,6 +5,8 @@ import { hasNagged, markNagged, stateDir } from '../lib/state.js';
 import { join } from 'path';
 
 export const stopHandler: HookHandler = async (e) => {
+  // Session sync and the edit/save nag read Claude's transcript/DB format; Codex joins in Phase 7.
+  if (e.agent !== 'claude-code') return { kind: 'noop' };
   await syncSession(e.sessionId);
 
   if (!e.transcriptPath) return { kind: 'noop' };

@@ -52,3 +52,36 @@ export function countToolCalls(path: string | undefined, names: string[]): numbe
   for (const line of readFileSync(path, 'utf8').split('\n')) if (re.test(line)) n++;
   return n;
 }
+
+/**
+ * Context in use per the last `token_count` of a Codex rollout. `total_tokens` already includes
+ * cached input and reasoning (verified: total = input + output), and Codex reports its own window.
+ */
+export function lastCodexContext(path: string | undefined): { tokens: number; window?: number } {
+  if (!path || !existsSync(path)) return { tokens: 0 };
+  try {
+    const lines = tail(path).split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i]!;
+      if (!line.includes('token_count')) continue;
+      try {
+        const o = JSON.parse(line) as { payload?: { type?: string; info?: CodexInfo } };
+        const info = o.payload?.type === 'token_count' ? o.payload.info : undefined;
+        const last = info?.last_token_usage;
+        if (!last) continue;
+        const tokens = last.total_tokens ?? (last.input_tokens ?? 0) + (last.output_tokens ?? 0);
+        return { tokens, window: info?.model_context_window || undefined };
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  return { tokens: 0 };
+}
+
+interface CodexInfo {
+  last_token_usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+  model_context_window?: number;
+}
