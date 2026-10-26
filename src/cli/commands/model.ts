@@ -1,15 +1,16 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'fs';
 import { dirname, join } from 'path';
-import { homedir } from 'os';
 import { output, outputError, readMainModel } from '../../shared/output.js';
 import type { ModelPreference } from '../../shared/types/index.js';
 
-const MODEL_PREF_FILE = join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'model-preference');
+import { ctkPaths } from '../../shared/paths/ctk-home.js';
+
+const modelPrefFile = (): string => ctkPaths.modelPref();
 
 function readPreference(): ModelPreference {
   try {
-    if (existsSync(MODEL_PREF_FILE)) {
-      return readFileSync(MODEL_PREF_FILE, 'utf-8').trim() as ModelPreference;
+    if (existsSync(modelPrefFile())) {
+      return readFileSync(modelPrefFile(), 'utf-8').trim() as ModelPreference;
     }
   } catch {
     // Fall through
@@ -70,12 +71,12 @@ export function modelCommand(phase: string): void {
 const VALID_PREFS = ['inherit', 'auto', 'smart', 'opus', 'sonnet', 'haiku'];
 
 export function modelPrefCommand(action?: string, value?: string): void {
-  mkdirSync(dirname(MODEL_PREF_FILE), { recursive: true });
+  mkdirSync(dirname(modelPrefFile()), { recursive: true });
 
   switch (action ?? 'get') {
     case 'get':
-      output(existsSync(MODEL_PREF_FILE)
-        ? readFileSync(MODEL_PREF_FILE, 'utf-8').trim()
+      output(existsSync(modelPrefFile())
+        ? readFileSync(modelPrefFile(), 'utf-8').trim()
         : 'inherit (default)');
       break;
 
@@ -86,13 +87,13 @@ export function modelPrefCommand(action?: string, value?: string): void {
       if (!VALID_PREFS.includes(value!) && !value!.startsWith('pinned:')) {
         outputError(`model-pref: invalid value '${value}'. Valid: inherit | auto | smart | opus | sonnet | haiku | pinned:<model>`);
       }
-      writeFileSync(MODEL_PREF_FILE, value!);
+      writeFileSync(modelPrefFile(), value!);
       output(`Model preference set: ${value}`);
       break;
     }
 
     case 'clear':
-      if (existsSync(MODEL_PREF_FILE)) unlinkSync(MODEL_PREF_FILE);
+      if (existsSync(modelPrefFile())) unlinkSync(modelPrefFile());
       output('Model preference cleared (→ inherit)');
       break;
 

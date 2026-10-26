@@ -2,8 +2,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerTools } from './tools.js';
+import { ensureMigrated } from '../shared/paths/ctk-home.js';
 
 async function main(): Promise<void> {
+  ensureMigrated();
   const server = new McpServer(
     { name: 'ctk', version: '0.1.5' },
     { capabilities: { tools: {} } },

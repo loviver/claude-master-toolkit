@@ -1,5 +1,4 @@
-import { join } from 'path';
-import { homedir } from 'os';
+import { ctkPaths } from '../../paths/ctk-home.js';
 import { mkdirSync } from 'fs';
 import type { Embedder } from './port.js';
 
@@ -18,7 +17,7 @@ function resolveModelCacheDir(): string {
   const dir =
     process.env['CTK_MODEL_CACHE'] ??
     process.env['HF_HOME'] ??
-    join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'models');
+    ctkPaths.modelsCache();
   mkdirSync(dir, { recursive: true });
   return dir;
 }

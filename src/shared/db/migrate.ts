@@ -1,14 +1,9 @@
-import Database from 'better-sqlite3';
-import { join } from 'path';
-import { homedir } from 'os';
-import { mkdirSync } from 'fs';
+import { openSqlite } from './open.js';
+import { ctkPaths } from '../paths/ctk-home.js';
 import { BENCH_SCHEMA_SQL } from '../../shared/bench/schema-sql.js';
 
-const DEFAULT_DB_DIR = join(homedir(), '.claude', 'state', 'claude-master-toolkit');
-const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'ctk.sqlite');
-
 function resolveDbPath(): string {
-  return process.env['CTK_DB_PATH'] ?? DEFAULT_DB_PATH;
+  return ctkPaths.db();
 }
 
 /**
@@ -17,11 +12,7 @@ function resolveDbPath(): string {
  */
 export function migrate(): void {
   const dbPath = resolveDbPath();
-  mkdirSync(join(dbPath, '..'), { recursive: true });
-
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = openSqlite(dbPath);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (

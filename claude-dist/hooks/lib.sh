@@ -71,7 +71,7 @@ ctk_lib_context_pct() {
 
 # State dir for cross-hook persistence. Created lazy.
 ctk_lib_state_dir() {
-  local d="$HOME/.claude/state/claude-master-toolkit"
+  local d="${CTK_HOME:-$HOME/.ctk}"
   mkdir -p "$d"
   echo "$d"
 }

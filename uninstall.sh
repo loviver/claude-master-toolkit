@@ -31,13 +31,19 @@ done
 say "removed symlinks (9)"
 
 head "2. Clean up database and state"
-STATE_DIR="$HOME/.claude/state/claude-master-toolkit"
+# State lives in ~/.ctk; the legacy ~/.claude/state/... path may be a compat symlink to it.
+STATE_DIR="${CTK_HOME:-$HOME/.ctk}"
+LEGACY_STATE_DIR="$HOME/.claude/state/claude-master-toolkit"
 if [[ -d "$STATE_DIR" ]]; then
-  rm -f "$STATE_DIR/ctk.sqlite" "$STATE_DIR/ctk.sqlite-journal"
+  rm -f "$STATE_DIR/ctk.sqlite" "$STATE_DIR/ctk.sqlite-wal" "$STATE_DIR/ctk.sqlite-shm" "$STATE_DIR/ctk.sqlite-journal"
   say "cleaned database"
   if [[ -f "$STATE_DIR/model-preference" ]]; then
     rm "$STATE_DIR/model-preference"
   fi
+fi
+if [[ -L "$LEGACY_STATE_DIR" ]]; then
+  rm "$LEGACY_STATE_DIR"
+  say "removed legacy state symlink"
 fi
 
 head "3. Restore latest backup"

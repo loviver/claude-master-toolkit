@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
+import { ctkHome } from '../../shared/paths/ctk-home.js';
 
 export const DEFAULT_MAX_STEPS = 10;
 
@@ -19,7 +19,7 @@ function resolveMax(opts: BudgetOpts): number {
 }
 
 function counterFile(opts: BudgetOpts): string {
-  const root = opts.stateRoot ?? join(homedir(), '.claude', 'state', 'claude-master-toolkit');
+  const root = opts.stateRoot ?? ctkHome();
   const sid = opts.sessionId ?? process.env.CLAUDE_SESSION_ID ?? 'default';
   const dir = join(root, sid, 'agent-steps');
   mkdirSync(dir, { recursive: true });

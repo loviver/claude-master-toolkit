@@ -5,6 +5,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { migrate } from "../shared/db/migrate.js";
+import { ensureMigrated } from "../shared/paths/ctk-home.js";
 import { syncAll } from "./parser/index.js";
 import { refreshPricingFromLiteLLM } from "../shared/pricing.js";
 import { startWatcher } from "./parser/watcher.js";
@@ -18,6 +19,7 @@ import { plansRoutes } from "./routes/plans.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export async function startServer(port: number = 3200): Promise<void> {
+  ensureMigrated();
   // Run migrations
   migrate();
 

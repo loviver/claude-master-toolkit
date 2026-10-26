@@ -1,4 +1,5 @@
 import { output, outputError } from '../../shared/output.js';
+import { ctkPaths } from '../../shared/paths/ctk-home.js';
 import { openDb } from '../../shared/indexer/db-raw.js';
 import { briefCreate, briefRead, briefValidate, briefFreeze } from '../../shared/indexer/queries.js';
 
@@ -7,7 +8,7 @@ export function briefNewCommand(id: string, opts: { task?: string }): void {
   const db = openDb();
   try {
     const b = briefCreate(db, process.cwd(), id, opts.task!);
-    output({ id: b.id, status: b.status, task: b.task, file: `~/.claude/ctk/briefs/${id}.md` });
+    output({ id: b.id, status: b.status, task: b.task, file: `${ctkPaths.briefsDir()}/${id}.md` });
   } finally {
     db.close();
     process.exit(0);

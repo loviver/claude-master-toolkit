@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, join } from 'path';
-import { homedir } from 'os';
+import { ctkPaths } from '../paths/ctk-home.js';
 import { randomUUID } from 'crypto';
 import type {
   SymbolMatch,
@@ -261,10 +261,10 @@ export function recallFindings(
 
 // ─── Brief protocol ───────────────────────────────────────────
 
-const BRIEFS_DIR = join(homedir(), '.claude', 'ctk', 'briefs');
+const briefsDir = (): string => ctkPaths.briefsDir();
 
 function briefPath(id: string): string {
-  return join(BRIEFS_DIR, `${id}.md`);
+  return join(briefsDir(), `${id}.md`);
 }
 
 const BRIEF_TEMPLATE = (id: string, task: string, createdAt: number) => `---
@@ -299,7 +299,7 @@ export function briefCreate(
   id: string,
   task: string,
 ): BriefData {
-  mkdirSync(BRIEFS_DIR, { recursive: true });
+  mkdirSync(briefsDir(), { recursive: true });
   const now = Date.now();
   const file = briefPath(id);
 

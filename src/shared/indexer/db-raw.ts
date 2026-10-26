@@ -1,20 +1,13 @@
-import Database from 'better-sqlite3';
-import { join } from 'path';
-import { homedir } from 'os';
-import { mkdirSync } from 'fs';
+import type Database from 'better-sqlite3';
+import { openSqlite } from '../db/open.js';
+import { ctkPaths } from '../paths/ctk-home.js';
 
 // v2: dep/caller edges are file-qualified (`file::symbol`). Bumping wipes any
 // v1 index (bare-name edges) so it rebuilds in the new collision-proof format.
 const INDEXER_SCHEMA_VERSION = 2;
 
 export function openDb(): Database.Database {
-  const path = process.env['CTK_DB_PATH']
-    ?? join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'ctk.sqlite');
-  mkdirSync(join(path, '..'), { recursive: true });
-  const db = new Database(path);
-  db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
-  db.pragma('foreign_keys = ON');
+  const db = openSqlite(ctkPaths.db());
 
   const current = db.pragma('user_version', { simple: true }) as number;
   if (current !== INDEXER_SCHEMA_VERSION) {

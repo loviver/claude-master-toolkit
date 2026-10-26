@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { openDb } from "../shared/indexer/db-raw.js";
+import { ctkPaths } from "../shared/paths/ctk-home.js";
 import { assessRisk } from "../shared/risk/index.js";
 import { memHandlers } from "./mem-tools.js";
 import type { MemoryType, MemoryScope } from "../shared/memories/v2.js";
@@ -46,13 +47,7 @@ const PROJECT_PATH = (cwd?: string) =>
   cwd ?? process.env["CTK_PROJECT_PATH"] ?? process.cwd();
 
 function readModelPreference(): string {
-  const prefFile = join(
-    homedir(),
-    ".claude",
-    "state",
-    "claude-master-toolkit",
-    "model-preference",
-  );
+  const prefFile = ctkPaths.modelPref();
   try {
     if (existsSync(prefFile)) return readFileSync(prefFile, "utf-8").trim();
   } catch {}

@@ -1,9 +1,8 @@
 import { readFile, writeFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import Database from 'better-sqlite3';
-import { homedir } from 'os';
-import { join } from 'path';
-import { mkdirSync } from 'fs';
+import { openSqlite } from '../../shared/db/open.js';
+import { ctkPaths } from '../../shared/paths/ctk-home.js';
 import { output, outputError, isJsonMode } from '../../shared/output.js';
 import { parseJsonlForBench } from '../../shared/bench/ingest.js';
 import { insertRun, insertTask, selectRunsWithTurns, selectTasks } from '../../shared/bench/persist.js';
@@ -20,20 +19,8 @@ import type {
   BenchExportOpts,
 } from '../types/bench-opts.js';
 
-function dbPath(): string {
-  return (
-    process.env['CTK_DB_PATH'] ??
-    join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'ctk.sqlite')
-  );
-}
-
 function openDb(): Database.Database {
-  const p = dbPath();
-  mkdirSync(join(p, '..'), { recursive: true });
-  const db = new Database(p);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  return db;
+  return openSqlite(ctkPaths.db());
 }
 
 function requireVariant(v: string | undefined): BenchVariant {

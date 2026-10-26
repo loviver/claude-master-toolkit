@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import { setJsonMode } from "../shared/output.js";
+import { ensureMigrated } from "../shared/paths/ctk-home.js";
 import { sliceCommand } from "./commands/slice.js";
 import { modelCommand, modelPrefCommand } from "./commands/model.js";
 import { tokensCommand, estimateCommand } from "./commands/tokens.js";
@@ -594,4 +595,5 @@ wf
   .description("Get execution status and timeline")
   .action(planStatusCommand);
 
+ensureMigrated();
 program.parse();
