@@ -88,10 +88,10 @@ export async function indexBuildCommand(
   const insertSymbol = db.prepare(`
     INSERT OR IGNORE INTO symbols
       (project_path, file, symbol, kind, signature, summary, start_line, end_line,
-       exported, deps, callers, refs, tokens_estimate, content_hash, updated_at)
+       exported, deps, callers, refs, dep_sites, tokens_estimate, content_hash, updated_at)
     VALUES
       (@projectPath, @file, @symbol, @kind, @signature, NULL, @startLine, @endLine,
-       @exported, @deps, NULL, @refs, @tokensEstimate, @contentHash, @updatedAt)
+       @exported, @deps, NULL, @refs, @depSites, @tokensEstimate, @contentHash, @updatedAt)
   `);
 
   let reindexed = 0;
@@ -131,6 +131,7 @@ export async function indexBuildCommand(
         exported: s.exported ? 1 : 0,
         deps: JSON.stringify(s.deps),
         refs: JSON.stringify(s.refs ?? []),
+        depSites: s.depSites ? JSON.stringify(s.depSites) : null,
         tokensEstimate: s.tokensEstimate,
         contentHash: s.contentHash,
         updatedAt: now,

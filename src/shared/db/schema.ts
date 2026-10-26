@@ -238,6 +238,7 @@ export const symbols = sqliteTable('symbols', {
   deps: text('deps'),                        // JSON array of identifier names referenced
   callers: text('callers'),                  // JSON array of caller symbol names
   refs: text('refs'),                        // JSON array of qualified non-call refs (types, consts)
+  depSites: text('dep_sites'),               // JSON { 'file::symbol': number[] } call lines inside this symbol
   referrers: text('referrers'),              // JSON array of qualified symbols that ref this one
   tokensEstimate: integer('tokens_estimate').notNull().default(0),
   contentHash: text('content_hash').notNull(),

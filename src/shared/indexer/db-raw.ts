@@ -7,12 +7,14 @@ import { migrate } from '../db/migrate.js';
 // v1 index (bare-name edges) so it rebuilds in the new collision-proof format.
 // v3: adds symbols.refs/referrers + indexed_files.imports, JSX/`new` call edges and
 // arrow-fn signatures — a v2 index lacks all of it, so it must rebuild.
-const INDEXER_SCHEMA_VERSION = 3;
+// v4: adds symbols.dep_sites (call-site lines per dep) — older rows lack it, so rebuild.
+const INDEXER_SCHEMA_VERSION = 4;
 
 // migrate() only runs on a fresh DB, so an existing v2 DB needs its columns added here.
 const V3_COLUMNS: ReadonlyArray<[table: string, col: string]> = [
   ['symbols', 'refs'],
   ['symbols', 'referrers'],
+  ['symbols', 'dep_sites'],
   ['indexed_files', 'imports'],
 ];
 

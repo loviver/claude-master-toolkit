@@ -172,6 +172,8 @@ export function migrate(): void {
   // Indexer schema v3: non-call refs, their reverse edges, and per-file imports
   addColumnSafe('symbols', 'refs', 'TEXT');
   addColumnSafe('symbols', 'referrers', 'TEXT');
+  // Indexer schema v4: call-site lines per dep, `{ "file::symbol": [line…] }`
+  addColumnSafe('symbols', 'dep_sites', 'TEXT');
   addColumnSafe('indexed_files', 'imports', 'TEXT');
 
   // v6: Benchmarks — ctk A/B data with export/import provenance

@@ -14,6 +14,8 @@ export interface IndexedSymbol {
   endLine: number;
   exported: boolean;
   deps: string[];
+  /** Call lines per resolved dep id (`file::symbol` → lines). Only tracked by the ts-morph indexer. */
+  depSites?: Record<string, number[]>;
   /** Non-call references to in-project top-level symbols (types, consts…). Qualified `file::symbol`. */
   refs: string[];
   tokensEstimate: number;
@@ -123,8 +125,10 @@ function resolveCallTarget(expr: Node, projectPath: string): string | null {
 /** `<div>` / `<svg>` are intrinsic elements, not project symbols. */
 const isIntrinsicTag = (tag: Node): boolean => Node.isIdentifier(tag) && /^[a-z]/.test(tag.getText());
 
-function extractDeps(node: Node, projectPath: string): string[] {
+function extractDeps(node: Node, projectPath: string): { deps: string[]; sites: Record<string, number[]> } {
   const deps = new Set<string>();
+  // Map, not a plain object: unresolved callees fall back to bare names like `toString`.
+  const sites = new Map<string, number[]>();
   node.forEachDescendant((child) => {
     const kind = child.getKind();
     let expr: Node | undefined;
@@ -137,9 +141,17 @@ function extractDeps(node: Node, projectPath: string): string[] {
     }
     if (!expr) return;
     const resolved = resolveCallTarget(expr, projectPath);
-    if (resolved) deps.add(resolved);
+    if (!resolved) return;
+    deps.add(resolved);
+    const line = child.getStartLineNumber();
+    const lines = sites.get(resolved) ?? [];
+    if (!lines.includes(line)) lines.push(line);
+    sites.set(resolved, lines);
   });
-  return Array.from(deps).slice(0, 30);
+  const kept = Array.from(deps).slice(0, 30);
+  const keptSites: Record<string, number[]> = {};
+  for (const id of kept) keptSites[id] = sites.get(id)!;
+  return { deps: kept, sites: keptSites };
 }
 
 function isTopLevelDeclaration(decl: Node): boolean {
@@ -213,7 +225,7 @@ export function collectSymbols(
 
   const pushSymbol = (node: Node, name: string, kind: string, exported: boolean) => {
     const text = node.getText();
-    const deps = extractDeps(node, projectPath);
+    const { deps, sites } = extractDeps(node, projectPath);
     out.push({
       projectPath,
       file: relFile,
@@ -224,6 +236,7 @@ export function collectSymbols(
       endLine: node.getEndLineNumber(),
       exported,
       deps,
+      depSites: sites,
       refs: extractRefs(node, projectPath, qualifyId(relFile, name), deps),
       tokensEstimate: estimateTokens(text),
       contentHash: hashContent(text),

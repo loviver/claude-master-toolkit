@@ -19,7 +19,7 @@ import type {
   BriefValidation,
   FileImport,
 } from './types.js';
-import { parseQualifiedId } from './ids.js';
+import { parseQualifiedId, qualifyId } from './ids.js';
 
 // ─── Symbol lookups ───────────────────────────────────────────
 
@@ -195,22 +195,31 @@ export function getCallers(
 
   // Qualified id → exact (file, symbol) lookup: no cross-file bleed. A bare id
   // (unresolved caller) falls back to every same-named symbol — best-effort.
+  // `dep_sites` is absent on pre-v4 DBs / test fixtures.
+  const hasSites = (db.prepare(`PRAGMA table_info(symbols)`).all() as { name: string }[]).some(
+    (c) => c.name === 'dep_sites',
+  );
   const lineStmt = db.prepare(
-    `SELECT start_line FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
+    `SELECT start_line${hasSites ? ', dep_sites' : ''} FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
   );
   const bareStmt = db.prepare(
     `SELECT file, symbol, start_line FROM symbols WHERE project_path = ? AND symbol = ?`,
   );
 
-  const resolveIds = (ids: string[]): CallerInfo[] => {
+  const resolveIds = (ids: string[], target?: string): CallerInfo[] => {
     const out: CallerInfo[] = [];
     for (const id of ids) {
       const parsed = parseQualifiedId(id);
       if (parsed) {
         const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
-          | { start_line: number }
+          | { start_line: number; dep_sites?: string | null }
           | undefined;
-        out.push({ file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 });
+        const info: CallerInfo = { file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 };
+        if (target && row?.dep_sites) {
+          const sites = (JSON.parse(row.dep_sites) as Record<string, number[]>)[target];
+          if (sites?.length) info.callSites = sites;
+        }
+        out.push(info);
       } else {
         const brows = bareStmt.all(projectPath, id) as Array<{
           file: string;
@@ -241,7 +250,7 @@ export function getCallers(
   for (const d of defs) {
     const callIds: string[] = include !== 'refs' && d.callers ? JSON.parse(d.callers) : [];
     const refIds: string[] = include !== 'calls' && d.referrers ? JSON.parse(d.referrers) : [];
-    const resolvedCalls = resolveIds(callIds);
+    const resolvedCalls = resolveIds(callIds, qualifyId(d.file, d.symbol));
     const resolvedRefs = resolveIds(refIds);
     definitions.push({ file: d.file, callers: resolvedCalls, referrers: resolvedRefs });
     union(callers, seenCallers, resolvedCalls);

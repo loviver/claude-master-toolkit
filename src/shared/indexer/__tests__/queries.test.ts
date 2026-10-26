@@ -290,6 +290,28 @@ describe('phase 2 query layer', () => {
     });
   });
 
+  describe('getCallers — call sites', () => {
+    it('attaches the call lines recorded on the calling symbol', () => {
+      db.exec(`ALTER TABLE symbols ADD COLUMN dep_sites TEXT`);
+      insertSym({ file: 'u.ts', symbol: 'pick', exported: true, callers: ['m.ts::run'] });
+      insertSym({ file: 'm.ts', symbol: 'run', startLine: 2, deps: ['u.ts::pick'] });
+      db.prepare(`UPDATE symbols SET dep_sites = ? WHERE symbol = 'run'`).run(JSON.stringify({ 'u.ts::pick': [3, 4] }));
+
+      const res = getCallers(db, PROJECT, 'pick', { file: 'u.ts' });
+
+      expect(res.callers).toEqual([{ file: 'm.ts', symbol: 'run', line: 2, callSites: [3, 4] }]);
+    });
+
+    it('omits callSites when the caller has none recorded (older index)', () => {
+      insertSym({ file: 'u.ts', symbol: 'pick', exported: true, callers: ['m.ts::run'] });
+      insertSym({ file: 'm.ts', symbol: 'run', startLine: 2 });
+
+      const res = getCallers(db, PROJECT, 'pick', { file: 'u.ts' });
+
+      expect(res.callers[0]).not.toHaveProperty('callSites');
+    });
+  });
+
   function seedFilters(): void {
     insertSym({ file: 't.ts', symbol: 'Filters', kind: 'interface', exported: true, callers: ['m.ts::build'] });
     db.prepare(`UPDATE symbols SET referrers = ? WHERE symbol = 'Filters'`).run(JSON.stringify(['x.ts::use']));

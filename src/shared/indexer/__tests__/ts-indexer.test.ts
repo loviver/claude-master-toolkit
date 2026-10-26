@@ -204,3 +204,32 @@ describe('collectImports', () => {
     ]);
   });
 });
+
+describe('ts-indexer call sites', () => {
+  it('records every call line per resolved dep, so callers can point at the call', () => {
+    const p = mkProject();
+    p.createSourceFile('/util.ts', `export function pick() { return 1; }`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { pick } from './util';\n` +
+        `export function run() {\n` +
+        `  const a = pick();\n` +
+        `  if (a) return pick();\n` +
+        `  return 0;\n` +
+        `}`,
+    );
+    const run = collectSymbols(main, '/', '/main.ts').find((x) => x.symbol === 'run');
+    expect(run?.depSites?.['util.ts::pick']).toEqual([3, 4]);
+  });
+
+  it('does not choke on unresolved calls named like Object.prototype members', () => {
+    const p = mkProject();
+    const main = p.createSourceFile(
+      '/main.ts',
+      `export function run(x: any) {\n  return x.toString() + x.hasOwnProperty('a') + x.valueOf();\n}`,
+    );
+    const run = collectSymbols(main, '/', '/main.ts').find((s) => s.symbol === 'run');
+    expect(run?.depSites?.['toString']).toEqual([2]);
+    expect(run?.depSites?.['hasOwnProperty']).toEqual([2]);
+  });
+});

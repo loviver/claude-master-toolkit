@@ -15,6 +15,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_understand',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Intent-based symbol intelligence. Returns signature + body + deps + callers in ONE call. ' +
         'Same-named definitions are ranked (exported first); `ambiguous`/`alternatives` flag collisions — pass `file` to pin one. ' +
@@ -32,6 +33,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_find',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Search the AST-indexed symbol database. Fast lookup without reading files. ' +
         'Returns matches with file, range, signature, deps, callers, token estimate.',
@@ -49,6 +51,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_deps',
     {
+      annotations: { readOnlyHint: true },
       description:
         'List exports, call deps, non-call refs (types/consts) and file imports (incl. external packages). No file read required. ' +
         'FILE-LEVEL by default (union over every symbol, exports capped at 50); pass `symbol` to scope exports/deps/refs/imports to that one symbol. ' +
@@ -65,11 +68,12 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_callers',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Reverse lookup from the index. `callers` = call edges (calls, `new`, JSX usage); `referrers` = non-call usage ' +
         '(type annotations, constant refs). Grouped per definition in `definitions`; pass `file` to pin one. ' +
         "For types/interfaces/constants use include 'refs' or 'all' (default) — include 'calls' returns nothing for them. " +
-        'Entries are the calling SYMBOL (with its definition line), not the call-site line; one entry may hide several calls.',
+        'Each entry is the calling SYMBOL (`line` = its definition); `callSites` lists the lines inside it where the call happens (absent on indexes built before v4).',
       inputSchema: {
         symbol: z.string().describe('Symbol name'),
         file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),
@@ -83,6 +87,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_slice',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Raw extraction of symbol block from file (regex + brace counting). ' +
         'Fallback when ctk_understand cannot find the symbol in index (e.g., non-TS files).',
@@ -115,6 +120,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_recall',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Query the findings pool BEFORE exploring a symbol. ' +
         'Check if another sub-agent already investigated this — avoids duplicate work.',
@@ -131,6 +137,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_brief_read',
     {
+      annotations: { readOnlyHint: true },
       description:
         'Read your task brief. The brief is the CONTRACT for this delegation — ' +
         'it defines known context, allowed actions, and success criteria. READ FIRST.',
@@ -144,6 +151,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_brief_validate',
     {
+      annotations: { readOnlyHint: true },
       description: 'Check if a brief has all required fields filled (task, constraints, success criteria).',
       inputSchema: {
         id: z.string(),
@@ -155,6 +163,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'ctk_risk',
     {
+      annotations: { readOnlyHint: true },
       description:
         'ADVISORY ODD risk read of the current branch vs its base. Returns signals + score + tier ' +
         '(DIRECT|GUARDED|DELEGATE) + transparent rationale, measured off the AST index (blast radius, ' +
@@ -195,6 +204,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'pandorica_search',
     {
+      annotations: { readOnlyHint: true },
       description: 'Pandorica — search memories by keyword across title/content/topic_key.',
       inputSchema: {
         query: z.string(),
@@ -210,6 +220,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'pandorica_context',
     {
+      annotations: { readOnlyHint: true },
       description: 'Pandorica — recent memories for the current project/session. Call on session start to recover state.',
       inputSchema: {
         project_path: z.string().optional(),
@@ -223,6 +234,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'pandorica_get',
     {
+      annotations: { readOnlyHint: true },
       description: 'Pandorica — full untruncated content of a memory by id.',
       inputSchema: { id: z.string() },
     },
@@ -247,6 +259,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'pandorica_recent',
     {
+      annotations: { readOnlyHint: true },
       description: 'Pandorica — last N memories by creation time, optionally scoped to a project.',
       inputSchema: {
         project_path: z.string().optional(),

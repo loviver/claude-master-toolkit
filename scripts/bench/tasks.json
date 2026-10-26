@@ -1,0 +1,32 @@
+{
+  "repo": ".",
+  "note": "Ground truth verified with `rg` against this repo. Re-verify if the symbols below move.",
+  "tasks": [
+    {
+      "id": "lookup-def",
+      "kind": "lookup",
+      "prompt": "In which file is the function `getCallers` defined? Answer with the file path only.",
+      "expect": { "all": ["src/shared/indexer/queries.ts"] }
+    },
+    {
+      "id": "callers-direct",
+      "kind": "lookup",
+      "prompt": "List every non-test source file under src/ that directly calls `getCallers`, excluding the file that defines it. Answer with file paths only, one per line.",
+      "expect": { "all": ["src/mcp/handlers.ts", "src/cli/commands/indexer.ts"], "none": ["src/mcp/tools.ts"] }
+    },
+    {
+      "id": "importers-multi",
+      "kind": "multihop",
+      "prompt": "List every non-test source file under src/ that imports from the module `shared/indexer/queries` (any relative path spelling). Answer with file paths only, one per line.",
+      "expect": {
+        "all": ["src/mcp/handlers.ts", "src/shared/risk/index.ts", "src/cli/commands/brief.ts", "src/cli/commands/understand.ts", "src/cli/commands/findings.ts", "src/cli/commands/indexer.ts"]
+      }
+    },
+    {
+      "id": "transitive-tools",
+      "kind": "multihop",
+      "prompt": "Which MCP tools registered in src/mcp/tools.ts end up, directly or transitively, calling the function `resolveCandidates` in src/shared/indexer/queries.ts? Answer with the tool names only (e.g. ctk_xxx), one per line.",
+      "expect": { "all": ["ctk_understand", "ctk_find", "ctk_callers"], "none": ["ctk_deps", "ctk_slice"] }
+    }
+  ]
+}
