@@ -80,15 +80,18 @@ Not installed on Codex: the Claude persona, and the `sdd-*` / `delegate` skills 
 
 ---
 
-## What's new in 0.3.0
+## What's new in 0.4.0
 
-- **Codex support** — `ctk install codex` / `ctk uninstall codex`, hooks for Codex, MCP server registration and the sandbox grant for `~/.ctk`.
-- **Read‑only MCP tools run unattended** in `codex exec` (`readOnlyHint`); before, every `ctk_*` call failed with `MCP tool call requires approval`.
-- **`ctk_callers` returns `callSites`** — the lines where each caller makes the call.
-- **`ctk_deps` accepts `symbol`** and caps file‑level exports (`exportsCount` has the full count).
-- **Indexer** tracks non‑call references (types, constants) and file imports; `ctk_find` / `ctk_callers` / `ctk_understand` accept `file` to disambiguate same‑named symbols.
-- **`ctk index build` reports failures** — which files errored and why, instead of a bare count.
-- **Index schema v4** — re‑run `ctk index build` per project (see *Upgrading the index*).
+Breaking changes are marked **⚠**. Full history in [CHANGELOG.md](./CHANGELOG.md).
+
+- **`ctk_map`** — repo map: the most structurally important symbols (PageRank over the call/reference graph) with signatures, grouped by file, cut to a token budget. Call it first to get oriented instead of reading files. CLI: `ctk index map`.
+- **Index self‑heals** — SessionStart refreshes the index in ctk‑active projects, so a schema bump or stale index no longer needs a manual `ctk index build`. Code tools on an unindexed project return an error with the fix instead of empty results.
+- **⚠ Leaner `ctk_find`** — returns `depsCount` / `callersCount` instead of the full lists (use `ctk_callers` / `ctk_deps` / `ctk_understand` for them) and flags `signatureTruncated` when a signature was cut.
+- **⚠ `ctk_callers` without duplication** — `definitions` is only present when several definitions share the name.
+- **Typed `const` signatures** — `export const useX: Hook<T> = impl` now indexes `useX: Hook<T>` instead of `null`.
+- **⚠ Memory over MCP is `mem_*`** — `mem_save`, `mem_recall`, `mem_context`, `mem_get`, `mem_trace`, `mem_session`. The `pandorica_*` aliases and the `ctk pandorica` CLI are removed (use `ctk mem`).
+- **⚠ Index schema v5** — rebuilt automatically at session start (see *Upgrading the index*).
+- **Bench oracle** — `scripts/bench/oracle.ts` verifies bench ground truth with the type‑checker.
 
 ---
 
@@ -114,6 +117,7 @@ All commands accept `--json` for machine‑readable output.
 | `ctk index build`            | Build a semantic symbol index. Reports `errored` files with `errors` (file + message) and `errorCauses`. |
 | `ctk index find <symbol>`    | Locate a symbol (filter by kind / exported).                  |
 | `ctk index deps <file>`      | Imports + exports of a file.                                  |
+| `ctk index map`              | Repo map: top symbols by PageRank under a token budget. `--focus a,b` centers it on files/symbols, `--budget <tokens>` (default 1024). |
 | `ctk index callers <symbol>` | Who calls / references this symbol. `--file` pins a definition, `--include calls\|refs\|all`. Each caller carries `callSites` (lines of the call). |
 | `ctk understand <symbol>`    | `find` + `slice` + `deps` + `callers` in one JSON payload.    |
 
@@ -172,17 +176,18 @@ The embedder is pluggable and **off nothing is lost** — if it's unavailable, r
 
 | Tool | Notes |
 | ---- | ----- |
-| `ctk_find` | Locate a symbol. Same‑named definitions are ranked (exported first); pass `file` to pin one. |
+| `ctk_map` | Repo map: top symbols by PageRank over the call/reference graph, with signatures, grouped by file, cut to `budget` tokens (default 1024). `focus` (files or symbols) centers it on an area. Use it first to get oriented. |
+| `ctk_find` | Locate a symbol: file, range, signature and `depsCount` / `callersCount` (no lists). Same‑named definitions are ranked (exported first); pass `file` to pin one. `signatureTruncated: true` → use `ctk_slice` for the full text. |
 | `ctk_understand` | Signature + body + deps + callers in one call. `deps`/`callers` are capped — see `depsCount` / `callersCount`. Built‑ins/globals (e.g. `Intl`) are not listed as deps; only in‑project symbols are. |
 | `ctk_deps` | File‑level by default (exports capped at 50, full count in `exportsCount`). Pass `symbol` to scope exports, deps, refs and imports to that one symbol. |
-| `ctk_callers` | `callers` = call edges, `referrers` = type/const usage. For types, interfaces and constants use `include: "refs"` or `"all"` (default) — `"calls"` returns nothing for them. Each entry is the calling *symbol*; `callSites` lists the lines inside it where the call happens. |
+| `ctk_callers` | `callers` = call edges, `referrers` = type/const usage. For types, interfaces and constants use `include: "refs"` or `"all"` (default) — `"calls"` returns nothing for them. Each entry is the calling *symbol*; `callSites` lists the lines inside it where the call happens. `definitions` groups them per definition only when several definitions share the name. |
 | `ctk_slice` | Raw extraction of one symbol block, for files the index doesn't cover. |
 
 `callSites` is produced by the ts‑morph indexer (TypeScript/JavaScript). Symbols indexed by tree‑sitter (Go, Python, Rust) have callers but no call‑site lines.
 
-#### Upgrading the index (0.3.0)
+#### Upgrading the index (0.4.0)
 
-The index schema moved to **v4**. The first time 0.3.0 opens the database it clears the symbol index of **every** project. Re‑run `ctk index build --path <project>` once per project; until then `ctk_find` / `ctk_callers` return empty results. Pandorica memories are not affected.
+The index schema moved to **v5**. The first time 0.4.0 opens the database it clears the symbol index of **every** project. In projects initialized with `ctk init`, the SessionStart hook rebuilds it in the background, so nothing is needed. Elsewhere run `ctk index build --path <project>` once; until then the code tools answer with an error that says exactly that. Pandorica memories are not affected.
 
 ### Briefs & findings (sub‑agent coordination)
 

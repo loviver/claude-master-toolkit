@@ -8,7 +8,7 @@ import { ensureMigrated } from '../shared/paths/ctk-home.js';
 async function main(): Promise<void> {
   ensureMigrated();
   const server = new McpServer(
-    { name: 'ctk', version: '0.3.0' },
+    { name: 'ctk', version: '0.4.0' },
     { capabilities: { tools: {} } },
   );
 
