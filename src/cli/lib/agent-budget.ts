@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { ctkHome } from '../../shared/paths/ctk-home.js';
+import { currentSessionId } from '../../shared/agents/resolve.js';
 
 export const DEFAULT_MAX_STEPS = 10;
 
@@ -20,7 +21,7 @@ function resolveMax(opts: BudgetOpts): number {
 
 function counterFile(opts: BudgetOpts): string {
   const root = opts.stateRoot ?? ctkHome();
-  const sid = opts.sessionId ?? process.env.CLAUDE_SESSION_ID ?? 'default';
+  const sid = opts.sessionId ?? currentSessionId() ?? 'default';
   const dir = join(root, sid, 'agent-steps');
   mkdirSync(dir, { recursive: true });
   return join(dir, opts.agentId);

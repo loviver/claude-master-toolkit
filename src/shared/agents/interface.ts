@@ -16,6 +16,18 @@ export interface DetectionResult {
 export type SystemPromptStrategy = 'replace' | 'append' | 'file-replace';
 export type McpStrategy = 'json' | 'toml' | 'yaml';
 
+/** What the agent's hook protocol can express. Renderers degrade results using this. */
+export interface AgentCapabilities {
+  /** PreToolUse can return "ask" (permission prompt). */
+  hookAsk: boolean;
+  /** PreCompact can inject context. */
+  preCompactContext: boolean;
+  /** Agent has a status line command. */
+  statusLine: boolean;
+  /** SessionEnd carries a meaningful reason (clear/logout/...). */
+  sessionEndReason: boolean;
+}
+
 export interface AgentAdapter {
   agent(): AgentId;
   tier(): SupportTier;
@@ -41,5 +53,17 @@ export interface AgentAdapter {
   commandsDir(homeDir: string): string;
   supportsSkills(): boolean;
   supportsSystemPrompt(): boolean;
+
+  capabilities(): AgentCapabilities;
+  /** File holding hook registrations (settings.json / hooks.json). */
+  hooksConfigPath(homeDir: string): string;
+  /** Directory of sub-agent definitions. */
+  agentsDir(homeDir: string): string;
+  /** Root where the agent writes session transcripts. */
+  transcriptsRoot(homeDir: string): string;
+  /** Env var the agent exports with its session id, if any. */
+  sessionIdEnv(): string | null;
+  /** Model configured by the user for the main thread, or null if unknown. */
+  readMainModel(homeDir: string): string | null;
   supportsMCP(): boolean;
 }

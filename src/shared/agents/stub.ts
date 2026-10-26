@@ -1,5 +1,6 @@
 import type {
   AgentAdapter,
+  AgentCapabilities,
   AgentId,
   DetectionResult,
   McpStrategy,
@@ -79,5 +80,24 @@ export class StubAdapter implements AgentAdapter {
   }
   supportsMCP(): boolean {
     return false;
+  }
+
+  capabilities(): AgentCapabilities {
+    return { hookAsk: false, preCompactContext: false, statusLine: false, sessionEndReason: false };
+  }
+  hooksConfigPath(_homeDir: string): string {
+    this.nope();
+  }
+  agentsDir(_homeDir: string): string {
+    this.nope();
+  }
+  transcriptsRoot(_homeDir: string): string {
+    this.nope();
+  }
+  sessionIdEnv(): string | null {
+    return null;
+  }
+  readMainModel(_homeDir: string): string | null {
+    return null;
   }
 }

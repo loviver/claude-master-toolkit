@@ -109,6 +109,7 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.5.3",
     "recharts": "^2.15.3",
+    "smol-toml": "^1.9.1",
     "tree-sitter": "^0.21.1",
     "tree-sitter-go": "^0.23.4",
     "tree-sitter-python": "0.23.4",

@@ -73,8 +73,8 @@ describe('registry', () => {
     expect(getAdapter('claude-code').tier()).toBe('full');
   });
 
-  it('getAdapter returns stubs for others', () => {
-    for (const id of ['opencode', 'cursor', 'codex'] as const) {
+  it('getAdapter returns stubs for opencode/cursor', () => {
+    for (const id of ['opencode', 'cursor'] as const) {
       expect(getAdapter(id).tier()).toBe('stub');
     }
   });

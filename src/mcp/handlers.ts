@@ -2,6 +2,7 @@ import { execFileSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { currentSessionId, readMainModel } from "../shared/agents/resolve.js";
 import { openDb } from "../shared/indexer/db-raw.js";
 import { ctkPaths } from "../shared/paths/ctk-home.js";
 import { assessRisk } from "../shared/risk/index.js";
@@ -52,17 +53,6 @@ function readModelPreference(): string {
     if (existsSync(prefFile)) return readFileSync(prefFile, "utf-8").trim();
   } catch {}
   return "inherit";
-}
-
-function readMainModel(): string {
-  const settingsFile = join(homedir(), ".claude", "settings.json");
-  try {
-    if (existsSync(settingsFile)) {
-      const s = JSON.parse(readFileSync(settingsFile, "utf-8"));
-      return s.model ?? "haiku";
-    }
-  } catch {}
-  return "haiku";
 }
 
 function jsonResult(data: unknown) {
@@ -268,7 +258,7 @@ export const handlers = {
     project_path?: string;
     title?: string;
   }) {
-    const sid = args.session_id ?? process.env["CLAUDE_SESSION_ID"] ?? randomSessionId();
+    const sid = args.session_id ?? currentSessionId() ?? randomSessionId();
     return memHandlers.mem_session({
       sub: 'summary',
       session_id: sid,

@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, join } from 'path';
 import { ctkPaths } from '../paths/ctk-home.js';
+import { currentSessionId as agentSessionId } from '../agents/resolve.js';
 import { randomUUID } from 'crypto';
 import type {
   SymbolMatch,
@@ -201,7 +202,7 @@ export function rawSlice(file: string, symbol: string): string | null {
 // ─── Findings pool ────────────────────────────────────────────
 
 function currentSessionId(): string {
-  return process.env['CLAUDE_SESSION_ID'] ?? process.env['CTK_SESSION_ID'] ?? 'default';
+  return agentSessionId() ?? 'default';
 }
 
 export function recordFinding(

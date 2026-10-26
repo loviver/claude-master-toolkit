@@ -1,7 +1,8 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type {
   AgentAdapter,
+  AgentCapabilities,
   AgentId,
   DetectionResult,
   McpStrategy,
@@ -58,7 +59,30 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     return join(this.globalConfigDir(homeDir), 'output-styles');
   }
   mcpConfigPath(homeDir: string, _serverName: string): string {
+    return join(homeDir, '.claude.json');
+  }
+  hooksConfigPath(homeDir: string): string {
     return this.settingsPath(homeDir);
+  }
+  agentsDir(homeDir: string): string {
+    return join(this.globalConfigDir(homeDir), 'agents');
+  }
+  transcriptsRoot(homeDir: string): string {
+    return join(this.globalConfigDir(homeDir), 'projects');
+  }
+  sessionIdEnv(): string | null {
+    return 'CLAUDE_SESSION_ID';
+  }
+  capabilities(): AgentCapabilities {
+    return { hookAsk: true, preCompactContext: true, statusLine: true, sessionEndReason: true };
+  }
+  readMainModel(homeDir: string): string | null {
+    try {
+      const s = JSON.parse(readFileSync(this.settingsPath(homeDir), 'utf-8'));
+      return typeof s.model === 'string' ? s.model : null;
+    } catch {
+      return null;
+    }
   }
 
   systemPromptStrategy(): SystemPromptStrategy {

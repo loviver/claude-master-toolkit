@@ -23,6 +23,7 @@ import {
 import { recallHybrid } from '../shared/memories/hybrid.js';
 import { getCachedEmbedder, embedMemoryBestEffort } from '../shared/memories/embedding/index.js';
 import { embedTimeoutMs } from '../shared/memories/embedding/timeout.js';
+import { currentSessionId } from '../shared/agents/resolve.js';
 
 function jsonResult(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
@@ -90,7 +91,7 @@ export const memHandlers = {
         topicKey: args.topic_key,
         scope: args.scope,
         projectPath: args.project_path ?? PROJECT_PATH(),
-        sessionId: args.session_id ?? process.env['CLAUDE_SESSION_ID'],
+        sessionId: args.session_id ?? currentSessionId(),
         model: args.model,
         phase: args.phase,
         tokensInput: args.tokens_input,
@@ -264,7 +265,7 @@ export const memHandlers = {
     return withDb((db) => {
       const row = passive(db, {
         content: args.content,
-        sessionId: args.session_id ?? process.env['CLAUDE_SESSION_ID'],
+        sessionId: args.session_id ?? currentSessionId(),
         projectPath: args.project_path ?? PROJECT_PATH(),
         source: args.source,
         title: args.title,
