@@ -59,7 +59,7 @@ function readModelPreference(): string {
 
 function jsonResult(data: unknown) {
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    content: [{ type: "text" as const, text: JSON.stringify(data) }],
   };
 }
 
@@ -71,9 +71,9 @@ function errorResult(msg: string) {
 }
 
 export const handlers = {
-  ctk_understand(args: { symbol: string; cwd?: string }) {
+  ctk_understand(args: { symbol: string; file?: string; cwd?: string }) {
     return withDb((db) => {
-      const result = understand(db, PROJECT_PATH(args.cwd), args.symbol);
+      const result = understand(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file });
       if (!result)
         return errorResult(
           `symbol '${args.symbol}' not found. If this project is not indexed yet, run: ctk index build --path ${PROJECT_PATH(args.cwd)}`,
@@ -82,9 +82,9 @@ export const handlers = {
     });
   },
 
-  ctk_find(args: { name: string; kind?: string; exported?: boolean; cwd?: string }) {
+  ctk_find(args: { name: string; kind?: string; exported?: boolean; file?: string; cwd?: string }) {
     return withDb((db) => {
-      const opts: FindOpts = { kind: args.kind, exported: args.exported };
+      const opts: FindOpts = { kind: args.kind, exported: args.exported, file: args.file };
       const matches = findSymbol(db, PROJECT_PATH(args.cwd), args.name, opts);
       return jsonResult({ matches });
     });
@@ -94,9 +94,9 @@ export const handlers = {
     return withDb((db) => jsonResult(getDeps(db, PROJECT_PATH(args.cwd), args.file)));
   },
 
-  ctk_callers(args: { symbol: string; cwd?: string }) {
+  ctk_callers(args: { symbol: string; file?: string; cwd?: string }) {
     return withDb((db) =>
-      jsonResult(getCallers(db, PROJECT_PATH(args.cwd), args.symbol)),
+      jsonResult(getCallers(db, PROJECT_PATH(args.cwd), args.symbol, { file: args.file })),
     );
   },
 

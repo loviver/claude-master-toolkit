@@ -209,7 +209,7 @@ export async function indexBuildCommand(
   process.exit(0);
 }
 
-export function indexFindCommand(name: string, opts: { kind?: string; exported?: boolean }): void {
+export function indexFindCommand(name: string, opts: { kind?: string; exported?: boolean; file?: string }): void {
   const db = openDb();
   try {
     const matches = findSymbol(db, process.cwd(), name, opts);
@@ -231,10 +231,10 @@ export function indexDepsCommand(file: string): void {
   }
 }
 
-export function indexCallersCommand(name: string): void {
+export function indexCallersCommand(name: string, opts: { file?: string } = {}): void {
   const db = openDb();
   try {
-    const result = getCallers(db, process.cwd(), name);
+    const result = getCallers(db, process.cwd(), name, { file: opts.file });
     output(result);
   } finally {
     db.close();

@@ -10,6 +10,7 @@ import type {
   DepsResult,
   CallersResult,
   CallerInfo,
+  CallerDefinition,
   Finding,
   RecordFindingInput,
   RecallOpts,
@@ -51,14 +52,42 @@ function rowToMatch(r: SymbolRow): SymbolMatch {
 export interface FindOpts {
   kind?: string;
   exported?: boolean;
+  /** Exact project-relative path, or a path suffix (`utils/formatters.ts`). */
+  file?: string;
 }
 
-export function findSymbol(
+const RANK_KINDS = new Set(['function', 'class', 'interface', 'type']);
+
+/**
+ * Deterministic order for same-named definitions: exact name before a
+ * `Class.name` suffix match, exported first, declaration-like kinds before
+ * const/method, most callers, then file path. Replaces the old rowid-order `LIMIT 1`.
+ */
+function rankRows(rows: SymbolRow[], name: string): SymbolRow[] {
+  const score = (r: SymbolRow) =>
+    (r.symbol === name ? 0 : 4) + (r.exported ? 0 : 2) + (RANK_KINDS.has(r.kind) ? 0 : 1);
+  // Popularity (caller count) breaks rank ties before path order: the most-used
+  // definition is the likeliest target of a bare-name query.
+  const popularity = (r: SymbolRow) => (r.callers ? (JSON.parse(r.callers) as unknown[]).length : 0);
+  return [...rows].sort(
+    (a, b) =>
+      score(a) - score(b) ||
+      popularity(b) - popularity(a) ||
+      a.file.localeCompare(b.file) ||
+      a.start_line - b.start_line,
+  );
+}
+
+function fileMatches(rowFile: string, filter: string): boolean {
+  return rowFile === filter || rowFile.endsWith(`/${filter}`);
+}
+
+function resolveCandidates(
   db: Database.Database,
   projectPath: string,
   name: string,
   opts: FindOpts = {},
-): SymbolMatch[] {
+): SymbolRow[] {
   let sql = `SELECT * FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?)`;
   const args: any[] = [projectPath, name, `%.${name}`];
   if (opts.kind) {
@@ -67,8 +96,19 @@ export function findSymbol(
   }
   if (opts.exported) sql += ` AND exported = 1`;
 
-  const rows = db.prepare(sql).all(...args) as SymbolRow[];
-  return rows.map(rowToMatch);
+  let rows = db.prepare(sql).all(...args) as SymbolRow[];
+  const f = opts.file;
+  if (f) rows = rows.filter((r) => fileMatches(r.file, f));
+  return rankRows(rows, name);
+}
+
+export function findSymbol(
+  db: Database.Database,
+  projectPath: string,
+  name: string,
+  opts: FindOpts = {},
+): SymbolMatch[] {
+  return resolveCandidates(db, projectPath, name, opts).map(rowToMatch);
 }
 
 export function getDeps(
@@ -94,19 +134,11 @@ export function getCallers(
   db: Database.Database,
   projectPath: string,
   name: string,
+  opts: { file?: string } = {},
 ): CallersResult {
-  // Union callers across EVERY definition of the bare name (a bare query for a
-  // name that exists in several files legitimately wants all their callers).
-  const rows = db.prepare(
-    `SELECT callers FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?)`,
-  ).all(projectPath, name, `%.${name}`) as Array<{ callers: string | null }>;
-
-  const callerIds = new Set<string>();
-  for (const r of rows) {
-    const ids: string[] = r.callers ? JSON.parse(r.callers) : [];
-    for (const id of ids) callerIds.add(id);
-  }
-  if (callerIds.size === 0) return { symbol: name, callers: [] };
+  // Each matched definition keeps its own callers; the flat list is their union
+  // (a bare query for a name defined in several files wants all of them).
+  const defs = resolveCandidates(db, projectPath, name, { file: opts.file });
 
   // Qualified id → exact (file, symbol) lookup: no cross-file bleed. A bare id
   // (unresolved caller) falls back to every same-named symbol — best-effort.
@@ -117,36 +149,57 @@ export function getCallers(
     `SELECT file, symbol, start_line FROM symbols WHERE project_path = ? AND symbol = ?`,
   );
 
+  const resolveIds = (ids: string[]): CallerInfo[] => {
+    const out: CallerInfo[] = [];
+    for (const id of ids) {
+      const parsed = parseQualifiedId(id);
+      if (parsed) {
+        const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
+          | { start_line: number }
+          | undefined;
+        out.push({ file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 });
+      } else {
+        const brows = bareStmt.all(projectPath, id) as Array<{
+          file: string;
+          symbol: string;
+          start_line: number;
+        }>;
+        for (const b of brows) out.push({ file: b.file, symbol: b.symbol, line: b.start_line });
+      }
+    }
+    return out;
+  };
+
+  const definitions: CallerDefinition[] = [];
+  const seen = new Set<string>();
   const callers: CallerInfo[] = [];
-  for (const id of callerIds) {
-    const parsed = parseQualifiedId(id);
-    if (parsed) {
-      const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
-        | { start_line: number }
-        | undefined;
-      callers.push({ file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 });
-    } else {
-      const brows = bareStmt.all(projectPath, id) as Array<{
-        file: string;
-        symbol: string;
-        start_line: number;
-      }>;
-      for (const b of brows) callers.push({ file: b.file, symbol: b.symbol, line: b.start_line });
+  for (const d of defs) {
+    const ids: string[] = d.callers ? JSON.parse(d.callers) : [];
+    const resolved = resolveIds(ids);
+    definitions.push({ file: d.file, callers: resolved });
+    for (const c of resolved) {
+      const key = `${c.file}::${c.symbol}::${c.line}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        callers.push(c);
+      }
     }
   }
 
-  return { symbol: name, callers };
+  return { symbol: name, callers, definitions };
 }
+
+const UNDERSTAND_LIST_CAP = 15;
+const ALTERNATIVES_CAP = 10;
 
 export function understand(
   db: Database.Database,
   projectPath: string,
   name: string,
+  opts: { file?: string } = {},
 ): UnderstandResult | null {
-  const row = db.prepare(
-    `SELECT * FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?) LIMIT 1`,
-  ).get(projectPath, name, `%.${name}`) as SymbolRow | undefined;
-
+  const candidates = resolveCandidates(db, projectPath, name, { file: opts.file });
+  const row = candidates[0];
   if (!row) return null;
 
   const absFile = resolve(projectPath, row.file);
@@ -156,7 +209,24 @@ export function understand(
     body = lines.slice(row.start_line - 1, row.end_line).join('\n');
   }
 
-  return { ...rowToMatch(row), body };
+  const match = rowToMatch(row);
+  const alternatives = candidates.slice(1, 1 + ALTERNATIVES_CAP).map((r) => ({
+    file: r.file,
+    symbol: r.symbol,
+    kind: r.kind,
+    range: [r.start_line, r.end_line] as [number, number],
+  }));
+
+  return {
+    ...match,
+    deps: match.deps.slice(0, UNDERSTAND_LIST_CAP),
+    callers: match.callers.slice(0, UNDERSTAND_LIST_CAP),
+    depsCount: match.deps.length,
+    callersCount: match.callers.length,
+    body,
+    ambiguous: candidates.length > 1,
+    alternatives,
+  };
 }
 
 export function rawSlice(file: string, symbol: string): string | null {

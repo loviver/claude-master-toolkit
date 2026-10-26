@@ -271,6 +271,7 @@ index
     "Filter by kind: class|function|method|type|interface|const",
   )
   .option("--exported", "Only exported symbols")
+  .option("--file <path>", "Pin to a definition by exact path or path suffix")
   .action(indexFindCommand);
 
 index
@@ -281,6 +282,7 @@ index
 index
   .command("callers <symbol>")
   .description("Who calls this symbol")
+  .option("--file <path>", "Pin to a definition by exact path or path suffix")
   .action(indexCallersCommand);
 
 program
@@ -288,6 +290,7 @@ program
   .description(
     "Intent-based: combines find + slice + deps + callers in one JSON",
   )
+  .option("--file <path>", "Pin to a definition by exact path or path suffix")
   .action(understandCommand);
 
 program

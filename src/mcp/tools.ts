@@ -12,9 +12,11 @@ export function registerTools(server: McpServer): void {
     {
       description:
         'Intent-based symbol intelligence. Returns signature + body + deps + callers in ONE call. ' +
+        'Same-named definitions are ranked (exported first); `ambiguous`/`alternatives` flag collisions — pass `file` to pin one. ' +
         'PREFER over Read for known symbols — 60-75% fewer tokens than reading full file.',
       inputSchema: {
         symbol: z.string().describe('Symbol name (class, function, method, type)'),
+        file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),
         cwd: cwdParam,
       },
     },
@@ -31,6 +33,7 @@ export function registerTools(server: McpServer): void {
         name: z.string().describe('Symbol name (exact or suffix match for methods)'),
         kind: z.enum(['class', 'function', 'method', 'type', 'interface', 'const', 'enum']).optional(),
         exported: z.boolean().optional().describe('Filter to only exported symbols'),
+        file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),
         cwd: cwdParam,
       },
     },
@@ -55,6 +58,7 @@ export function registerTools(server: McpServer): void {
       description: 'Reverse lookup: which symbols call this one. Pre-computed from index.',
       inputSchema: {
         symbol: z.string().describe('Symbol name'),
+        file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),
         cwd: cwdParam,
       },
     },
