@@ -37,6 +37,8 @@ export interface FileImport {
 export interface DepsResult {
   file: string;
   exports: string[];
+  /** Full export count; `exports` is capped on file-level queries. */
+  exportsCount: number;
   /** Call edges (calls, `new`, JSX usage). */
   deps: string[];
   /** Non-call references to in-project symbols (types, consts). */

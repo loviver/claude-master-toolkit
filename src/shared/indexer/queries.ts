@@ -114,19 +114,37 @@ export function findSymbol(
   return resolveCandidates(db, projectPath, name, opts).map(rowToMatch);
 }
 
+const EXPORTS_CAP = 50;
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Source text of one symbol, or null when the file cannot be read. */
+function symbolBody(projectPath: string, file: string, start: number, end: number): string | null {
+  const abs = resolve(projectPath, file);
+  if (!existsSync(abs)) return null;
+  return readFileSync(abs, 'utf-8').split('\n').slice(start - 1, end).join('\n');
+}
+
 export function getDeps(
   db: Database.Database,
   projectPath: string,
   file: string,
+  opts: { symbol?: string } = {},
 ): DepsResult {
-  const rows = db.prepare(
-    `SELECT symbol, exported, deps, refs FROM symbols WHERE project_path = ? AND file = ?`,
+  let rows = db.prepare(
+    `SELECT symbol, exported, deps, refs, start_line, end_line FROM symbols WHERE project_path = ? AND file = ?`,
   ).all(projectPath, file) as Array<{
     symbol: string;
     exported: number;
     deps: string | null;
     refs: string | null;
+    start_line: number;
+    end_line: number;
   }>;
+  if (opts.symbol) {
+    const target = opts.symbol;
+    rows = rows.filter((r) => r.symbol === target || r.symbol.endsWith(`.${target}`));
+  }
 
   const exports: string[] = [];
   const allDeps = new Set<string>();
@@ -142,9 +160,26 @@ export function getDeps(
   const imp = db.prepare(
     `SELECT imports FROM indexed_files WHERE project_path = ? AND file = ?`,
   ).get(projectPath, file) as { imports: string | null } | undefined;
-  const imports: FileImport[] = imp?.imports ? JSON.parse(imp.imports) : [];
+  let imports: FileImport[] = imp?.imports ? JSON.parse(imp.imports) : [];
 
-  return { file, exports, deps: Array.from(allDeps), refs: Array.from(allRefs), imports };
+  if (opts.symbol) {
+    // File-level imports → keep those the symbol body actually names. Unreadable file: keep all.
+    const bodies = rows.map((r) => symbolBody(projectPath, file, r.start_line, r.end_line));
+    if (rows.length === 0) imports = [];
+    else if (bodies.every((b) => b !== null)) {
+      const text = bodies.join('\n');
+      imports = imports.filter((i) => i.names.some((n) => new RegExp(`\\b${escapeRe(n)}\\b`).test(text)));
+    }
+  }
+
+  return {
+    file,
+    exports: opts.symbol ? exports : exports.slice(0, EXPORTS_CAP),
+    exportsCount: exports.length,
+    deps: Array.from(allDeps),
+    refs: Array.from(allRefs),
+    imports,
+  };
 }
 
 export function getCallers(

@@ -149,8 +149,10 @@ const rawHandlers = {
     });
   },
 
-  ctk_deps(args: { file: string; cwd?: string }) {
-    return withDb((db) => jsonResult(getDeps(db, PROJECT_PATH(args.cwd), args.file)));
+  ctk_deps(args: { file: string; symbol?: string; cwd?: string }) {
+    return withDb((db) =>
+      jsonResult(getDeps(db, PROJECT_PATH(args.cwd), args.file, { symbol: args.symbol })),
+    );
   },
 
   ctk_callers(args: { symbol: string; file?: string; include?: 'calls' | 'refs' | 'all'; cwd?: string }) {

@@ -18,6 +18,7 @@ export function registerTools(server: McpServer): void {
       description:
         'Intent-based symbol intelligence. Returns signature + body + deps + callers in ONE call. ' +
         'Same-named definitions are ranked (exported first); `ambiguous`/`alternatives` flag collisions — pass `file` to pin one. ' +
+        '`deps` lists in-project symbols only (language built-ins/globals like Intl are not indexed); lists are capped — see depsCount/callersCount. ' +
         'PREFER over Read for known symbols — 60-75% fewer tokens than reading full file.',
       inputSchema: {
         symbol: z.string().describe('Symbol name (class, function, method, type)'),
@@ -49,9 +50,12 @@ export function registerTools(server: McpServer): void {
     'ctk_deps',
     {
       description:
-        'List exports, call deps, non-call refs (types/consts) and file imports (incl. external packages). No file read required.',
+        'List exports, call deps, non-call refs (types/consts) and file imports (incl. external packages). No file read required. ' +
+        'FILE-LEVEL by default (union over every symbol, exports capped at 50); pass `symbol` to scope exports/deps/refs/imports to that one symbol. ' +
+        'Deps cover in-project symbols only — language built-ins/globals (Intl, Array...) are not listed.',
       inputSchema: {
         file: z.string().describe('Relative file path from project root'),
+        symbol: z.string().optional().describe('Scope the result to this symbol instead of the whole file'),
         cwd: cwdParam,
       },
     },
@@ -63,7 +67,9 @@ export function registerTools(server: McpServer): void {
     {
       description:
         'Reverse lookup from the index. `callers` = call edges (calls, `new`, JSX usage); `referrers` = non-call usage ' +
-        '(type annotations, constant refs). Grouped per definition in `definitions`; pass `file` to pin one.',
+        '(type annotations, constant refs). Grouped per definition in `definitions`; pass `file` to pin one. ' +
+        "For types/interfaces/constants use include 'refs' or 'all' (default) — include 'calls' returns nothing for them. " +
+        'Entries are the calling SYMBOL (with its definition line), not the call-site line; one entry may hide several calls.',
       inputSchema: {
         symbol: z.string().describe('Symbol name'),
         file: z.string().optional().describe('Pin to one definition: exact project-relative path or path suffix. Use when the result reports ambiguous/multiple definitions.'),

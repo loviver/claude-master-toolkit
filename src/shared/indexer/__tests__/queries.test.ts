@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import Database from 'better-sqlite3';
 import { getCallers } from '../queries.js';
 
@@ -237,6 +240,54 @@ describe('phase 2 query layer', () => {
   it('getDeps tolerates a file with no stored imports', () => {
     insertSym({ file: 'b.ts', symbol: 'x' });
     expect(getDeps(db, PROJECT, 'b.ts').imports).toEqual([]);
+  });
+
+  describe('getDeps — symbol scope and export cap', () => {
+    it('scopes exports/deps/refs to one symbol when `symbol` is given', () => {
+      insertSym({ file: 'a.ts', symbol: 'one', exported: true, deps: ['u.ts::h1'] });
+      insertSym({ file: 'a.ts', symbol: 'two', exported: true, deps: ['u.ts::h2'] });
+      db.prepare(`UPDATE symbols SET refs = ? WHERE symbol = 'one'`).run(JSON.stringify(['c.ts::C1']));
+      db.prepare(`UPDATE symbols SET refs = ? WHERE symbol = 'two'`).run(JSON.stringify(['c.ts::C2']));
+
+      const res = getDeps(db, PROJECT, 'a.ts', { symbol: 'one' });
+
+      expect(res.exports).toEqual(['one']);
+      expect(res.deps).toEqual(['u.ts::h1']);
+      expect(res.refs).toEqual(['c.ts::C1']);
+    });
+
+    it('keeps only the imports whose names appear in the symbol body', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'ctk-deps-'));
+      writeFileSync(join(dir, 'a.ts'), 'const x = 1;\nexport const one = () => useState(x);\nexport const two = () => dayjs();\n');
+      insertSym({ file: 'a.ts', symbol: 'one', exported: true, startLine: 2 });
+      insertSym({ file: 'a.ts', symbol: 'two', exported: true, startLine: 3 });
+      db.prepare(`INSERT INTO indexed_files VALUES (?, 'a.ts', 'h', 1, ?)`).run(
+        dir,
+        JSON.stringify([
+          { module: 'react', names: ['useState'], external: true },
+          { module: 'dayjs', names: ['dayjs'], external: true },
+        ]),
+      );
+      db.prepare(`UPDATE symbols SET project_path = ?`).run(dir);
+
+      const res = getDeps(db, dir, 'a.ts', { symbol: 'one' });
+
+      expect(res.imports.map((i) => i.module)).toEqual(['react']);
+    });
+
+    it('caps exports on file-level queries and reports the full count', () => {
+      for (let i = 0; i < 60; i++) insertSym({ file: 'big.ts', symbol: `S${i}`, exported: true });
+
+      const res = getDeps(db, PROJECT, 'big.ts');
+
+      expect(res.exports).toHaveLength(50);
+      expect(res.exportsCount).toBe(60);
+    });
+
+    it('returns empty scope for an unknown symbol', () => {
+      insertSym({ file: 'a.ts', symbol: 'one', exported: true });
+      expect(getDeps(db, PROJECT, 'a.ts', { symbol: 'nope' }).exports).toEqual([]);
+    });
   });
 
   function seedFilters(): void {
