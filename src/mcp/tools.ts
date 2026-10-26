@@ -194,97 +194,103 @@ export function registerTools(server: McpServer): void {
     async (args) => handlers.ctk_risk(args),
   );
 
-  // ─── Pandorica: persistent memory vault ───────────────────────
-  const PandoricaType = z.enum([
-    'bugfix', 'decision', 'architecture', 'discovery',
-    'pattern', 'config', 'preference', 'session_summary',
-  ]);
-  const PandoricaScope = z.enum(['project', 'personal']);
+  // ─── Pandorica: persistent memory vault (core mem_* verbs; the rest live in `ctk mem`) ───
+
+  const MemoryTypeSchema = z.enum(['decision', 'bugfix', 'architecture', 'pattern', 'preference', 'reference', 'note', 'session_summary']);
+  const MemoryScopeSchema = z.enum(['project', 'personal']);
 
   server.registerTool(
-    'pandorica_save',
+    'mem_save',
     {
       description:
-        'Pandorica — save a memory to the persistent vault. USE PROACTIVELY after: decisions, bugfixes, conventions, non-obvious discoveries, user preferences. Reuse topic_key to upsert an evolving topic.',
+        'Pandorica — save a memory. USE PROACTIVELY after decisions, bugfixes, conventions, non-obvious discoveries, ' +
+        'user preferences. Reuse `topic_key` to upsert an evolving topic instead of duplicating it.',
       inputSchema: {
         title: z.string().describe('Verb + what (e.g. "Fixed N+1 query in UserList")'),
-        type: PandoricaType,
-        content: z.string().describe('What / Why / Where / Learned'),
-        scope: PandoricaScope.optional(),
+        type: MemoryTypeSchema.optional(),
+        what: z.string().optional().describe('What happened / was decided'),
+        why: z.string().optional(),
+        where: z.string().optional().describe('Files / modules involved'),
+        learned: z.string().optional().describe('Non-obvious takeaway'),
         topic_key: z.string().optional().describe('Stable key for upsert (e.g. "architecture/auth-model")'),
+        scope: MemoryScopeSchema.optional(),
         project_path: z.string().optional(),
         session_id: z.string().optional(),
       },
     },
-    async (args) => handlers.pandorica_save(args),
+    async (args) => handlers.mem_save(args),
   );
 
   server.registerTool(
-    'pandorica_search',
+    'mem_recall',
     {
       annotations: { readOnlyHint: true },
-      description: 'Pandorica — search memories by keyword across title/content/topic_key.',
+      description: 'Pandorica — search memories (full-text + semantic). Search BEFORE re-investigating something.',
       inputSchema: {
         query: z.string(),
-        limit: z.number().optional(),
-        type: PandoricaType.optional(),
-        scope: PandoricaScope.optional(),
+        limit: z.number().int().positive().optional(),
+        type: MemoryTypeSchema.optional(),
+        scope: MemoryScopeSchema.optional(),
         project_path: z.string().optional(),
       },
     },
-    async (args) => handlers.pandorica_search(args),
+    async (args) => handlers.mem_recall(args),
   );
 
   server.registerTool(
-    'pandorica_context',
+    'mem_context',
     {
       annotations: { readOnlyHint: true },
-      description: 'Pandorica — recent memories for the current project/session. Call on session start to recover state.',
+      description: 'Pandorica — recent context for a project/session (use after compaction or at session start).',
       inputSchema: {
         project_path: z.string().optional(),
         session_id: z.string().optional(),
-        limit: z.number().optional(),
+        limit: z.number().int().positive().optional(),
       },
     },
-    async (args) => handlers.pandorica_context(args),
+    async (args) => handlers.mem_context(args),
   );
 
   server.registerTool(
-    'pandorica_get',
+    'mem_get',
     {
       annotations: { readOnlyHint: true },
-      description: 'Pandorica — full untruncated content of a memory by id.',
+      description: 'Pandorica — full memory by id.',
       inputSchema: { id: z.string() },
     },
-    async (args) => handlers.pandorica_get(args),
+    async (args) => handlers.mem_get(args),
   );
 
   server.registerTool(
-    'pandorica_session_summary',
-    {
-      description:
-        'Pandorica — persist an end-of-session summary. Call before "done"/"listo" or after compaction. Upserts by session_id.',
-      inputSchema: {
-        content: z.string().describe('Markdown: Goal / Discoveries / Accomplished / Next Steps / Relevant Files'),
-        session_id: z.string().optional(),
-        project_path: z.string().optional(),
-        title: z.string().optional(),
-      },
-    },
-    async (args) => handlers.pandorica_session_summary(args),
-  );
-
-  server.registerTool(
-    'pandorica_recent',
+    'mem_trace',
     {
       annotations: { readOnlyHint: true },
-      description: 'Pandorica — last N memories by creation time, optionally scoped to a project.',
+      description: 'Pandorica — latest memories by creation time, optionally scoped to a project or session.',
       inputSchema: {
         project_path: z.string().optional(),
-        limit: z.number().optional(),
+        session_id: z.string().optional(),
+        limit: z.number().int().positive().optional(),
       },
     },
-    async (args) => handlers.pandorica_recent(args),
+    async (args) => handlers.mem_trace(args),
+  );
+
+  server.registerTool(
+    'mem_session',
+    {
+      description:
+        "Pandorica — session lifecycle. action 'summary' (content = Goal / Discoveries / Accomplished / Next Steps / " +
+        "Relevant Files) persists the session before compaction or at close; 'start' / 'end' mark its boundaries.",
+      inputSchema: {
+        action: z.enum(['start', 'end', 'summary']),
+        content: z.string().optional().describe("Markdown summary (action 'summary')"),
+        summary: z.string().optional().describe("Closing note (action 'end')"),
+        title: z.string().optional(),
+        session_id: z.string().optional().describe('Defaults to the current agent session'),
+        project_path: z.string().optional(),
+      },
+    },
+    async ({ action, ...rest }) => handlers.mem_session({ sub: action, ...rest }),
   );
 
   // ── Workflow Plans ──

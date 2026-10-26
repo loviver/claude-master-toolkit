@@ -20,7 +20,7 @@ ctk dashboard          # http://localhost:3200
 | **Dashboard**          | React SPA + Fastify server on `:3200`. Shows sessions, token events, costs, memories.                        | `ctk dashboard`                           |
 | **Cost telemetry**     | Parses `~/.claude/projects/**/*.jsonl` into SQLite. Real API‑charged counts, not heuristics.                 | `ctk cost`, `ctk context`, dashboard      |
 | **Context guardian**   | Hooks that warn when you cross 70 / 85 / 95 % of the window — before Claude Code does.                       | installed by `ctk install claude`         |
-| **Pandorica**          | Persistent memory vault (SQLite). Save decisions/bugs/patterns, search across sessions and projects.         | `ctk pandorica …`, MCP tools              |
+| **Pandorica**          | Persistent memory vault (SQLite). Save decisions/bugs/patterns, search across sessions and projects.         | `ctk mem …`, MCP `mem_*`                  |
 | **Model router**       | `ctk model <phase>` returns an alias (opus/sonnet/haiku) per SDD phase. Sub‑agents inherit it via `/delegate`. | `ctk model`, `ctk model-pref`             |
 | **Code indexer**       | Tree‑sitter + ts‑morph symbol index for TS, Go, Python, Rust. Type‑resolved, **file‑qualified** call/dep edges (collision‑proof); a PostToolUse hook keeps it fresh. Find / callers (with call‑site lines) / deps (file or single symbol) in JSON. | `ctk index …`, `ctk understand`           |
 | **ODD risk routing**   | `ctk risk` scores a branch DIRECT / GUARDED / DELEGATE off the symbol index — blast radius, public API, spread, churn — to right‑size delegation. | `ctk risk`, MCP `ctk_risk`                |
@@ -76,7 +76,7 @@ This edits `~/.codex/` and only touches what ctk owns (revert with `ctk uninstal
 
 Not installed on Codex: the Claude persona, and the `sdd-*` / `delegate` skills (they still reference Claude‑specific paths and the `Agent` tool).
 
-**Non‑interactive use (`codex exec`).** Codex needs approval for MCP tools unless the server marks them read‑only. ctk marks its read‑only tools (`ctk_find`, `ctk_understand`, `ctk_deps`, `ctk_callers`, `ctk_slice`, `ctk_recall`, `ctk_brief_*`, `ctk_risk`, `pandorica_search|context|get|recent`) with `readOnlyHint`, so they run unattended. Tools that write (`ctk_record`, `pandorica_save`, `pandorica_session_summary`) still require approval — by design.
+**Non‑interactive use (`codex exec`).** Codex needs approval for MCP tools unless the server marks them read‑only. ctk marks its read‑only tools (`ctk_find`, `ctk_understand`, `ctk_deps`, `ctk_callers`, `ctk_slice`, `ctk_recall`, `ctk_brief_*`, `ctk_risk`, `ctk_map`, `mem_recall|context|get|trace`) with `readOnlyHint`, so they run unattended. Tools that write (`ctk_record`, `mem_save`, `mem_session`) still require approval — by design.
 
 ---
 
@@ -138,14 +138,15 @@ All commands accept `--json` for machine‑readable output.
 
 | Command                               | Purpose                                                   |
 | ------------------------------------- | --------------------------------------------------------- |
-| `ctk pandorica save --title ... --type ...` | Save a memory (`bugfix`, `decision`, `architecture`, `discovery`, `pattern`, `config`, `preference`, `session_summary`). |
-| `ctk pandorica search <q>`            | Hybrid search (keyword + semantic).                       |
-| `ctk pandorica reindex`               | (Re)compute semantic embeddings for the whole vault.      |
-| `ctk pandorica context`               | Recent memories for current project/session.              |
-| `ctk pandorica recent [--all]`        | Last N memories.                                          |
-| `ctk pandorica get <id>`              | Full untruncated memory.                                  |
-| `ctk pandorica delete <id>`           | Delete a memory.                                          |
-| `ctk pandorica summary`               | Persist a session summary.                                |
+| `ctk mem save --title ... --type ...` | Save a memory (`decision`, `bugfix`, `architecture`, `pattern`, `preference`, `reference`, `note`, `session_summary`). |
+| `ctk mem recall <q>`                  | Hybrid search (keyword + semantic).                       |
+| `ctk mem reindex`                     | (Re)compute semantic embeddings for the whole vault.      |
+| `ctk mem context`                     | Recent memories for current project/session.              |
+| `ctk mem trace`                       | Timeline of memories by creation date.                    |
+| `ctk mem get <id>`                    | Full untruncated memory.                                  |
+| `ctk mem delete <id>`                 | Delete a memory.                                          |
+| `ctk mem summary`                     | Persist a session summary.                                |
+| `ctk mem stats` / `export` / `import` | ROI and counts / dump and restore the vault.              |
 
 #### Hybrid recall (v0.2.0)
 
@@ -165,7 +166,7 @@ The embedder is pluggable and **off nothing is lost** — if it's unavailable, r
 | `pandorica.embedEndpoint` / `CTK_EMBED_ENDPOINT` | ollama: `http://localhost:11434` · api: OpenAI | for `ollama` / `api`                             |
 | `CTK_EMBED_API_KEY` / `OPENAI_API_KEY`    | —                                                  | for `api`                                        |
 
-`local` uses transformers.js (installed as an **optional** dependency; the model downloads once, then fully offline). After upgrading, run `ctk pandorica reindex` once to embed existing memories; new memories saved through the MCP server embed automatically.
+`local` uses transformers.js (installed as an **optional** dependency; the model downloads once, then fully offline). After upgrading, run `ctk mem reindex` once to embed existing memories; new memories saved through the MCP server embed automatically.
 
 ### MCP code tools
 

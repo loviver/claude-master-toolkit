@@ -23,10 +23,11 @@ import {
 import { recallHybrid } from '../shared/memories/hybrid.js';
 import { getCachedEmbedder, embedMemoryBestEffort } from '../shared/memories/embedding/index.js';
 import { embedTimeoutMs } from '../shared/memories/embedding/timeout.js';
+import { randomUUID } from 'crypto';
 import { currentSessionId } from '../shared/agents/resolve.js';
 
 function jsonResult(data: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
 }
 
 function errorResult(msg: string) {
@@ -218,17 +219,19 @@ export const memHandlers = {
 
   mem_session(args: {
     sub: 'start' | 'end' | 'summary';
-    session_id: string;
+    /** Defaults to the agent's current session (or a fresh id when none is resolvable). */
+    session_id?: string;
     project_path?: string;
     directory?: string;
     content?: string;
     summary?: string;
     title?: string;
   }) {
+    const sessionId = args.session_id ?? currentSessionId() ?? randomUUID();
     return withDb((db) => {
       if (args.sub === 'start') {
         const row = sessionStart(db, {
-          sessionId: args.session_id,
+          sessionId,
           projectPath: args.project_path ?? PROJECT_PATH(),
           directory: args.directory,
         });
@@ -236,7 +239,7 @@ export const memHandlers = {
       }
       if (args.sub === 'end') {
         const row = sessionEnd(db, {
-          sessionId: args.session_id,
+          sessionId,
           summary: args.summary,
           projectPath: args.project_path ?? PROJECT_PATH(),
         });
@@ -244,7 +247,7 @@ export const memHandlers = {
       }
       if (args.sub === 'summary') {
         const row = sessionSummary(db, {
-          sessionId: args.session_id,
+          sessionId,
           content: args.content ?? '',
           title: args.title,
           projectPath: args.project_path ?? PROJECT_PATH(),

@@ -70,9 +70,9 @@ export const sessionStartHandler: HookHandler = (e) => {
     out.push(
       'ctk MCP active — tools: ctk_map (start here), ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read.' + (e.agent === 'claude-code' ? ' Use /delegate for Agent calls.' : ''),
     );
-    const recent = ctkOut(['--json', 'mem', 'trace', '--limit', '3']) ?? ctkOut(['--json', 'pandorica', 'recent', '--limit', '3']);
+    const recent = ctkOut(['--json', 'mem', 'trace', '--limit', '3']);
     let p =
-      'Pandorica v2 active — mem_* tools (FTS5 + cost correlation): mem_save / mem_recall / mem_context / mem_trace / mem_session / mem_stats. Legacy aliases: pandorica_save/_search/_context/_session_summary/_recent. SAVE PROACTIVELY after decisions, bugfixes, non-obvious discoveries.';
+      'Pandorica v2 active — mem_* tools: mem_save / mem_recall / mem_context / mem_get / mem_trace / mem_session. SAVE PROACTIVELY after decisions, bugfixes, non-obvious discoveries.';
     if (recent) p += `\n   Recent memories (this project): ${recent.slice(0, 300)}`;
     out.push(p);
   }

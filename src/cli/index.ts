@@ -36,16 +36,6 @@ import {
 } from "./commands/brief.js";
 import { recordCommand, recallCommand } from "./commands/findings.js";
 import {
-  saveCommand as pandoricaSaveCommand,
-  searchCommand as pandoricaSearchCommand,
-  reindexCommand as pandoricaReindexCommand,
-  contextCommand as pandoricaContextCommand,
-  recentCommand as pandoricaRecentCommand,
-  getCommand as pandoricaGetCommand,
-  deleteCommand as pandoricaDeleteCommand,
-  summaryCommand as pandoricaSummaryCommand,
-} from "./commands/pandorica.js";
-import {
   memSaveCommand,
   memRecallCommand,
   memReindexCommand,
@@ -429,74 +419,6 @@ bench
   .command("import <file>")
   .description("Import a bench SQL dump into the local DB")
   .action(benchImportCommand);
-
-const pandorica = program
-  .command("pandorica")
-  .description("Persistent memory vault (Dr. Who-themed)");
-
-pandorica
-  .command("save")
-  .description("Save a memory to the Pandorica")
-  .requiredOption("--title <text>", "Short searchable title")
-  .requiredOption("--type <type>", VALID_PANDORICA_TYPES)
-  .option("--content <text>", "Inline content")
-  .option("--file <path>", "Read content from file")
-  .option("--stdin", "Read content from stdin")
-  .option("--scope <scope>", "project|personal", "project")
-  .option("--topic-key <key>", "Stable key for upsert (e.g. architecture/auth)")
-  .option("--project-path <path>", "Override project path (default: cwd)")
-  .option("--session-id <id>", "Attach to a session")
-  .action(pandoricaSaveCommand);
-
-pandorica
-  .command("search <query>")
-  .description("Search memories (hybrid: keyword FTS5 + semantic vectors)")
-  .option("--limit <n>", "Max results (default 20)")
-  .option("--type <type>", "Filter by type")
-  .option("--scope <scope>", "Filter by scope")
-  .option("--project-path <path>", "Filter by project path")
-  .action(pandoricaSearchCommand);
-
-pandorica
-  .command("reindex")
-  .description("(Re)compute semantic embeddings for every memory in the vault")
-  .action(pandoricaReindexCommand);
-
-pandorica
-  .command("context")
-  .description("Recent memories for current project/session")
-  .option("--project-path <path>", "Override project path (default: cwd)")
-  .option("--session-id <id>", "Filter by session")
-  .option("--limit <n>", "Max results (default 10)")
-  .action(pandoricaContextCommand);
-
-pandorica
-  .command("recent")
-  .description("Last N memories by creation date")
-  .option("--limit <n>", "Max results (default 10)")
-  .option("--all", "All projects (default: current cwd only)")
-  .action(pandoricaRecentCommand);
-
-pandorica
-  .command("get <id>")
-  .description("Full untruncated memory by id")
-  .action(pandoricaGetCommand);
-
-pandorica
-  .command("delete <id>")
-  .description("Delete a memory by id")
-  .action(pandoricaDeleteCommand);
-
-pandorica
-  .command("summary")
-  .description("Persist a session summary (markdown)")
-  .option("--content <text>", "Inline content")
-  .option("--file <path>", "Read from file")
-  .option("--stdin", "Read from stdin")
-  .option("--session-id <id>", "Session id (used as topic key)")
-  .option("--project-path <path>", "Override project path")
-  .option("--title <text>", "Override title")
-  .action(pandoricaSummaryCommand);
 
 const mem = program
   .command("mem")

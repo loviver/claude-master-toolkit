@@ -7,7 +7,7 @@ Mental model for the Claude Master Toolkit. Flags and CLI reference live in `CLA
 The Claude Code harness ships with hooks, skills, sub-agents, and MCP tools, but adoption is the bottleneck:
 
 - Sub-agents don't spawn unless something pushes for delegation.
-- `pandorica_save` is rarely called — memory stays empty.
+- `mem_save` is rarely called — memory stays empty.
 - Skills sit in `~/.claude/skills/` but never auto-load.
 - Hooks warn without enforcing.
 
@@ -39,9 +39,9 @@ fresh clone → ctk init  ──►  Strict TDD detected, .ctk/project-context.m
 |---|---|---|
 | Main conversation | Decides scope, confirms plans, reviews artifacts. | Execute heavy reads/writes inline. |
 | `sdd-orchestrator` sub-agent | Coordinator. Picks phase, resolves model (`ctk model`), enforces SDD Init Guard, delegates. | Execute phase work itself. |
-| SDD phase sub-agents | Focused executors. Return the Result Contract shape (§2.4 of the plan). | Skip `pandorica_save`. |
+| SDD phase sub-agents | Focused executors. Return the Result Contract shape (§2.4 of the plan). | Skip `mem_save`. |
 | Hooks | Enforce: persona inject, init-marker check, save threshold, skill hints. | Silently swallow errors. |
-| `ctk pandorica` | Durable memory. Invoked by skills, sub-agents, and the CLI. | Store ephemeral task state. |
+| `ctk mem` | Durable memory. Invoked by skills, sub-agents, and the CLI. | Store ephemeral task state. |
 
 Delegation rule of thumb: *does this inflate my context without need?* → delegate. Else inline. See the delegation table in the Phase 0 plan §2.2.
 
@@ -49,8 +49,8 @@ Delegation rule of thumb: *does this inflate my context without need?* → deleg
 
 Save proactively after any of: decision, bugfix, convention discovered, user preference, surprising finding. **Don't** save task state — that's what tasks/plans are for.
 
-- `mem_save` / `pandorica_save` — write (v2 has 15 `mem_*` verbs with FTS5 + cost correlation)
-- `mem_recall` / `pandorica_search` — read
+- `mem_save` — write (6 core `mem_*` verbs over MCP; the rest via `ctk mem`)
+- `mem_recall` — read
 - `mem_session({ action: 'summary' })` — before `/compact`
 
 Every sub-agent is expected to save at least once per non-trivial run. The Stop hook enforces this at the session level (see §5).

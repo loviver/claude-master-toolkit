@@ -1,6 +1,6 @@
 ---
 name: pandorica-protocol
-description: Pandorica persistent memory protocol — save triggers proactivos, reglas de search, session close protocol, post-compaction recovery. Vault dark-themed (Doctor Who) nativo en ctk. Triggers: "guardá en memoria", "recordá esto", "acordate", "qué hicimos", "memory", "remember", "recall", "save to memory", "pandorica_save", "pandorica_search". Siempre activo.
+description: Pandorica persistent memory protocol — save triggers proactivos, reglas de search, session close protocol, post-compaction recovery. Vault dark-themed (Doctor Who) nativo en ctk. Triggers: "guardá en memoria", "recordá esto", "acordate", "qué hicimos", "memory", "remember", "recall", "save to memory", "mem_save", "mem_recall". Siempre activo.
 ---
 
 # Pandorica — Full Memory Protocol
@@ -14,28 +14,20 @@ This protocol is MANDATORY and ALWAYS ACTIVE.
 
 ## Tools disponibles (Pandorica v2 — `mem_*`)
 
-Structured schema + FTS5 + cost-enrichment. 15 verbs:
+MCP (6 verbos core — los únicos que ve el agente):
 
-- `mem_save({ title, type, what, why?, where_?, learned?, topic_key?, scope?, session_id?, project_path?, model?, phase?, tokens_input?, tokens_output?, cache_hit_pct?, cost_usd? })`
-- `mem_update(id, patch)` / `mem_delete(id)` / `mem_get(id)` — full untruncated + increments `access_count`
-- `mem_mark(id, topic_key)` — user-driven topic tagging
-- `mem_recall({ query, limit?, type?, scope?, project_path? })` — FTS5 BM25 rank
-- `mem_context({ topic_key?, project_path?, session_id?, limit? })` — recover recent/topic state
-- `mem_trace({ session_id?, limit? })` — timeline con cost correlation
-- `mem_session({ action: 'start'|'end'|'summary', ... })`
-- `mem_passive(observation)` — capture sin structure
-- `mem_merge(source_id, target_id)`
-- `mem_suggest(text)` — NLP topic_key hints
-- `mem_stats({ project_path? })` — ROI + cost_saved
-- `mem_export({ path })` / `mem_import({ path })`
+- `mem_save({ title, type?, what?, why?, where?, learned?, topic_key?, scope?, session_id?, project_path? })`
+- `mem_recall({ query, limit?, type?, scope?, project_path? })` — FTS5 BM25 + semántico
+- `mem_context({ project_path?, session_id?, limit? })` — recuperar estado reciente
+- `mem_get({ id })` — completo, sin truncar; incrementa `access_count`
+- `mem_trace({ project_path?, session_id?, limit? })` — timeline por fecha de creación
+- `mem_session({ action: 'start'|'end'|'summary', content?, summary?, title?, session_id? })` — `session_id` por defecto = sesión actual
 
-Legacy alias (backward-compat, ruteado a `mem_*`): `pandorica_save` / `_search` / `_context` / `_get` / `_session_summary` / `_recent`.
-
-CLI: `ctk pandorica save|search|context|recent|get|delete|summary` (sigue funcionando).
+CLI: `ctk mem save|recall|context|trace|get|delete|summary|stats|export|import|reindex`.
 
 ## Proactive Save Triggers
 
-Call `pandorica_save` IMMEDIATELY and WITHOUT BEING ASKED after any of:
+Call `mem_save` IMMEDIATELY and WITHOUT BEING ASKED after any of:
 
 - Architecture or design decision made
 - Team convention documented or established
@@ -50,7 +42,7 @@ Call `pandorica_save` IMMEDIATELY and WITHOUT BEING ASKED after any of:
 - Pattern established (naming, structure, convention)
 - User preference or constraint learned
 
-Self-check after every task: "Did I make a decision, fix a bug, learn something non-obvious, or establish a convention? If yes → `pandorica_save` NOW."
+Self-check after every task: "Did I make a decision, fix a bug, learn something non-obvious, or establish a convention? If yes → `mem_save` NOW."
 
 ## mem_save Format
 
@@ -61,17 +53,15 @@ Self-check after every task: "Did I make a decision, fix a bug, learn something 
 - Structured fields (NO concatenar en `what`):
   - **what**: one sentence — what happened
   - **why**: motivation / root cause
-  - **where_**: files / paths
+  - **where**: files / paths
   - **learned**: gotchas, surprises (omit si none)
-- Cost-enrichment (opcional, Phase B los llena el hook automáticamente): `model`, `phase`, `tokens_input`, `tokens_output`, `cache_hit_pct`, `cost_usd`.
-
-Legacy `pandorica_save(text)` → ruteado a `mem_save({ title: first_line(text), what: text, type: 'note' })`. Nuevo código: usar `mem_save` directo.
+- Cost-enrichment (`model`, `phase`, `tokens_*`, `cache_hit_pct`, `cost_usd`): lo llena el hook automáticamente; vía CLI `ctk mem save`.
 
 ## Topic Update Rules
 
 - Different topics MUST NOT overwrite each other
 - Same topic evolving → reuse `topic_key` (upsert automático)
-- Know exact ID to fix → `pandorica_save` con mismo `topic_key`, o `ctk pandorica delete <id>` y re-save
+- Know exact ID to fix → `mem_save` con mismo `topic_key`, o `ctk mem delete <id>` y re-save
 
 ## Search Triggers
 

@@ -54,7 +54,7 @@ fi
 EDITS="$(grep -cE '"name":"(Edit|Write|MultiEdit|NotebookEdit)"' "$TRANSCRIPT" 2>/dev/null || echo 0)"
 EDITS="${EDITS//[^0-9]/}"; EDITS="${EDITS:-0}"
 
-PANDORICA_SAVES="$(grep -cE '"name":"(mem_save|pandorica_save)"' "$TRANSCRIPT" 2>/dev/null || echo 0)"
+PANDORICA_SAVES="$(grep -cE '"name":"mem_save"' "$TRANSCRIPT" 2>/dev/null || echo 0)"
 PANDORICA_SAVES="${PANDORICA_SAVES//[^0-9]/}"; PANDORICA_SAVES="${PANDORICA_SAVES:-0}"
 
 CTK_RECORDS="$(grep -cE '"name":"ctk_record"' "$TRANSCRIPT" 2>/dev/null || echo 0)"

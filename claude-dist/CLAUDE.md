@@ -61,12 +61,10 @@ Pandorica is the native ctk memory vault (SQLite + MCP tools + CLI). Su SessionS
 
 **SAVE PROACTIVELY** after any decision, bug fix, convention, discovery, preference, or non-obvious pattern. Do not wait to be asked. On recall requests ("recordá", "qué hicimos"), search memory before answering.
 
-Tools v2 (`mem_*`, 15 verbs, FTS5 + cost correlation): `mem_save` / `mem_update` / `mem_delete` / `mem_get` / `mem_mark` / `mem_recall` / `mem_context` / `mem_trace` / `mem_session` / `mem_passive` / `mem_merge` / `mem_suggest` / `mem_stats` / `mem_export` / `mem_import`.
-
-Legacy aliases (`pandorica_save` / `_search` / `_context` / `_get` / `_session_summary` / `_recent`) ruteados a `mem_*`. CLI: `ctk pandorica <subcmd>`.
+MCP tools (6 core verbs): `mem_save` / `mem_recall` / `mem_context` / `mem_get` / `mem_trace` / `mem_session`. CLI: `ctk mem save|recall|context|trace|get|delete|summary|stats|export|import|reindex`.
 
 Full rules and templates live in the `pandorica-protocol` skill if you ever need to re-read them.
-'c
+
 ## ODD — Organic Dimensioning (Risk Routing)
 
 Dimension work by **measured risk**, not file count. Before deciding to delegate (or before starting a multi-file change), consult the risk tier:
@@ -115,8 +113,8 @@ Installed into `~/.claude/hooks/` and registered in `settings.json` via `ctk ins
 - **PostToolUse `Edit|Write|MultiEdit`** — incremental `ctk index build` after a source-file edit (`ts/tsx/js/jsx/mjs/cjs/py/go/rs`) in a ctk-active project (gated on `.ctk/init.marker`). Keeps the AST index that ODD risk routing reads fresh instead of stale-until-manual-rebuild. **Detached background** run (zero turn latency) under a non-blocking `flock` — if a reindex is already running the new one skips; the index self-heals on the next edit. Toggle: `CTK_HOOK_REINDEX=0`. Test seam: `CTK_REINDEX_SYNC=1` (inline).
 - **SubagentStart** — injects `~/.claude/persona.md` + `.ctk/skill-registry.md` pointer into the SUB-AGENT's context (the correct target; `PreToolUse:Agent`'s `additionalContext` lands in the main thread). Toggles: `CTK_HOOK_PERSONA_INJECT=0`, `CTK_HOOK_REGISTRY_INJECT=0`.
 - **SubagentStop** — opt-in (`CTK_HOOK_SUBAGENT_NAG=1`, default OFF). Light reminder to consolidate findings via `mem_save` / `ctk_record` after apply/implement agents (`sdd-apply`, `general-purpose`, `cavecrew-builder`) finish. Non-blocking; cannot count the sub-agent's saves (no transcript exposed).
-- **Stop** — if the turn had ≥3 Edits/Writes with zero `mem_save` / `pandorica_save` / `ctk_record` calls, emits a one-shot reminder. Never blocks.
-- **PreCompact** — injects a reminder to call `mem_session({ action: 'summary' })` (o legacy `pandorica_session_summary`) before the window is compressed.
+- **Stop** — if the turn had ≥3 Edits/Writes with zero `mem_save` / `ctk_record` calls, emits a one-shot reminder. Never blocks.
+- **PreCompact** — injects a reminder to call `mem_session({ action: 'summary' })` before the window is compressed.
 - **SessionEnd** — display-only, ~1.5s budget (the model is gone, no AI summary possible). Mechanical only: final best-effort session sync + on `reason=clear|logout` purges THIS session's state (`.nagged`, per-session counters/agent-steps).
 
 On any window-threshold warning, recommend:

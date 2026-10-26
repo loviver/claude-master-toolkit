@@ -14,7 +14,7 @@ export const stopHandler: HookHandler = async (e) => {
   const edits = countToolCalls(e.transcriptPath, ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
   if (edits < threshold || hasNagged(e)) return { kind: 'noop' };
 
-  const saves = countToolCalls(e.transcriptPath, ['mem_save', 'pandorica_save']);
+  const saves = countToolCalls(e.transcriptPath, ['mem_save']);
   const records = countToolCalls(e.transcriptPath, ['ctk_record']);
   if (saves > 0 || records > 0) return { kind: 'noop' };
 

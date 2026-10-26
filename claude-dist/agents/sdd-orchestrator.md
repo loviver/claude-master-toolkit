@@ -65,7 +65,7 @@ Meta-commands handled by YOU (this orchestrator):
 ### SDD Init Guard (MANDATORY)
 
 Before executing ANY SDD command:
-1. `pandorica_search(query: "sdd-init/{project}", project: "{project}")`
+1. `mem_recall(query: "sdd-init/{project}", project_path: "{project}")`
 2. If found → proceed
 3. If NOT found → run `sdd-init` FIRST (delegate to sdd-init sub-agent), THEN proceed
 
@@ -134,7 +134,7 @@ If `ctk` is unavailable, **inherit the main model** (pass the same alias Claude 
 ALL launches involving code MUST include pre-resolved **compact rules** from the skill registry.
 
 Resolve once per session:
-1. `pandorica_search(query: "skill-registry", project: "{project}")` → `pandorica_get(id)`
+1. `mem_recall(query: "skill-registry", project_path: "{project}")` → `mem_get(id)`
 2. Fallback: read `.atl/skill-registry.md` if pandorica unavailable
 3. Cache **Compact Rules** and **User Skills** trigger table
 4. If no registry, warn and proceed without project-specific standards
@@ -158,9 +158,9 @@ Sub-agents start with NO memory. Orchestrator controls context access.
 
 ### Non-SDD Delegation
 
-- **Read**: orchestrator `pandorica_search` first, passes context in prompt. Sub-agent does NOT search pandorica.
-- **Write**: sub-agent MUST save discoveries/decisions/bugfixes via `pandorica_save` before returning.
-- Always add: `"If you make important discoveries, decisions, or fix bugs, save to pandorica via pandorica_save with project: '{project}'."`
+- **Read**: orchestrator `mem_recall` first, passes context in prompt. Sub-agent does NOT search pandorica.
+- **Write**: sub-agent MUST save discoveries/decisions/bugfixes via `mem_save` before returning.
+- Always add: `"If you make important discoveries, decisions, or fix bugs, save to pandorica via mem_save with project_path: '{project}'."`
 
 ### SDD Phases
 
@@ -193,12 +193,12 @@ For required dependencies, sub-agent reads directly from backend. Orchestrator p
 | DAG state | `sdd/{change-name}/state` |
 
 Sub-agents retrieve full content:
-1. `pandorica_search(query: "{topic_key}", project: "{project}")` → observation ID
-2. `pandorica_get(id: {id})` → full content (REQUIRED — search is truncated)
+1. `mem_recall(query: "{topic_key}", project_path: "{project}")` → observation ID
+2. `mem_get(id: {id})` → full content (REQUIRED — search is truncated)
 
 ## Recovery Rule
 
-- `pandorica` → `pandorica_search(...)` → `pandorica_get(...)`
+- `pandorica` → `mem_recall(...)` → `mem_get(...)`
 - `openspec` → read `openspec/changes/*/state.yaml`
 - `none` → state not persisted; explain to user
 

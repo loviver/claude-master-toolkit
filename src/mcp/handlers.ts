@@ -1,20 +1,13 @@
 import { execFileSync } from "child_process";
-import { randomUUID } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import { currentSessionId, readMainModel, resolveAgentId } from "../shared/agents/resolve.js";
+import { readMainModel, resolveAgentId } from "../shared/agents/resolve.js";
 import { resolveModel } from "../shared/models/router.js";
 import { openDb } from "../shared/indexer/db-raw.js";
 import { ctkPaths } from "../shared/paths/ctk-home.js";
 import { assessRisk } from "../shared/risk/index.js";
 import { memHandlers } from "./mem-tools.js";
-import type { MemoryType, MemoryScope } from "../shared/memories/v2.js";
-// Legacy pandorica type aliases kept for backward-compat shim signatures
-type PandoricaType =
-  | 'bugfix' | 'decision' | 'architecture' | 'discovery'
-  | 'pattern' | 'config' | 'preference' | 'session_summary';
-type PandoricaScope = 'project' | 'personal';
 import {
   findSymbol,
   getDeps,
@@ -33,11 +26,6 @@ import type {
   FindingType,
   RecallOpts,
 } from "../shared/indexer/types.js";
-
-function mapPandoricaType(t: PandoricaType): MemoryType {
-  if (t === 'config' || t === 'discovery') return 'note';
-  return t as MemoryType;
-}
 
 // One connection per MCP process. Opening costs the pragmas + schema/version checks on
 // every call; the server is long-lived, so it is paid once. Closed on shutdown (server.ts).
@@ -274,73 +262,6 @@ const rawHandlers = {
     } catch {
       return errorResult("git-log: not a git repo or git not found");
     }
-  },
-
-  pandorica_save(args: {
-    title: string;
-    type: PandoricaType;
-    content: string;
-    scope?: PandoricaScope;
-    topic_key?: string;
-    project_path?: string;
-    session_id?: string;
-  }) {
-    return memHandlers.mem_save({
-      title: args.title,
-      type: mapPandoricaType(args.type),
-      what: args.content,
-      scope: args.scope,
-      topic_key: args.topic_key,
-      project_path: args.project_path,
-      session_id: args.session_id,
-    });
-  },
-
-  pandorica_search(args: {
-    query: string;
-    limit?: number;
-    type?: PandoricaType;
-    scope?: PandoricaScope;
-    project_path?: string;
-  }) {
-    return memHandlers.mem_recall({
-      query: args.query,
-      limit: args.limit,
-      type: args.type ? mapPandoricaType(args.type) : undefined,
-      scope: args.scope,
-      project_path: args.project_path,
-    });
-  },
-
-  pandorica_context(args: { project_path?: string; session_id?: string; limit?: number }) {
-    return memHandlers.mem_context(args);
-  },
-
-  pandorica_get(args: { id: string }) {
-    return memHandlers.mem_get(args);
-  },
-
-  pandorica_session_summary(args: {
-    content: string;
-    session_id?: string;
-    project_path?: string;
-    title?: string;
-  }) {
-    const sid = args.session_id ?? currentSessionId() ?? randomUUID();
-    return memHandlers.mem_session({
-      sub: 'summary',
-      session_id: sid,
-      content: args.content,
-      project_path: args.project_path,
-      title: args.title,
-    });
-  },
-
-  pandorica_recent(args: { project_path?: string; limit?: number }) {
-    return memHandlers.mem_trace({
-      project_path: args.project_path ?? PROJECT_PATH(),
-      limit: args.limit ?? 10,
-    });
   },
 
   ...memHandlers,
