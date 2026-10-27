@@ -51,6 +51,8 @@ interface CodeGraph2DProps {
   graph: RenderGraph;
   adjacency: Map<string, Neighbours>;
   selectedId: string | null;
+  /** Lit while the details panel peeks at it; never selected, never flown to. */
+  peekId?: string | null;
   overlay: CodeGraphOverlay;
   /** Glide the camera to this node; `nonce` lets the same id be requested twice. */
   flyTo: { id: string; nonce: number } | null;
@@ -126,6 +128,8 @@ const drawHover: NodeHoverDrawingFunction<NodeAttrs, EdgeAttrs> = (ctx, data, se
 interface VisualState {
   selectedId: string | null;
   hoveredId: string | null;
+  /** Peeked from the details panel: lit like a hover, without moving the camera. */
+  peekId: string | null;
   adjacency: Map<string, Neighbours>;
   overlay: CodeGraphOverlay;
   zoneColors: ReadonlyMap<string, string> | null;
@@ -150,7 +154,7 @@ function baseColor(id: string, data: NodeAttrs, state: VisualState): string {
 }
 
 export function CodeGraph2D({
-  graph, adjacency, selectedId, overlay, flyTo, fitKey, fitAll, zoneColors = null, sizeScale = null, heat = null, rings = null, onSelect,
+  graph, adjacency, selectedId, peekId = null, overlay, flyTo, fitKey, fitAll, zoneColors = null, sizeScale = null, heat = null, rings = null, onSelect,
 }: CodeGraph2DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<CodeSigma | null>(null);
@@ -164,8 +168,8 @@ export function CodeGraph2D({
   const glideRef = useRef<(() => void) | null>(null);
   /** Impact view: the rings to draw guides for (graph units, centred on the origin). */
   const ringGuidesRef = useRef<RingGuide[]>([]);
-  const stateRef = useRef<VisualState>({ selectedId, hoveredId: null, adjacency, overlay, zoneColors, heat });
-  stateRef.current = { ...stateRef.current, selectedId, adjacency, overlay, zoneColors, heat };
+  const stateRef = useRef<VisualState>({ selectedId, hoveredId: null, peekId, adjacency, overlay, zoneColors, heat });
+  stateRef.current = { ...stateRef.current, selectedId, peekId, adjacency, overlay, zoneColors, heat };
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   /** Set when the view changed: frame it once the layout has settled. */
@@ -191,12 +195,12 @@ export function CodeGraph2D({
       stagePadding: 40,
       nodeReducer: (id, data) => {
         const state = stateRef.current;
-        const focus = state.hoveredId ?? state.selectedId;
+        const focus = state.hoveredId ?? state.peekId ?? state.selectedId;
         const color = baseColor(id, data, state);
         const { path } = state.overlay;
         // The open file keeps its color (git status in review); the halo and size mark it.
         if (state.overlay.viewing.has(id)) return { ...data, color, zIndex: 3, forceLabel: true, highlighted: true, size: data.size * 1.6 };
-        if (path.size && !state.hoveredId) {
+        if (path.size && !state.hoveredId && !state.peekId) {
           return path.has(id)
             ? { ...data, color, zIndex: 2, forceLabel: true, highlighted: id === state.selectedId }
             : { ...data, color: STATE_COLORS.dim, label: '', zIndex: 0 };
@@ -208,16 +212,16 @@ export function CodeGraph2D({
           color,
           zIndex: 2,
           forceLabel: true,
-          highlighted: id === state.selectedId || id === state.hoveredId,
+          highlighted: id === state.selectedId || id === state.hoveredId || id === state.peekId,
           size: id === focus ? data.size * 1.3 : data.size,
         };
       },
       edgeReducer: (edge, data) => {
         const state = stateRef.current;
-        const focus = state.hoveredId ?? state.selectedId;
+        const focus = state.hoveredId ?? state.peekId ?? state.selectedId;
         const color = LINK_COLORS[data.linkType];
         const [s, t] = model.extremities(edge);
-        if (state.overlay.path.size && !state.hoveredId) {
+        if (state.overlay.path.size && !state.hoveredId && !state.peekId) {
           return state.overlay.pathLinks.has(`${s}>${t}`)
             ? { ...data, color: STATE_COLORS.selected, size: data.size + 1.5, zIndex: 2 }
             : { ...data, hidden: true };
@@ -426,7 +430,7 @@ export function CodeGraph2D({
   // Selection and overlays only restyle: no reindexing, no layout.
   useEffect(() => {
     sigmaRef.current?.refresh({ skipIndexation: true });
-  }, [selectedId, overlay, adjacency, zoneColors, heat]);
+  }, [selectedId, peekId, overlay, adjacency, zoneColors, heat]);
 
   useEffect(() => {
     const sigma = sigmaRef.current;

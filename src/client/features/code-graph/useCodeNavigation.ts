@@ -80,9 +80,26 @@ export function useCodeNavigation({ projectPath, rev, activeTab, activeOutline, 
     searchRef.current?.focus();
   };
   /**
+   * The declarations `name` at `line` of `file` most likely means, off what the enclosing
+   * symbols call and name, then a project-wide search by name. Shared with the peek.
+   */
+  const resolveDeclaration = async (name: string, file: string, line: number, outline: readonly CodeGraphOutlineDTO[]) => {
+    if (!projectPath) return [];
+    const enclosing = outline.filter((s) => s.startLine <= line && s.endLine >= line);
+    const around = await Promise.all(enclosing.map((s) => queryClient.fetchQuery(codeGraphSymbolQuery(projectPath, s.id, rev))));
+    let targets: CodeGraphSymbolRefDTO[] = resolveIdentifier(name, line, [
+      ...around.flatMap((d) => declarationCandidates(d, [], file)),
+      ...declarationCandidates(undefined, outline, file),
+    ]);
+    if (targets.length === 0) {
+      const hits = await queryClient.fetchQuery(codeGraphSymbolSearchQuery(projectPath, name, rev));
+      targets = hits.filter((h) => memberName(h.symbol) === name);
+    }
+    return targets;
+  };
+  /**
    * Ctrl+click: on a declaration, its usages (as IntelliJ does); elsewhere, the declaration the
-   * name most likely means, off what the enclosing symbols call and name, then a project-wide
-   * search by name. Several equally likely targets open a chooser.
+   * name most likely means. Several equally likely targets open a chooser.
    */
   const goToDeclaration = async (name: string, line: number) => {
     if (!activeTab || !projectPath) return;
@@ -96,16 +113,7 @@ export function useCodeNavigation({ projectPath, rev, activeTab, activeOutline, 
       return;
     }
     try {
-      const enclosing = outline.filter((s) => s.startLine <= line && s.endLine >= line);
-      const around = await Promise.all(enclosing.map((s) => queryClient.fetchQuery(codeGraphSymbolQuery(projectPath, s.id, rev))));
-      let targets: CodeGraphSymbolRefDTO[] = resolveIdentifier(name, line, [
-        ...around.flatMap((d) => declarationCandidates(d, [], file)),
-        ...declarationCandidates(undefined, outline, file),
-      ]);
-      if (targets.length === 0) {
-        const hits = await queryClient.fetchQuery(codeGraphSymbolSearchQuery(projectPath, name, rev));
-        targets = hits.filter((h) => memberName(h.symbol) === name);
-      }
+      const targets = await resolveDeclaration(name, file, line, outline);
       if (targets.length === 1) goToSymbol(targets[0], from);
       else pickDeclaration(targets.length ? `Choose declaration of ${name}` : `No declaration of ${name} in the index`, targets, from);
     } catch (err) {
@@ -144,5 +152,5 @@ export function useCodeNavigation({ projectPath, rev, activeTab, activeOutline, 
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  return { history, inspectedId, choices, setChoices, here, dismissQuickOpen, goToSymbol, goToUsage, travel, goToDeclaration, selectInFile };
+  return { history, inspectedId, choices, setChoices, here, dismissQuickOpen, goToSymbol, goToUsage, travel, goToDeclaration, resolveDeclaration, selectInFile };
 }

@@ -76,6 +76,14 @@
   --vscode-editorGroupHeader-tabsBackground: #181818;
   --vscode-editorGroupHeader-tabsBorder: #2b2b2b;
   --vscode-editorWidget-background: #202020;
+  /* Peek view (dark_modern inherits these from dark_vs / the defaults). */
+  --vscode-peekView-border: #3794ff;
+  --vscode-peekViewTitle-background: #252526;
+  --vscode-peekViewTitleLabel-foreground: #ffffff;
+  --vscode-peekViewTitleDescription-foreground: rgba(204, 204, 204, 0.7);
+  --vscode-peekViewEditor-background: #181818;
+  --vscode-peekViewEditorGutter-background: #181818;
+  --vscode-peekViewEditor-matchHighlightBackground: rgba(55, 148, 255, 0.12);
   --vscode-editorWidget-border: #454545;
   --vscode-breadcrumb-foreground: #a9a9a9;
   --vscode-breadcrumb-focusForeground: #e0e0e0;

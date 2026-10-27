@@ -132,9 +132,11 @@
 }
 
 .signature {
+  flex-shrink: 0; /* in the header's flex column it was squeezed to a sliver */
+  max-height: calc(6 * 1.5em + 12px);
   margin: 0;
   padding: 6px 8px;
-  overflow-x: auto;
+  overflow: auto;
   font-family: var(--vscode-editor-font-family);
   font-size: 12px;
   white-space: pre-wrap;
@@ -164,4 +166,62 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* Neighbour rows: edge-kind bars, then icon, name, diff mark, "calls — file:line", weight. */
+.neighbour {
+  border: 0;
+  text-align: left;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.edgeMarks {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 1px;
+  width: 7px;
+  height: 14px;
+}
+
+.edgeMarks i {
+  flex: 1;
+  border-radius: 1px;
+}
+
+.weight {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+}
+
+.groupHeader {
+  cursor: default;
+  font-weight: 600;
+}
+
+.groupHeader:hover {
+  background: none;
+}
+
+.meter {
+  display: inline-block;
+  width: 60px;
+  height: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+  background: var(--vscode-progressBar-background, #0e70c0);
+  background: color-mix(in srgb, var(--vscode-progressBar-background, #0e70c0) 20%, transparent);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  background: var(--vscode-progressBar-background, #0e70c0);
 }

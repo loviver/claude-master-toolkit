@@ -1,0 +1,178 @@
+/* Peek: VSCode's peek-definition widget as a hover card — read-only code, its own trail. */
+
+.peek {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 16px));
+  max-height: min(400px, calc(100vh - 16px));
+  overflow: hidden;
+  font-family: var(--vscode-font-family);
+  color: var(--vscode-editor-foreground, #ccc);
+  /* Opaque even if a variable is missing: code over code is unreadable. */
+  background: var(--vscode-peekViewEditor-background, #181818);
+  border: 1px solid var(--vscode-peekView-border, var(--vscode-focusBorder));
+  border-top-width: 2px;
+  border-radius: 3px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(0 0 0 / 0.4);
+}
+
+.pinned {
+  border-color: var(--vscode-focusBorder);
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 4px 0 8px;
+  font-size: 12px;
+  background: var(--vscode-peekViewTitle-background, var(--vscode-editorWidget-background));
+}
+
+.trail {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sep {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.crumb {
+  padding: 0 2px;
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+  color: var(--vscode-peekViewTitleDescription-foreground, var(--vscode-descriptionForeground));
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.crumb[aria-current='true'] {
+  font-weight: 600;
+  color: var(--vscode-peekViewTitleLabel-foreground, var(--vscode-foreground));
+}
+
+.crumb:hover {
+  text-decoration: underline;
+}
+
+.where {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  color: var(--vscode-descriptionForeground);
+}
+
+.code {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  padding: 4px 0;
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 19px;
+  background: var(--vscode-peekViewEditor-background, #181818) !important;
+  user-select: text;
+}
+
+.line {
+  display: flex;
+  min-width: max-content;
+  padding-right: 12px;
+}
+
+.span {
+  background: var(--vscode-peekViewEditor-matchHighlightBackground, rgb(55 148 255 / 0.12));
+}
+
+.span .gutter {
+  color: var(--vscode-editorLineNumber-activeForeground, #ccc);
+  box-shadow: inset 2px 0 var(--vscode-peekView-border, #3794ff);
+}
+
+.gutter {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  width: 44px;
+  padding-right: 10px;
+  text-align: right;
+  margin-right: 8px;
+  color: var(--vscode-editorLineNumber-foreground, #6e7681);
+  background: var(--vscode-peekViewEditorGutter-background, #181818);
+}
+
+.ident {
+  cursor: pointer;
+}
+
+.ident:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--vscode-editorLink-activeForeground, currentColor);
+}
+
+.more {
+  padding: 2px 0 4px 60px;
+  font-style: italic;
+  color: var(--vscode-descriptionForeground);
+}
+
+.notice {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--vscode-editorWidget-background, #202020);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  font: inherit;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.dim {
+  color: var(--vscode-descriptionForeground);
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-peekViewTitle-background, #252526);
+  border-top: 1px solid var(--vscode-panel-border);
+}

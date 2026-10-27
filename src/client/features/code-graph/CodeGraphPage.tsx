@@ -57,6 +57,7 @@ import type { CodeGraphOverlay } from './CodeGraph3D';
 import { CodeGraph2D } from './CodeGraph2D';
 import { focusSeeds, hopDistance } from './impact-layout';
 import { NodeInspector } from './NodeInspector';
+import { edgeIndex } from './inspector-model';
 import { FileTree } from './FileTree';
 import { CodeViewer } from './CodeViewer';
 import { DiffViewer } from './DiffViewer';
@@ -304,6 +305,9 @@ export function CodeGraphPage() {
 
   const adjacency = useMemo(() => buildAdjacency(graph?.links ?? []), [graph]);
   const nodesById = useMemo(() => new Map((graph?.nodes ?? []).map((n) => [n.id, n])), [graph]);
+  const edges = useMemo(() => edgeIndex(graph?.links ?? []), [graph]);
+  /** The node a peek in the details panel is looking at: lit in the graph, never selected. */
+  const [peekId, setPeekId] = useState<string | null>(null);
   const path = useMemo(
     () => (pathFrom && selectedId && pathFrom !== selectedId && nodesById.has(pathFrom)
       ? shortestPath(adjacency, pathFrom, selectedId) ?? []
@@ -498,7 +502,7 @@ export function CodeGraphPage() {
     setEditor((s) => openFileTab(s, { file, range, nonce: Date.now() }, { preview }));
     reveal(level === 'symbol' ? symbolId : nodeIdForFile(level, file));
   };
-  const { history, inspectedId, choices, setChoices, here, dismissQuickOpen, goToSymbol, goToUsage, travel, goToDeclaration, selectInFile } = useCodeNavigation({
+  const { history, inspectedId, choices, setChoices, here, dismissQuickOpen, goToSymbol, goToUsage, travel, goToDeclaration, resolveDeclaration, selectInFile } = useCodeNavigation({
     projectPath, rev, activeTab, activeOutline, openFile, setAuxOpen, setQuery, searchRef, splitRef, errorMessage,
   });
 
@@ -730,6 +734,7 @@ export function CodeGraphPage() {
               graph={graph}
               adjacency={adjacency}
               selectedId={selectedId}
+              peekId={peekId && nodesById.has(peekId) ? peekId : null}
               overlay={overlay}
               flyTo={flyTo}
               fitKey={viewKey}
@@ -935,8 +940,9 @@ export function CodeGraphPage() {
           level={level}
           neighbours={adjacency.get(selected.id)}
           nodesById={nodesById}
-          touched={overlay.touched.has(selected.id)}
-          blast={overlay.blast.has(selected.id)}
+          nodes={graph?.nodes ?? []}
+          edges={edges}
+          overlay={overlay}
           onSelect={jumpTo}
           onFocus={(id) => updateView({ focus: id, depth: String(depth ?? 2), scope: undefined })}
           onDrill={(t) => updateView({ level: t.level, scope: t.scope, focus: undefined, depth: undefined, direction: undefined })}
@@ -949,6 +955,15 @@ export function CodeGraphPage() {
             )
             : undefined}
           onUsages={selectedRef ? () => goToSymbol(selectedRef, here(), false) : undefined}
+          peek={{
+            project: project.projectPath,
+            revision: rev,
+            resolve: resolveDeclaration,
+            open: (f) => (f.range
+              ? goToUsage({ id: f.id, symbol: f.label, kind: '', file: f.file, startLine: f.range[0], endLine: f.range[1] })
+              : openFile(f.file, null, null, false)),
+            highlight: setPeekId,
+          }}
         />
       ) : (
         null

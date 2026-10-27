@@ -28,10 +28,10 @@ interface CodeViewerProps {
 }
 
 /** VSCode's Dark+ token colors on the theme's editor background. */
-const THEME = { ...themes.vsDark, plain: { ...themes.vsDark.plain, backgroundColor: 'var(--vscode-editor-background)' } };
+export const CODE_THEME = { ...themes.vsDark, plain: { ...themes.vsDark.plain, backgroundColor: 'var(--vscode-editor-background)' } };
 
 /** Token types whose text is never a reference to a symbol. */
-const NOT_CODE = new Set(['comment', 'string', 'template-string', 'char', 'regex', 'number', 'boolean', 'keyword', 'builtin', 'url']);
+export const NOT_CODE = new Set(['comment', 'string', 'template-string', 'char', 'regex', 'number', 'boolean', 'keyword', 'builtin', 'url']);
 
 /** True while Ctrl/Cmd is held: identifiers turn into links, as in an IDE. */
 function useLinkModifier(): boolean {
@@ -114,7 +114,7 @@ export function CodeViewer({
       ) : source.isError ? (
         <Placeholder icon="error" title="Could not open the file">{errorMessage(source.error)}</Placeholder>
       ) : source.data ? (
-        <Highlight theme={THEME} code={source.data.content.replace(/\n$/, '')} language={source.data.language ?? 'text'}>
+        <Highlight theme={CODE_THEME} code={source.data.content.replace(/\n$/, '')} language={source.data.language ?? 'text'}>
           {({ className, style, tokens, getLineProps, getTokenProps }) => (
             <div ref={scrollRef} className={`${styles.scroll} ${linking ? styles.linking : ''}`} style={style}>
               <pre

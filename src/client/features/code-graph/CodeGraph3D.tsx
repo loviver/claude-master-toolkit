@@ -58,6 +58,8 @@ interface CodeGraph3DProps {
   graph: RenderGraph;
   adjacency: Map<string, Neighbours>;
   selectedId: string | null;
+  /** Lit while the details panel peeks at it; never selected, never flown to. */
+  peekId?: string | null;
   overlay: CodeGraphOverlay;
   /** Fly the camera to this node; `nonce` lets the same id be requested twice. */
   flyTo: { id: string; nonce: number } | null;
@@ -112,6 +114,7 @@ const ANCHOR_STRENGTH = 0.3;
 
 interface VisualState {
   selectedId: string | null;
+  peekId: string | null;
   adjacency: Map<string, Neighbours>;
   overlay: CodeGraphOverlay;
   heat: ReadonlyMap<string, number> | null;
@@ -127,7 +130,7 @@ function isNeighbour(state: VisualState, id: string): boolean {
 }
 
 function nodeColor(node: RenderNode, state: VisualState): string {
-  if (node.id === state.selectedId) return STATE_COLORS.selected;
+  if (node.id === state.selectedId || node.id === state.peekId) return STATE_COLORS.selected;
   // The open file keeps its own color (its git status in review); the label marks it, it never dims.
   if (!state.overlay.viewing.has(node.id) && !isNeighbour(state, node.id)) return STATE_COLORS.dim;
   if (state.overlay.impact) return reviewColor(node.id, state.overlay.status, state.overlay.impact);
@@ -171,7 +174,7 @@ function zoneNames(nodes: RenderNode[]): string[] {
     .map(([group]) => group);
 }
 
-export function CodeGraph3D({ graph, adjacency, selectedId, overlay, flyTo, fitKey, fitAll, sizeScale = null, heat = null, rings = null, onSelect }: CodeGraph3DProps) {
+export function CodeGraph3D({ graph, adjacency, selectedId, peekId = null, overlay, flyTo, fitKey, fitAll, sizeScale = null, heat = null, rings = null, onSelect }: CodeGraph3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef(graph);
@@ -187,8 +190,8 @@ export function CodeGraph3D({ graph, adjacency, selectedId, overlay, flyTo, fitK
   const zones = useMemo(() => zoneNames(graph.nodes), [graph]);
   const engineRef = useRef<Engine | null>(null);
   // Accessors read through refs so selection/overlay changes recolor without rebuilding the scene.
-  const stateRef = useRef<VisualState>({ selectedId, adjacency, overlay, heat, sizeScale });
-  stateRef.current = { selectedId, adjacency, overlay, heat, sizeScale };
+  const stateRef = useRef<VisualState>({ selectedId, peekId, adjacency, overlay, heat, sizeScale });
+  stateRef.current = { selectedId, peekId, adjacency, overlay, heat, sizeScale };
   /** Impact view: each node's place on its ring, shared by the anchor force and the ring chips. */
   const ringPositions = useMemo(
     () => rings && radialLayout(
@@ -206,8 +209,10 @@ export function CodeGraph3D({ graph, adjacency, selectedId, overlay, flyTo, fitK
     [graph, rings, ringPositions],
   );
   const [hovered, setHovered] = useState<RenderNode | null>(null);
-  const hoveredRef = useRef(hovered);
-  hoveredRef.current = hovered;
+  // A peek from the details panel shows the same card, beside its sphere, while the mouse is away.
+  const card = hovered ?? (peekId ? nodesById.get(peekId) ?? null : null);
+  const hoveredRef = useRef(card);
+  hoveredRef.current = card;
   const tooltipRef = useRef<HTMLDivElement>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -318,7 +323,7 @@ export function CodeGraph3D({ graph, adjacency, selectedId, overlay, flyTo, fitK
       .linkDirectionalArrowColor(engine.linkDirectionalArrowColor())
       .nodeVal(engine.nodeVal())
       .linkOpacity(selectedId ? FOCUS_LINK_OPACITY : IDLE_LINK_OPACITY);
-  }, [selectedId, adjacency, overlay, heat]);
+  }, [selectedId, peekId, adjacency, overlay, heat]);
 
   useEffect(() => {
     const engine = engineRef.current;
@@ -466,7 +471,7 @@ export function CodeGraph3D({ graph, adjacency, selectedId, overlay, flyTo, fitK
       </div>
       <div className={styles.labels} aria-hidden="true">
         <div ref={tooltipRef} className={`${styles.tooltip} ${styles.nodeTooltip}`}>
-          {hovered && <NodeTooltip node={hovered} />}
+          {card && <NodeTooltip node={card} />}
         </div>
       </div>
     </>
