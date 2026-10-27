@@ -4,7 +4,6 @@
  * the refactor must keep these snapshots byte-identical.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import Database from 'better-sqlite3';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, appendFileSync, utimesSync } from 'fs';
@@ -13,6 +12,7 @@ import { closeDb } from '../../../shared/db/db';
 import { syncFile } from '../sync-file';
 import { claudeSessionSource } from '../sources/claude';
 import { CLAUDE_SESSION_ID, PART_1, PART_2 } from './fixtures/claude-session';
+import { dumpSyncTables } from './helpers/db-dump';
 
 // Pricing may come from a machine-local LiteLLM cache; pin it so snapshots are portable.
 vi.mock('../../../shared/pricing.js', async (importOriginal) => ({
@@ -21,16 +21,6 @@ vi.mock('../../../shared/pricing.js', async (importOriginal) => ({
     (model.includes('haiku') ? 1 : 10) * t.inputTokens + 2 * t.outputTokens,
 }));
 
-const TABLES: Array<[string, string]> = [
-  ['sessions', 'id'],
-  ['token_events', 'id'],
-  ['turn_tool_calls', 'id'],
-  ['turn_content', 'id'],
-  ['turn_hooks', 'id'],
-  ['turn_file_changes', 'id'],
-  ['sync_state', 'file_path'],
-];
-
 const toJsonl = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join('\n') + '\n';
 
 describe('syncFile characterization (Claude JSONL → SQLite)', () => {
@@ -38,25 +28,7 @@ describe('syncFile characterization (Claude JSONL → SQLite)', () => {
   let dbPath: string;
   let sessionFile: string;
 
-  function dump(): Record<string, unknown[]> {
-    const db = new Database(dbPath, { readonly: true });
-    const out: Record<string, unknown[]> = {};
-    for (const [table, order] of TABLES) {
-      out[table] = db
-        .prepare(`SELECT * FROM ${table} ORDER BY ${order}`)
-        .all()
-        .map((row) => {
-          const r = { ...(row as Record<string, unknown>) };
-          for (const [k, v] of Object.entries(r)) {
-            if (typeof v === 'string') r[k] = v.split(dir).join('<TMP>');
-          }
-          if (table === 'sync_state') r.last_modified = '<MTIME>';
-          return r;
-        });
-    }
-    db.close();
-    return out;
-  }
+  const dump = () => dumpSyncTables(dbPath, dir);
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'ctk-char-'));
