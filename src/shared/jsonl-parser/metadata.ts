@@ -1,4 +1,4 @@
-import type { SessionEvent, HookAttachment, FileHistorySnapshot } from '../types/index.js';
+import type { SessionEvent, HookAttachment, FileHistorySnapshot, UserContentEntry } from '../types/index.js';
 
 // ── Turn duration mapping ──
 
@@ -63,6 +63,30 @@ export function extractFileHistorySnapshots(events: SessionEvent[]): FileHistory
       files,
       timestamp: e.snapshot?.timestamp,
     });
+  }
+  return out;
+}
+
+// ── User content ──
+
+/**
+ * Bind each user event to its assistant turn: tool results to the turn that
+ * requested them (`sourceToolAssistantUUID`), prompts to the next assistant turn.
+ */
+export function extractUserContent(events: SessionEvent[]): UserContentEntry[] {
+  const out: UserContentEntry[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    if (ev.type !== 'user' || !ev.message) continue;
+    const raw = JSON.stringify(ev.message.content);
+
+    if (ev.sourceToolAssistantUUID) {
+      out.push({ assistantUuid: ev.sourceToolAssistantUUID, role: 'tool_result', raw });
+      continue;
+    }
+
+    const next = events.slice(i + 1).find((e) => e.type === 'assistant');
+    if (next?.uuid) out.push({ assistantUuid: next.uuid, role: 'user', raw });
   }
   return out;
 }

@@ -1,3 +1,4 @@
+import type { AgentId } from '../../../shared/agents/interface.js';
 import type { TokenUsage } from '../../../shared/types/index.js';
 import type { SessionMeta } from '../types.js';
 
@@ -7,6 +8,7 @@ export function metaToSessionInsert(
   cost: number,
   filePath: string,
   projectPath: string,
+  agent: AgentId,
 ) {
   return {
     id: meta.sessionId,
@@ -26,6 +28,7 @@ export function metaToSessionInsert(
     customTitle: meta.customTitle,
     lastPrompt: meta.lastPrompt,
     entrypoint: meta.entrypoint,
+    agent,
   };
 }
 

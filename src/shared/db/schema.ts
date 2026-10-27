@@ -46,6 +46,7 @@ export const sessions = sqliteTable('sessions', {
   customTitle: text('custom_title'),
   lastPrompt: text('last_prompt'),
   entrypoint: text('entrypoint'),
+  agent: text('agent').notNull().default('claude-code'), // AgentId of the source that synced it
 });
 
 // ── Token Events (per assistant turn) ──

@@ -15,7 +15,8 @@ function makeDb() {
       total_input_tokens INTEGER NOT NULL DEFAULT 0, total_output_tokens INTEGER NOT NULL DEFAULT 0,
       total_cache_read_tokens INTEGER NOT NULL DEFAULT 0, total_cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
       total_cost_usd REAL NOT NULL DEFAULT 0, jsonl_file TEXT NOT NULL,
-      custom_title TEXT, last_prompt TEXT, entrypoint TEXT
+      custom_title TEXT, last_prompt TEXT, entrypoint TEXT,
+      agent TEXT NOT NULL DEFAULT 'claude-code'
     );
     CREATE TABLE token_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, timestamp INTEGER NOT NULL,

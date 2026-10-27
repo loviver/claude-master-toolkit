@@ -1,7 +1,7 @@
+import type { AgentId } from '../../shared/agents/interface.js';
 import type { TokenUsage } from '../../shared/types/index.js';
 import type { EnrichedTokenEventData } from '../../shared/types/token-event.js';
-import type { HookAttachment, FileHistorySnapshot } from '../../shared/types/dashboard.js';
-import type { SessionEvent } from '../../shared/types/session-event.js';
+import type { HookAttachment, FileHistorySnapshot, UserContentEntry } from '../../shared/types/dashboard.js';
 
 export interface SessionMeta {
   sessionId: string;
@@ -18,6 +18,7 @@ export interface SessionMeta {
 }
 
 export interface SyncContext {
+  agent: AgentId;
   filePath: string;
   projectPath: string;
   meta: SessionMeta;
@@ -26,7 +27,7 @@ export interface SyncContext {
   cost: number;
   hooks: HookAttachment[];
   snapshots: FileHistorySnapshot[];
-  allEvents: SessionEvent[];
+  userContent: UserContentEntry[];
   priorSession: { id: string } | undefined;
 }
 

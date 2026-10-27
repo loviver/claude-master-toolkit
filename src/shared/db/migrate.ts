@@ -251,6 +251,10 @@ export function migrate(): void {
   addColumnSafe('sessions', 'last_prompt', 'TEXT');
   addColumnSafe('sessions', 'entrypoint', 'TEXT');
 
+  // v12: which agent produced the session; rows synced before multi-agent ingestion are Claude Code
+  addColumnSafe('sessions', 'agent', "TEXT NOT NULL DEFAULT 'claude-code'");
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_agent ON sessions(agent)`);
+
   // v10: event-level JSONL extras (per turn)
   addColumnSafe('token_events', 'event_subtype', 'TEXT');
   addColumnSafe('token_events', 'event_level', 'TEXT');

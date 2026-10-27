@@ -26,7 +26,7 @@ export type { ModelAlias, ModelPreference, ModelPricing, CostBreakdown } from '.
 export type { TimelinePoint, ModelBreakdown } from './timeline.js';
 
 // ── Dashboard types ──
-export type { HookAttachment, FileHistorySnapshot, SessionSummary, SessionDetail } from './dashboard.js';
+export type { HookAttachment, FileHistorySnapshot, UserContentEntry, SessionSummary, SessionDetail } from './dashboard.js';
 
 // ── Type guards for SessionEvent ──
 export {
