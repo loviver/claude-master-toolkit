@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+- Codex session ingestion: Codex rollout files are parsed and synced into the metrics DB alongside Claude Code sessions, so cost/token analytics cover both agents.
+- Claude Code session source with sub-agent tracking.
+- Code-graph dashboard: file tree and changes panel in the sidebar, navigation and title bar, and an AI activity / session review view.
+
 ## 0.5.3
 
 ### Fixed
