@@ -2,10 +2,12 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { fetchApi, toQueryString } from './api';
 import type {
   CodeGraphDTO,
+  CodeGraphFileDTO,
   CodeGraphLevel,
   CodeGraphProjectDTO,
   CodeGraphRevisionDTO,
   CodeGraphRiskDTO,
+  CodeGraphSourceDTO,
 } from '../../lib/types';
 
 /** How often a live view checks the index fingerprint (cheap: ~1ms server-side). */
@@ -49,15 +51,42 @@ export function useCodeGraph(params: CodeGraphParams, revision: string | undefin
   });
 }
 
+/** Every indexed file of a project: the explorer tree. Refetches when the index revision moves. */
+export function useCodeGraphFiles(project: string | undefined, revision: string | undefined) {
+  return useQuery({
+    queryKey: ['code-graph', 'files', project, revision],
+    queryFn: () => fetchApi<CodeGraphFileDTO[]>(`/code-graph/files${toQueryString({ project })}`),
+    enabled: !!project && !!revision,
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+  });
+}
+
+/** A file's current text + outline; the revision key re-reads it after a reindex. */
+export function useCodeGraphSource(project: string | undefined, file: string | null, revision: string | undefined) {
+  return useQuery({
+    queryKey: ['code-graph', 'source', project, file, revision],
+    queryFn: () => fetchApi<CodeGraphSourceDTO>(`/code-graph/source${toQueryString({ project, file: file ?? undefined })}`),
+    enabled: !!project && !!file && !!revision,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** `worktree` also counts uncommitted edits: what an agent changed but has not committed yet. */
 export function useCodeGraphRisk(
   project: string | undefined,
   level: CodeGraphLevel,
   revision: string | undefined,
   enabled: boolean,
+  worktree = true,
 ) {
   return useQuery({
-    queryKey: ['code-graph', 'risk', project, level, revision],
-    queryFn: () => fetchApi<CodeGraphRiskDTO>(`/code-graph/risk${toQueryString({ project, level })}`, { timeoutMs: 30_000 }),
+    queryKey: ['code-graph', 'risk', project, level, worktree, revision],
+    queryFn: () => fetchApi<CodeGraphRiskDTO>(
+      `/code-graph/risk${toQueryString({ project, level, worktree: worktree ? 1 : undefined })}`,
+      { timeoutMs: 30_000 },
+    ),
     enabled: enabled && !!project && !!revision,
     placeholderData: keepPreviousData,
     staleTime: Infinity,

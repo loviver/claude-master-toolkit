@@ -249,6 +249,30 @@ export const LINK_COLORS: Record<CodeGraphLinkType, string> = {
   ref:  '#78736a',                              // --gray-500
 };
 
+/**
+ * Zone (folder) colors for the coarse levels, where every node is the same kind and the
+ * folder is what tells them apart. Skips the state hues (red, amber, green) so the change
+ * overlay still reads on top.
+ */
+export const ZONE_COLORS = [
+  '#a7a6fa',                                    // --blue-300
+  '#6dc4d3',                                    // --cyan-300
+  '#c69be8',                                    // --purple-300
+  '#da7756',                                    // --claude-500
+  '#f3c5b3',                                    // --claude-200
+  '#6b6af5',                                    // --blue-500
+  '#e3ddd2',                                    // --gray-200
+] as const;
+export const ZONE_OTHER = '#78736a';            // --gray-500: the long tail of small zones
+
+/** One color per zone, biggest zones first; zones past the palette share `ZONE_OTHER`. */
+export function zonePalette(nodes: CodeGraphNodeDTO[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const n of nodes) counts.set(n.group, (counts.get(n.group) ?? 0) + 1);
+  const ranked = [...counts].sort(([a, ca], [b, cb]) => cb - ca || a.localeCompare(b));
+  return new Map(ranked.map(([group], i) => [group, ZONE_COLORS[i] ?? ZONE_OTHER]));
+}
+
 /** Relative node volume: rank dominates so hubs read as hubs at any level. */
 export function nodeVal(node: CodeGraphNodeDTO): number {
   return 1 + 24 * node.rank;

@@ -2,12 +2,18 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import type { FastifyInstance } from 'fastify';
 import { migrate } from '../../shared/db/migrate';
 import { closeDb } from '../../shared/db/db';
 import { buildApp } from '../index';
-import type { CodeGraphDTO, CodeGraphProjectDTO, CodeGraphRevisionDTO } from '../../shared/api-types';
+import type {
+  CodeGraphDTO,
+  CodeGraphFileDTO,
+  CodeGraphProjectDTO,
+  CodeGraphRevisionDTO,
+  CodeGraphSourceDTO,
+} from '../../shared/api-types';
 
 const PROJECT = '/tmp/ctk-code-graph-project-does-not-exist';
 
@@ -114,5 +120,88 @@ describe('code graph API', () => {
     const res = await get(`/api/code-graph/risk?project=${encodeURIComponent(PROJECT)}&level=file`);
     expect(res.statusCode).toBe(422);
     expect(res.json()).toHaveProperty('error');
+  });
+});
+
+describe('code graph explorer API (files + source)', () => {
+  let dir: string;
+  let repo: string;
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'ctk-code-graph-src-'));
+    repo = join(dir, 'repo');
+    mkdirSync(join(repo, 'src'), { recursive: true });
+    writeFileSync(join(repo, 'src/core.ts'), 'export function core() {\n  return 1;\n}\n');
+    writeFileSync(join(dir, 'secret.txt'), 'outside');
+    symlinkSync(join(dir, 'secret.txt'), join(repo, 'src/leak.ts'));
+
+    process.env.CTK_DB_PATH = join(dir, 'ctk.sqlite');
+    closeDb();
+    migrate();
+    const db = new Database(process.env.CTK_DB_PATH);
+    try {
+      const ins = db.prepare(
+        `INSERT INTO symbols (project_path, file, symbol, kind, signature, start_line, end_line, exported,
+           deps, callers, refs, tokens_estimate, content_hash, updated_at)
+         VALUES (?, ?, ?, 'function', '', 1, 3, 1, '[]', '[]', '[]', 0, 'h', 0)`,
+      );
+      ins.run(repo, 'src/core.ts', 'core');
+      ins.run(repo, 'src/leak.ts', 'leak');
+      const file = db.prepare(`INSERT INTO indexed_files (project_path, file, hash, indexed_at) VALUES (?, ?, 'h', ?)`);
+      file.run(repo, 'src/core.ts', 100);
+      file.run(repo, 'src/leak.ts', 100);
+      file.run(repo, 'src/gone.ts', 100);
+    } finally {
+      db.close();
+    }
+    app = await buildApp({ serveStatic: false });
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    closeDb();
+    delete process.env.CTK_DB_PATH;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const get = (path: string, query: Record<string, string>) =>
+    app.inject({ method: 'GET', url: `/api/code-graph/${path}?${new URLSearchParams(query)}` });
+
+  it('lists indexed files with their symbol counts', async () => {
+    const res = await get('files', { project: repo });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CodeGraphFileDTO[]>()).toEqual([
+      { file: 'src/core.ts', symbols: 1, indexedAt: 100 },
+      { file: 'src/gone.ts', symbols: 0, indexedAt: 100 },
+      { file: 'src/leak.ts', symbols: 1, indexedAt: 100 },
+    ]);
+  });
+
+  it('serves an indexed file with its grammar and symbol outline', async () => {
+    const res = await get('source', { project: repo, file: 'src/core.ts' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CodeGraphSourceDTO>()).toEqual({
+      file: 'src/core.ts',
+      language: 'typescript',
+      content: 'export function core() {\n  return 1;\n}\n',
+      outline: [{ id: 'src/core.ts::core', symbol: 'core', kind: 'function', startLine: 1, endLine: 3 }],
+    });
+  });
+
+  it('refuses paths the index does not list, including traversal', async () => {
+    expect((await get('source', { project: repo, file: '../secret.txt' })).statusCode).toBe(404);
+    expect((await get('source', { project: repo, file: 'src/other.ts' })).statusCode).toBe(404);
+    expect((await get('source', { project: repo })).statusCode).toBe(400);
+  });
+
+  it('refuses an indexed symlink that resolves outside the project', async () => {
+    expect((await get('source', { project: repo, file: 'src/leak.ts' })).statusCode).toBe(403);
+  });
+
+  it('reports an indexed file deleted from disk as 404', async () => {
+    const res = await get('source', { project: repo, file: 'src/gone.ts' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json<{ error: string }>().error).toMatch(/no longer on disk/);
   });
 });

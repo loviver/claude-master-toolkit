@@ -69,16 +69,21 @@ export function resolveBaseBranch(cwd: string = process.cwd()): string {
 export interface TouchedRangesOpts {
   base?: string;
   cwd?: string;
+  /** Also count uncommitted (tracked) edits: diff the merge-base against the working tree. */
+  worktree?: boolean;
 }
 
 /**
  * Thin git adapter: `git diff --unified=0 <base>...HEAD` → touched ranges.
  * The three-dot form diffs from the merge-base, matching `ctk git-changed`.
+ * With `worktree`, `--merge-base <base>` diffs that same merge-base against the
+ * working tree instead, so edits not yet committed show up too.
  */
 export function getTouchedRanges(opts: TouchedRangesOpts = {}): TouchedRange[] {
   const cwd = opts.cwd ?? process.cwd();
   const base = opts.base ?? resolveBaseBranch(cwd);
-  const diff = execFileSync('git', ['diff', '--unified=0', `${base}...HEAD`], {
+  const range = opts.worktree ? ['--merge-base', base] : [`${base}...HEAD`];
+  const diff = execFileSync('git', ['diff', '--unified=0', ...range], {
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
     cwd,

@@ -6,6 +6,8 @@ import {
   graphRevision,
   indexedProjects,
   projectRisk,
+  riskChanges,
+  sourceLanguage,
 } from '../code-graph.js';
 
 const PROJECT = '/proj';
@@ -245,5 +247,42 @@ describe('projectRisk', () => {
     });
     expect(projectRisk('file', touched)).toEqual({ touched: ['src/lib/core.ts'], blast: ['src/feat/a.ts'] });
     expect(projectRisk('module', touched)).toEqual({ touched: ['src/lib'], blast: ['src/feat'] });
+  });
+});
+
+describe('riskChanges', () => {
+  it('lists touched symbols most-called first, keeping only untouched qualified callers', () => {
+    const touched = [
+      { file: 'a.ts', symbol: 'leaf', exported: false, range: [1, 4] as [number, number], callers: [] },
+      {
+        file: 'b.ts', symbol: 'hub', exported: true, range: [10, 20] as [number, number],
+        callers: ['c.ts::use', 'a.ts::leaf', 'bare', 'c.ts::use', 'd.ts::other'],
+      },
+    ];
+    const ranges = [
+      { file: 'b.ts', start: 12, end: 13, added: 2 },
+      { file: 'a.ts', start: 2, end: 2, added: 1 },
+      { file: 'b.ts', start: 18, end: 18, added: 0 },
+    ];
+    expect(riskChanges(touched, ranges)).toEqual({
+      changes: [
+        { id: 'b.ts::hub', file: 'b.ts', symbol: 'hub', exported: true, startLine: 10, endLine: 20, callers: ['c.ts::use', 'd.ts::other'] },
+        { id: 'a.ts::leaf', file: 'a.ts', symbol: 'leaf', exported: false, startLine: 1, endLine: 4, callers: [] },
+      ],
+      files: [
+        { file: 'a.ts', ranges: [[2, 2]], added: 1 },
+        { file: 'b.ts', ranges: [[12, 13], [18, 18]], added: 2 },
+      ],
+    });
+  });
+});
+
+describe('sourceLanguage', () => {
+  it('maps extensions to bundled Prism grammars', () => {
+    expect(sourceLanguage('src/a.tsx')).toBe('tsx');
+    expect(sourceLanguage('lib/x.MJS')).toBe('javascript');
+    expect(sourceLanguage('main.rs')).toBe('rust');
+    expect(sourceLanguage('Makefile')).toBeNull();
+    expect(sourceLanguage('notes.zig')).toBeNull();
   });
 });

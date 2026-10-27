@@ -225,13 +225,65 @@ export interface CodeGraphRevisionDTO {
   revision: string;
 }
 
+/** One symbol the diff touches, with its direct callers off the index. */
+export interface CodeGraphChangeDTO {
+  /** Qualified `file::symbol` id (the symbol-level node id). */
+  id: string;
+  file: string;
+  symbol: string;
+  exported: boolean;
+  startLine: number;
+  endLine: number;
+  /** Qualified ids of 1-hop callers that the diff does not touch. */
+  callers: string[];
+}
+
+/** New-side line spans the diff touches in one file. */
+export interface CodeGraphChangedFileDTO {
+  file: string;
+  /** Inclusive `[start, end]` line spans. */
+  ranges: Array<[number, number]>;
+  added: number;
+}
+
 /** The current branch's diff vs base, projected onto the node ids of one level. */
 export interface CodeGraphRiskDTO {
   base: string;
+  /** True when uncommitted edits are counted too (merge-base vs working tree). */
+  worktree: boolean;
   tier: string;
   score: number;
   /** Nodes the diff touches. */
   touched: string[];
   /** Nodes that call touched code (blast radius), excluding touched ones. */
   blast: string[];
+  /** Touched symbols, most-called first. */
+  changes: CodeGraphChangeDTO[];
+  files: CodeGraphChangedFileDTO[];
+}
+
+/** One indexed file: the rows of the explorer tree. */
+export interface CodeGraphFileDTO {
+  file: string;
+  symbols: number;
+  indexedAt: number;
+}
+
+/** A symbol's span inside a source file, for the code viewer's outline. */
+export interface CodeGraphOutlineDTO {
+  /** Qualified `file::symbol` id. */
+  id: string;
+  symbol: string;
+  kind: string;
+  startLine: number;
+  endLine: number;
+}
+
+/** An indexed file's text as it is on disk now (may be newer than the index). */
+export interface CodeGraphSourceDTO {
+  file: string;
+  /** Prism grammar name, or null when the extension has none bundled. */
+  language: string | null;
+  content: string;
+  outline: CodeGraphOutlineDTO[];
 }

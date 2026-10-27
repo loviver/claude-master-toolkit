@@ -1,9 +1,13 @@
 import type Database from 'better-sqlite3';
 import type {
+  CodeGraphChangeDTO,
+  CodeGraphChangedFileDTO,
   CodeGraphDTO,
+  CodeGraphFileDTO,
   CodeGraphLevel,
   CodeGraphLinkDTO,
   CodeGraphNodeDTO,
+  CodeGraphOutlineDTO,
   CodeGraphProjectDTO,
 } from '../api-types.js';
 import { parseQualifiedId, qualifyId } from './ids.js';
@@ -207,11 +211,94 @@ export function indexedProjects(db: Database.Database): CodeGraphProjectDTO[] {
     .all() as CodeGraphProjectDTO[];
 }
 
+export function indexedFiles(db: Database.Database, projectPath: string): CodeGraphFileDTO[] {
+  return db
+    .prepare(
+      `SELECT f.file AS file, f.indexed_at AS indexedAt,
+              (SELECT COUNT(*) FROM symbols s WHERE s.project_path = f.project_path AND s.file = f.file) AS symbols
+       FROM indexed_files f
+       WHERE f.project_path = ?
+       ORDER BY f.file`,
+    )
+    .all(projectPath) as CodeGraphFileDTO[];
+}
+
+/** Whether `file` is in the index: the only files the source endpoint will read. */
+export function isIndexedFile(db: Database.Database, projectPath: string, file: string): boolean {
+  return !!db.prepare(`SELECT 1 FROM indexed_files WHERE project_path = ? AND file = ?`).get(projectPath, file);
+}
+
+export function fileOutline(db: Database.Database, projectPath: string, file: string): CodeGraphOutlineDTO[] {
+  const rows = db
+    .prepare(
+      `SELECT symbol, kind, start_line AS startLine, end_line AS endLine
+       FROM symbols WHERE project_path = ? AND file = ?
+       ORDER BY start_line, symbol`,
+    )
+    .all(projectPath, file) as Array<Omit<CodeGraphOutlineDTO, 'id'>>;
+  return rows.map((r) => ({ id: qualifyId(file, r.symbol), ...r }));
+}
+
+const PRISM_LANGUAGES: Record<string, string> = {
+  ts: 'typescript', mts: 'typescript', cts: 'typescript', tsx: 'tsx',
+  js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'jsx',
+  py: 'python', go: 'go', rs: 'rust', json: 'json', sql: 'sql', c: 'c', h: 'c', swift: 'swift',
+};
+
+/** The code viewer's grammar for a path, by extension. */
+export function sourceLanguage(file: string): string | null {
+  const dot = file.lastIndexOf('.');
+  return dot < 0 ? null : PRISM_LANGUAGES[file.slice(dot + 1).toLowerCase()] ?? null;
+}
+
 interface RiskTouch {
   file: string;
   symbol: string;
   /** Qualified caller ids off the index; bare (unresolved) ones are skipped. */
   callers: string[];
+}
+
+interface RiskTouchDetail extends RiskTouch {
+  exported: boolean;
+  range: [number, number];
+}
+
+interface RiskRange {
+  file: string;
+  start: number;
+  end: number;
+  added: number;
+}
+
+/**
+ * The diff as the explorer lists it: touched symbols (most-called first, each with the
+ * untouched callers it puts at risk) and the changed line spans per file.
+ */
+export function riskChanges(
+  touched: RiskTouchDetail[],
+  ranges: RiskRange[],
+): { changes: CodeGraphChangeDTO[]; files: CodeGraphChangedFileDTO[] } {
+  const touchedIds = new Set(touched.map((t) => qualifyId(t.file, t.symbol)));
+  const changes = touched
+    .map((t) => ({
+      id: qualifyId(t.file, t.symbol),
+      file: t.file,
+      symbol: t.symbol,
+      exported: t.exported,
+      startLine: t.range[0],
+      endLine: t.range[1],
+      callers: [...new Set(t.callers.filter((c) => parseQualifiedId(c) && !touchedIds.has(c)))].sort(),
+    }))
+    .sort((a, b) => b.callers.length - a.callers.length || a.id.localeCompare(b.id));
+
+  const byFile = new Map<string, CodeGraphChangedFileDTO>();
+  for (const r of ranges) {
+    const f = byFile.get(r.file) ?? byFile.set(r.file, { file: r.file, ranges: [], added: 0 }).get(r.file)!;
+    f.ranges.push([r.start, r.end]);
+    f.added += r.added;
+  }
+  const files = [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
+  return { changes, files };
 }
 
 /**

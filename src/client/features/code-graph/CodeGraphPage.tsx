@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Maximize2, Orbit, Radio, ShieldAlert, X } from 'lucide-react';
+import { Box, FolderTree, GitBranch, Maximize2, Network, Orbit, PanelLeft, Radio, ShieldAlert, X } from 'lucide-react';
 import { Button, Card, EmptyState, Input, PageHeader, Select, Skeleton } from '../../components/ui';
 import { formatProjectName, formatRelativeTime } from '../../lib/format';
 import type { CodeGraphLevel } from '../../lib/types';
 import {
   useCodeGraph,
+  useCodeGraphFiles,
   useCodeGraphProjects,
   useCodeGraphRevision,
   useCodeGraphRisk,
@@ -15,16 +16,26 @@ import {
   KIND_COLORS,
   KIND_LABELS,
   STATE_COLORS,
+  ZONE_OTHER,
   buildAdjacency,
   defaultLevel,
   mergeGraph,
   searchNodes,
+  zonePalette,
   type KindCategory,
   type RenderGraph,
 } from './graph-model';
-import { CodeGraph3D, type CodeGraphOverlay } from './CodeGraph3D';
+import type { CodeGraphOverlay } from './CodeGraph3D';
+import { CodeGraph2D } from './CodeGraph2D';
 import { NodeInspector } from './NodeInspector';
+import { FileTree } from './FileTree';
+import { CodeViewer } from './CodeViewer';
+import { ChangesPanel } from './ChangesPanel';
+import { nodeIdForFile } from './explorer-model';
 import styles from './CodeGraph.module.css';
+
+// three.js is most of the page's weight: load it only when the 3D view is picked.
+const CodeGraph3D = lazy(() => import('./CodeGraph3D').then((m) => ({ default: m.CodeGraph3D })));
 
 const LEVELS: Array<{ value: CodeGraphLevel; label: string }> = [
   { value: 'module', label: 'Modules' },
@@ -41,7 +52,16 @@ const DEPTHS = [1, 2, 3, 4].map((d) => ({ value: String(d), label: `${d} hop${d 
 const HOT_MS = 60_000;
 const HOT_TICK_MS = 5_000;
 
-type UrlPatch = Partial<Record<'project' | 'level' | 'scope' | 'focus' | 'depth', string | undefined>>;
+type UrlPatch = Partial<Record<'project' | 'level' | 'scope' | 'focus' | 'depth' | 'view', string | undefined>>;
+type SidebarTab = 'files' | 'changes';
+type PanelTab = 'details' | 'code';
+
+/** What the code tab shows: a file, optionally scrolled to a span; `nonce` re-scrolls to the same one. */
+interface CodeTarget {
+  file: string;
+  range: [number, number] | null;
+  nonce: number;
+}
 
 /** View state lives in the URL so a view can be bookmarked, shared, or linked to by an agent. */
 function useGraphParams() {
@@ -85,10 +105,15 @@ export function CodeGraphPage() {
   const scope = params.get('scope') ?? undefined;
   const focus = params.get('focus') ?? undefined;
   const depth = focus ? Number(params.get('depth') ?? 2) : undefined;
+  const renderer = params.get('view') === '3d' ? '3d' : '2d';
   const viewKey = JSON.stringify([projectPath, level, scope, focus, depth]);
 
   const [live, setLive] = useState(true);
   const [showRisk, setShowRisk] = useState(false);
+  const [worktree, setWorktree] = useState(true);
+  const [sidebar, setSidebar] = useState<SidebarTab | null>('files');
+  const [panelTab, setPanelTab] = useState<PanelTab>('details');
+  const [code, setCode] = useState<CodeTarget | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [flyTo, setFlyTo] = useState<{ id: string; nonce: number } | null>(null);
@@ -97,7 +122,10 @@ export function CodeGraphPage() {
   const revision = useCodeGraphRevision(projectPath, live);
   const rev = revision.data?.revision;
   const graphQuery = useCodeGraph({ project: projectPath, level, scope, focus, depth }, rev);
-  const risk = useCodeGraphRisk(projectPath, level, rev, showRisk);
+  // The changes list needs the diff even with the overlay off; the overlay paints what it lists.
+  const wantRisk = showRisk || sidebar === 'changes';
+  const risk = useCodeGraphRisk(projectPath, level, rev, wantRisk, worktree);
+  const files = useCodeGraphFiles(projectPath, rev);
 
   // Merge each fresh graph into the previous one of the same view (layout survives live refreshes).
   const [view, setView] = useState<{ key: string; graph: RenderGraph } | null>(null);
@@ -133,27 +161,72 @@ export function CodeGraphPage() {
   const adjacency = useMemo(() => buildAdjacency(graph?.links ?? []), [graph]);
   const nodesById = useMemo(() => new Map((graph?.nodes ?? []).map((n) => [n.id, n])), [graph]);
   const overlay = useMemo<CodeGraphOverlay>(() => ({
-    touched: new Set(showRisk ? risk.data?.touched : []),
-    blast: new Set(showRisk ? risk.data?.blast : []),
+    touched: new Set(wantRisk ? risk.data?.touched : []),
+    blast: new Set(wantRisk ? risk.data?.blast : []),
     hot: new Set(hotSince.keys()),
-  }), [showRisk, risk.data, hotSince]);
+  }), [wantRisk, risk.data, hotSince]);
+  // Coarse levels are one kind of node: the folder is what tells them apart, so it picks the color.
+  const zoneColors = useMemo(
+    () => (renderer === '2d' && level !== 'symbol' && graph ? zonePalette(graph.nodes) : null),
+    [renderer, level, graph],
+  );
+  const zoneLegend = useMemo(
+    () => (zoneColors ? [...zoneColors].filter(([, c]) => c !== ZONE_OTHER) : []),
+    [zoneColors],
+  );
   const results = useMemo(() => searchNodes(graph?.nodes ?? [], query), [graph, query]);
+
+  const changedFiles = useMemo(() => new Set(wantRisk ? risk.data?.files.map((f) => f.file) : []), [wantRisk, risk.data]);
+  const changedRanges = useMemo(
+    () => (code && wantRisk ? risk.data?.files.find((f) => f.file === code.file)?.ranges : undefined) ?? [],
+    [code, wantRisk, risk.data],
+  );
 
   const selected = selectedId ? nodesById.get(selectedId) : undefined;
   useEffect(() => setSelectedId(null), [viewKey]);
+  useEffect(() => setCode(null), [projectPath]);
 
-  const select = useCallback((id: string | null) => setSelectedId(id), []);
-  const jumpTo = (id: string) => {
+  const openCode = useCallback((file: string, range: [number, number] | null) => {
+    setCode({ file, range, nonce: Date.now() });
+    setPanelTab('code');
+  }, []);
+
+  /** Selecting a node also points the code tab at it, so switching tabs shows its source. */
+  const select = useCallback((id: string | null) => {
     setSelectedId(id);
+    const node = id ? nodesById.get(id) : undefined;
+    if (node?.file) {
+      const range: [number, number] | null = node.startLine !== null ? [node.startLine, node.endLine ?? node.startLine] : null;
+      setCode({ file: node.file, range, nonce: Date.now() });
+    } else if (node) {
+      // A module has no single file: show its details, not a stale file from before.
+      setPanelTab('details');
+    }
+  }, [nodesById]);
+  const jumpTo = (id: string) => {
+    select(id);
     setFlyTo({ id, nonce: Date.now() });
     setQuery('');
   };
+  /** Bring a node into the graph selection if this view draws it; the code tab follows regardless. */
+  const reveal = (nodeId: string | null) => {
+    if (!nodeId || !nodesById.has(nodeId)) return;
+    setSelectedId(nodeId);
+    setFlyTo({ id: nodeId, nonce: Date.now() });
+  };
+  const openFile = (file: string, range: [number, number] | null = null, symbolId: string | null = null) => {
+    openCode(file, range);
+    reveal(level === 'symbol' ? symbolId : nodeIdForFile(level, file));
+  };
+  const impactOf = (symbolId: string) => update({ level: 'symbol', focus: symbolId, depth: String(depth ?? 2), scope: undefined });
+  const panelOpen = !!selected || !!code;
+  const closePanel = () => { setSelectedId(null); setCode(null); };
 
   if (projects.isLoading) return <Skeleton height={640} radius="md" />;
   if (!project) {
     return (
       <div className={styles.page}>
-        <PageHeader icon={Orbit} title="Code Graph" description="Live 3D map of the AST index" />
+        <PageHeader icon={Orbit} title="Code Graph" description="Live map of the AST index" />
         <Card>
           <EmptyState
             icon={Orbit}
@@ -166,6 +239,7 @@ export function CodeGraphPage() {
   }
 
   const scopeParts = scope ? scope.split('/') : [];
+  const Renderer = renderer === '3d' ? CodeGraph3D : CodeGraph2D;
   const legendKinds = LEVEL_KINDS[level];
 
   return (
@@ -173,7 +247,7 @@ export function CodeGraphPage() {
       <PageHeader
         icon={Orbit}
         title="Code Graph"
-        description="Live 3D map of the AST index: the same graph ctk's agent tools query"
+        description="Live map of the AST index: the same graph ctk's agent tools query"
       />
 
       <div className={styles.toolbar}>
@@ -188,6 +262,16 @@ export function CodeGraphPage() {
             }))}
           />
         </div>
+
+        <Button
+          size="sm"
+          variant={sidebar ? 'default' : 'ghost'}
+          aria-pressed={!!sidebar}
+          title="Toggle the explorer"
+          onClick={() => setSidebar((s) => (s ? null : 'files'))}
+        >
+          <PanelLeft size={14} />
+        </Button>
 
         <div className={styles.segmented} role="group" aria-label="Level of detail">
           {LEVELS.map((l) => (
@@ -225,6 +309,15 @@ export function CodeGraphPage() {
           )}
         </div>
 
+        <div className={styles.segmented} role="group" aria-label="Renderer">
+          <button type="button" aria-pressed={renderer === '2d'} className={styles.segment} onClick={() => update({ view: undefined })} title="Flat map: labels, hover neighbourhoods">
+            <Network size={13} /> 2D
+          </button>
+          <button type="button" aria-pressed={renderer === '3d'} className={styles.segment} onClick={() => update({ view: '3d' })} title="3D shape of the whole codebase">
+            <Box size={13} /> 3D
+          </button>
+        </div>
+
         <div className={styles.toggles}>
           <Button size="sm" variant="ghost" title="Frame the whole graph" onClick={() => setFitAll((n) => n + 1)}>
             <Maximize2 size={14} /> Overview
@@ -233,7 +326,7 @@ export function CodeGraphPage() {
             <Radio size={14} className={live ? styles.liveDot : undefined} /> Live
           </Button>
           <Button size="sm" variant={showRisk ? 'default' : 'ghost'} aria-pressed={showRisk} onClick={() => setShowRisk((v) => !v)}>
-            <ShieldAlert size={14} /> Branch risk
+            <ShieldAlert size={14} /> Change overlay
           </Button>
         </div>
       </div>
@@ -289,17 +382,52 @@ export function CodeGraphPage() {
         )}
       </div>
 
-      {showRisk && risk.isError && (
+      {wantRisk && risk.isError && (
         <p className={styles.notice} role="status">Branch risk unavailable: {errorMessage(risk.error)}</p>
       )}
-      {showRisk && risk.data && (
+      {wantRisk && risk.data && (
         <p className={styles.notice} role="status">
-          Branch vs <code>{risk.data.base}</code>: <strong>{risk.data.tier}</strong> (score {risk.data.score.toFixed(2)})
+          {risk.data.worktree ? 'Working tree' : 'Branch'} vs <code>{risk.data.base}</code>: <strong>{risk.data.tier}</strong> (score {risk.data.score.toFixed(2)})
           {' · '}{risk.data.touched.length} changed · {risk.data.blast.length} in blast radius at this level
         </p>
       )}
 
-      <div className={`${styles.stage} ${selected ? styles.withInspector : ''}`}>
+      <div className={`${styles.stage} ${sidebar ? styles.withSidebar : ''} ${panelOpen ? styles.withInspector : ''}`}>
+        {sidebar && (
+          <aside className={styles.sidebar} aria-label="Explorer">
+            <div className={styles.panelTabs} role="tablist">
+              <button type="button" role="tab" aria-selected={sidebar === 'files'} className={styles.panelTab} onClick={() => setSidebar('files')}>
+                <FolderTree size={13} /> Files
+              </button>
+              <button type="button" role="tab" aria-selected={sidebar === 'changes'} className={styles.panelTab} onClick={() => setSidebar('changes')}>
+                <GitBranch size={13} /> Changes
+                {risk.data && risk.data.files.length > 0 && <span className={styles.tabCount}>{risk.data.files.length}</span>}
+              </button>
+            </div>
+            {sidebar === 'files' ? (
+              files.data ? (
+                <FileTree
+                  files={files.data}
+                  changed={changedFiles}
+                  activeFile={code?.file ?? null}
+                  onOpenFile={(f) => openFile(f)}
+                  onScope={(dir) => update({ scope: dir, focus: undefined, depth: undefined })}
+                />
+              ) : <Skeleton height={240} radius="sm" />
+            ) : (
+              <ChangesPanel
+                risk={risk.data}
+                isLoading={risk.isLoading}
+                error={risk.isError ? errorMessage(risk.error) : null}
+                worktree={worktree}
+                onWorktree={setWorktree}
+                onOpen={openFile}
+                onImpact={impactOf}
+              />
+            )}
+          </aside>
+        )}
+
         <div className={styles.canvasWrap}>
           {graphQuery.isError ? (
             <EmptyState icon={Orbit} title="Could not load the graph" description={errorMessage(graphQuery.error)} />
@@ -308,42 +436,88 @@ export function CodeGraphPage() {
           ) : graph.nodes.length === 0 ? (
             <EmptyState icon={Orbit} title="Nothing to show" description="No indexed symbols match this scope or impact view." />
           ) : (
-            <CodeGraph3D
-              graph={graph}
-              adjacency={adjacency}
-              selectedId={selectedId}
-              overlay={overlay}
-              flyTo={flyTo}
-              fitKey={viewKey}
-              fitAll={fitAll}
-              onSelect={select}
-            />
+            <Suspense fallback={<Skeleton height="100%" radius="md" />}>
+              <Renderer
+                key={renderer}
+                graph={graph}
+                adjacency={adjacency}
+                selectedId={selectedId}
+                overlay={overlay}
+                flyTo={flyTo}
+                fitKey={viewKey}
+                fitAll={fitAll}
+                {...(renderer === '2d' ? { zoneColors } : {})}
+                onSelect={select}
+              />
+            </Suspense>
           )}
 
           <ul className={styles.legend} aria-label="Legend">
-            {legendKinds.map((k) => (
-              <li key={k}><i style={{ background: KIND_COLORS[k] }} />{KIND_LABELS[k]}</li>
-            ))}
+            {zoneColors
+              ? zoneLegend.map(([group, color]) => (
+                <li key={group}><i style={{ background: color }} />{group}</li>
+              ))
+              : legendKinds.map((k) => (
+                <li key={k}><i style={{ background: KIND_COLORS[k] }} />{KIND_LABELS[k]}</li>
+              ))}
             {live && <li><i style={{ background: STATE_COLORS.hot }} />Just reindexed</li>}
-            {showRisk && <li><i style={{ background: STATE_COLORS.touched }} />Changed on branch</li>}
-            {showRisk && <li><i style={{ background: STATE_COLORS.blast }} />Blast radius</li>}
-            <li className={styles.legendHint}>Bigger = more depended on · zoom in for more names</li>
+            {wantRisk && <li><i style={{ background: STATE_COLORS.touched }} />Changed</li>}
+            {wantRisk && <li><i style={{ background: STATE_COLORS.blast }} />Calls changed code</li>}
+            <li className={styles.legendHint}>
+              Bigger = more depended on · {renderer === '2d' ? 'hover to trace links' : 'zoom in for more names'}
+            </li>
           </ul>
         </div>
 
-        {selected && (
-          <NodeInspector
-            node={selected}
-            level={level}
-            neighbours={adjacency.get(selected.id)}
-            nodesById={nodesById}
-            touched={overlay.touched.has(selected.id)}
-            blast={overlay.blast.has(selected.id)}
-            onSelect={jumpTo}
-            onFocus={(id) => update({ focus: id, depth: String(depth ?? 2) })}
-            onDrill={(t) => update({ level: t.level, scope: t.scope, focus: undefined, depth: undefined })}
-            onClose={() => setSelectedId(null)}
-          />
+        {panelOpen && (
+          <aside className={styles.inspector} aria-label="Details">
+            <div className={styles.panelTabs} role="tablist">
+              <button
+                type="button" role="tab" className={styles.panelTab}
+                aria-selected={panelTab === 'details'} disabled={!selected}
+                onClick={() => setPanelTab('details')}
+              >
+                Details
+              </button>
+              <button
+                type="button" role="tab" className={styles.panelTab}
+                aria-selected={panelTab === 'code'} disabled={!code}
+                onClick={() => setPanelTab('code')}
+              >
+                Code
+              </button>
+              <button type="button" className={styles.panelClose} onClick={closePanel} aria-label="Close panel">
+                <X size={14} />
+              </button>
+            </div>
+            {(panelTab === 'code' || !selected) && code ? (
+              <CodeViewer
+                project={project.projectPath}
+                file={code.file}
+                revision={rev}
+                target={code}
+                changedRanges={changedRanges}
+                errorMessage={errorMessage}
+                onSymbol={(s) => {
+                  setCode({ file: code.file, range: [s.startLine, s.endLine], nonce: Date.now() });
+                  if (level === 'symbol') reveal(s.id);
+                }}
+              />
+            ) : selected ? (
+              <NodeInspector
+                node={selected}
+                level={level}
+                neighbours={adjacency.get(selected.id)}
+                nodesById={nodesById}
+                touched={overlay.touched.has(selected.id)}
+                blast={overlay.blast.has(selected.id)}
+                onSelect={jumpTo}
+                onFocus={(id) => update({ focus: id, depth: String(depth ?? 2) })}
+                onDrill={(t) => update({ level: t.level, scope: t.scope, focus: undefined, depth: undefined })}
+                onViewCode={selected.file ? () => setPanelTab('code') : undefined}
+              />
+            ) : null}
+          </aside>
         )}
       </div>
     </div>

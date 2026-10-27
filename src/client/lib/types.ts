@@ -23,6 +23,11 @@ export type {
   CodeGraphProjectDTO,
   CodeGraphRevisionDTO,
   CodeGraphRiskDTO,
+  CodeGraphChangeDTO,
+  CodeGraphChangedFileDTO,
+  CodeGraphFileDTO,
+  CodeGraphOutlineDTO,
+  CodeGraphSourceDTO,
 } from '../../shared/api-types';
 import type {
   ModelKey,

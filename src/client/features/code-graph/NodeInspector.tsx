@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Crosshair, FolderOpen, X } from 'lucide-react';
+import { CodeXml, Crosshair, FolderOpen } from 'lucide-react';
 import { Badge, Button, CopyableValue } from '../../components/ui';
 import { formatRelativeTime } from '../../lib/format';
 import type { CodeGraphLevel } from '../../lib/types';
@@ -16,7 +16,8 @@ interface NodeInspectorProps {
   onSelect: (id: string) => void;
   onFocus: (id: string) => void;
   onDrill: (target: NonNullable<ReturnType<typeof drillTarget>>) => void;
-  onClose: () => void;
+  /** Open the node's file in the code tab; absent for nodes without one. */
+  onViewCode?: () => void;
 }
 
 const LIST_MAX = 30;
@@ -57,7 +58,7 @@ function NeighbourList({ title, ids, nodesById, onSelect }: {
 }
 
 export function NodeInspector({
-  node, level, neighbours, nodesById, touched, blast, onSelect, onFocus, onDrill, onClose,
+  node, level, neighbours, nodesById, touched, blast, onSelect, onFocus, onDrill, onViewCode,
 }: NodeInspectorProps) {
   const drill = drillTarget(node, level);
   const location = node.file
@@ -65,7 +66,7 @@ export function NodeInspector({
     : node.id;
 
   return (
-    <aside className={styles.inspector} aria-label="Selected node">
+    <div className={styles.inspectorBody} aria-label="Selected node">
       <header className={styles.inspectorHeader}>
         <div>
           <h3 className={styles.inspectorTitle}>{node.label}</h3>
@@ -76,7 +77,6 @@ export function NodeInspector({
             {blast && <Badge variant="warning">calls changed code</Badge>}
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close inspector"><X size={14} /></Button>
       </header>
 
       <section className={styles.inspectorSection}>
@@ -91,6 +91,9 @@ export function NodeInspector({
 
       <div className={styles.inspectorActions}>
         <Button size="sm" onClick={() => onFocus(node.id)}><Crosshair size={14} /> Impact view</Button>
+        {onViewCode && (
+          <Button size="sm" variant="ghost" onClick={onViewCode}><CodeXml size={14} /> View code</Button>
+        )}
         {drill && (
           <Button size="sm" variant="ghost" onClick={() => onDrill(drill)}>
             <FolderOpen size={14} /> Open {drill.level === 'file' ? 'files' : 'symbols'}
@@ -100,6 +103,6 @@ export function NodeInspector({
 
       <NeighbourList title="Used by" ids={neighbours?.callers} nodesById={nodesById} onSelect={onSelect} />
       <NeighbourList title="Depends on" ids={neighbours?.deps} nodesById={nodesById} onSelect={onSelect} />
-    </aside>
+    </div>
   );
 }
