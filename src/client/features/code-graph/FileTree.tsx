@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import VscodeTextfield from '@vscode-elements/react-elements/dist/components/VscodeTextfield.js';
 import type { CodeGraphFileDTO } from '../../lib/types';
 import { ancestorDirs, buildFileTree, matchFiles, type TreeDir } from './explorer-model';
-import { Codicon } from './workbench/codicons';
-import list from './workbench/list.module.css';
-import { revealRow } from './workbench/reveal';
+import { Codicon } from '../../shell/workbench/codicons';
+import list from '../../shell/workbench/list.module.css';
+import { revealRow } from '../../shell/workbench/reveal';
 import styles from './Panels.module.css';
 
 interface FileTreeProps {

@@ -85,6 +85,7 @@ import {
 } from './workbench-model';
 import {
   ActivityBar,
+  ActivityLink,
   Breadcrumbs,
   Pane,
   Placeholder,
@@ -96,11 +97,11 @@ import {
   Workbench,
   useSash,
   type ActivityItem,
-} from './workbench/Workbench';
-import { EditorTabs } from './workbench/EditorTabs';
-import { Codicon } from './workbench/codicons';
-import list from './workbench/list.module.css';
-import wb from './workbench/Workbench.module.css';
+} from '../../shell/workbench/Workbench';
+import { EditorTabs } from './EditorTabs';
+import { Codicon } from '../../shell/workbench/codicons';
+import list from '../../shell/workbench/list.module.css';
+import wb from '../../shell/workbench/Workbench.module.css';
 import canvas from './GraphCanvas.module.css';
 
 // three.js is most of the page's weight: load it only when the 3D view is picked.
@@ -185,14 +186,17 @@ function legendToggleClass(off: boolean): string {
   return off ? `${canvas.legendToggle} ${canvas.legendOff}` : canvas.legendToggle;
 }
 
+const APP_TITLE = 'ctk code graph';
+const HOME_LINK = <ActivityLink to="/" icon="home" label="Back to the dashboard" />;
+
 const valueOf = (e: Event) => (e.target as HTMLInputElement).value;
 
 /** The frame shown before there is a project to explore. */
 function EmptyWorkbench({ loading }: { loading: boolean }) {
   return (
     <Workbench
-      titleBar={<TitleBar start={null} center={null} end={null} />}
-      activityBar={<ActivityBar items={[]} active={null} onSelect={() => {}} />}
+      titleBar={<TitleBar title={APP_TITLE} start={null} center={null} end={null} />}
+      activityBar={<ActivityBar items={[]} active={null} onSelect={() => {}} footer={HOME_LINK} />}
       sideBar={null}
       editor={loading ? <div className={wb.editorContent}><ProgressLine /></div> : (
         <Placeholder icon="type-hierarchy-sub" title="No indexed projects yet">
@@ -550,6 +554,7 @@ export function CodeGraphPage() {
 
   const titleBar = (
     <TitleBar
+      title={APP_TITLE}
       start={(
         <VscodeSingleSelect
           className={wb.projectSelect}
@@ -1069,7 +1074,7 @@ export function CodeGraphPage() {
   return (
     <Workbench
       titleBar={titleBar}
-      activityBar={<ActivityBar items={activities} active={sideView} onSelect={(id) => setSideView(id as SideView | null)} />}
+      activityBar={<ActivityBar items={activities} active={sideView} onSelect={(id) => setSideView(id as SideView | null)} footer={HOME_LINK} />}
       sideBar={sideBar}
       editor={editorGroup}
       panel={auxBar}

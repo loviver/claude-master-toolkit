@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CodeGraphLinkType } from '../../../lib/types';
 import { LINK_COLORS, LINK_LABELS, STATE_COLORS, tooltipBox } from '../graph-model';
-import { Codicon } from '../workbench/codicons';
-import { Placeholder } from '../workbench/Workbench';
+import { Codicon } from '../../../shell/workbench/codicons';
+import { Placeholder } from '../../../shell/workbench/Workbench';
 import { COL_SEL, CYCLE, MatrixCanvas, ROW_SEL, type Hit, type MatrixScene } from './MatrixCanvas';
 import { fitCell, showRowLabels, visibleRange, zoomAt } from './matrix-geometry';
 import { cellTone, diffSubset, rowPaint } from './matrix-subset';

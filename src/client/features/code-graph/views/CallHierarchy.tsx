@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { codeGraphSymbolQuery } from '../../../hooks/queries/useCodeGraph';
 import type { CodeGraphSymbolRefDTO } from '../../../lib/types';
-import { Placeholder } from '../workbench/Workbench';
+import { Placeholder } from '../../../shell/workbench/Workbench';
 import { symbolIcon } from '../nav-model';
-import { Codicon } from '../workbench/codicons';
+import { Codicon } from '../../../shell/workbench/codicons';
 import { callTreeChildren, isRecursive, type CallDirection } from './call-tree-model';
 import styles from './Views.module.css';
 

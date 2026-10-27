@@ -7,8 +7,8 @@ import type { CodeGraphOutlineDTO, CodeGraphSymbolRefDTO } from '../../lib/types
 import { CODE_THEME, NOT_CODE } from './CodeViewer';
 import { peekBack, peekPlacement, peekPush, peekWindow, type PeekFrame } from './inspector-model';
 import { splitIdentifiers, symbolIcon } from './nav-model';
-import { Codicon } from './workbench/codicons';
-import { ProgressLine } from './workbench/Workbench';
+import { Codicon } from '../../shell/workbench/codicons';
+import { ProgressLine } from '../../shell/workbench/Workbench';
 import styles from './Peek.module.css';
 
 /** Hover this long before a peek opens: passing the mouse over a list must not flash code. */

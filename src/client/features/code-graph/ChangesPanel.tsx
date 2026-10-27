@@ -4,10 +4,10 @@ import VscodeBadge from '@vscode-elements/react-elements/dist/components/VscodeB
 import type { CodeGraphChangeDTO, CodeGraphRiskDTO } from '../../lib/types';
 import { activeChange, changesTree, formatSpans, impactBadge, type ChangedFileNode } from './changes-model';
 import { parseQualifiedId } from '../../../shared/indexer/ids';
-import { Codicon } from './workbench/codicons';
-import { Placeholder } from './workbench/Workbench';
-import { revealRow } from './workbench/reveal';
-import list from './workbench/list.module.css';
+import { Codicon } from '../../shell/workbench/codicons';
+import { Placeholder } from '../../shell/workbench/Workbench';
+import { revealRow } from '../../shell/workbench/reveal';
+import list from '../../shell/workbench/list.module.css';
 import styles from './Panels.module.css';
 
 interface ChangesPanelProps {

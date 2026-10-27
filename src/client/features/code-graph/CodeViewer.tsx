@@ -6,7 +6,7 @@ import { useCodeGraphSource } from '../../hooks/queries/useCodeGraph';
 import type { CodeGraphOutlineDTO } from '../../lib/types';
 import { lineChanged } from './explorer-model';
 import { innermostAt, splitIdentifiers } from './nav-model';
-import { Breadcrumbs, Placeholder, ProgressLine } from './workbench/Workbench';
+import { Breadcrumbs, Placeholder, ProgressLine } from '../../shell/workbench/Workbench';
 import styles from './CodeViewer.module.css';
 
 interface CodeViewerProps {

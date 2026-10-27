@@ -1,4 +1,4 @@
-/* Side bar views (explorer, changes, details). Rows come from workbench/list.module.css. */
+/* Side bar views (explorer, changes, details). Rows come from shell/workbench/list.module.css. */
 
 .filter {
   flex-shrink: 0;

@@ -1,9 +1,9 @@
 import { useMemo, type CSSProperties } from 'react';
 import type { CodeGraphOutlineDTO } from '../../lib/types';
 import { memberName, outlineTree, symbolIcon, type OutlineNode } from './nav-model';
-import { Codicon } from './workbench/codicons';
-import { Placeholder } from './workbench/Workbench';
-import list from './workbench/list.module.css';
+import { Codicon } from '../../shell/workbench/codicons';
+import { Placeholder } from '../../shell/workbench/Workbench';
+import list from '../../shell/workbench/list.module.css';
 import styles from './Panels.module.css';
 
 interface StructureViewProps {

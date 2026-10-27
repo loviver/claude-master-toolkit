@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { LINK_COLORS, STATE_COLORS } from '../graph-model';
-import { Placeholder } from '../workbench/Workbench';
+import { Placeholder } from '../../../shell/workbench/Workbench';
 import { buildClassModel, type ClassBox } from './class-model';
 import { layoutLayers } from './layers-model';
 import type { GraphViewProps } from './types';

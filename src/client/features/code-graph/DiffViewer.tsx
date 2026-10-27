@@ -3,7 +3,7 @@ import { Highlight, themes } from 'prism-react-renderer';
 import VscodeToolbarButton from '@vscode-elements/react-elements/dist/components/VscodeToolbarButton.js';
 import { useCodeGraphDiff } from '../../hooks/queries/useCodeGraph';
 import { diffRows, firstChangeIndex, type DiffRow } from './diff-model';
-import { Breadcrumbs, Placeholder, ProgressLine } from './workbench/Workbench';
+import { Breadcrumbs, Placeholder, ProgressLine } from '../../shell/workbench/Workbench';
 import styles from './CodeViewer.module.css';
 
 interface DiffViewerProps {

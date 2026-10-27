@@ -109,10 +109,12 @@ export interface ActivityItem {
 }
 
 /** Clicking the active item collapses the side bar, as in VSCode. */
-export function ActivityBar({ items, active, onSelect }: {
+export function ActivityBar({ items, active, onSelect, footer = null }: {
   items: ActivityItem[];
   active: string | null;
   onSelect: (id: string | null) => void;
+  /** Pinned to the bottom of the bar (VSCode's accounts/manage slot). */
+  footer?: ReactNode;
 }) {
   return (
     <nav className={styles.activityBar} aria-label="Views">
@@ -131,10 +133,17 @@ export function ActivityBar({ items, active, onSelect }: {
         </button>
       ))}
       <span className={styles.activitySpacer} />
-      <Link to="/" className={styles.activityItem} title="Back to the dashboard" aria-label="Back to the dashboard">
-        <Codicon name="home" />
-      </Link>
+      {footer}
     </nav>
+  );
+}
+
+/** An activity bar entry that navigates instead of toggling a side bar view. */
+export function ActivityLink({ to, icon, label }: { to: string; icon: string; label: string }) {
+  return (
+    <Link to={to} className={styles.activityItem} title={label} aria-label={label}>
+      <Codicon name={icon} />
+    </Link>
   );
 }
 
@@ -175,11 +184,17 @@ export function Placeholder({ icon, title, children }: { icon: string; title: st
   );
 }
 
-export function TitleBar({ start, center, end }: { start: ReactNode; center: ReactNode; end: ReactNode }) {
+export function TitleBar({ start, center, end, icon = 'type-hierarchy-sub', title = 'ctk' }: {
+  start: ReactNode;
+  center: ReactNode;
+  end: ReactNode;
+  icon?: string;
+  title?: string;
+}) {
   return (
     <header className={styles.titleBar}>
       <div className={styles.titleStart}>
-        <Codicon name="type-hierarchy-sub" className={styles.appIcon} title="ctk code graph" />
+        <Codicon name={icon} className={styles.appIcon} title={title} />
         {start}
       </div>
       <div className={styles.commandCenter}>{center}</div>

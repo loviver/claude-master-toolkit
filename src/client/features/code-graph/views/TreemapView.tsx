@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CodeGraphFileDTO } from '../../../lib/types';
 import { hashString } from '../explorer-model';
 import { STATE_COLORS } from '../graph-model';
-import { Placeholder } from '../workbench/Workbench';
+import { Placeholder } from '../../../shell/workbench/Workbench';
 import { HEADER, layoutTreemap } from './treemap-model';
 import styles from './Views.module.css';
 

@@ -1,9 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import VscodeTextfield from '@vscode-elements/react-elements/dist/components/VscodeTextfield.js';
 import type { VscodeTextfield as TextfieldElement } from '@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.js';
-import { Codicon } from './workbench/codicons';
-import list from './workbench/list.module.css';
-import wb from './workbench/Workbench.module.css';
+import { Codicon } from '../../shell/workbench/codicons';
+import list from '../../shell/workbench/list.module.css';
+import wb from '../../shell/workbench/Workbench.module.css';
 
 export interface QuickItem {
   key: string;

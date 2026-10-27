@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { KIND_COLORS, LINK_COLORS, STATE_COLORS, kindCategory, linkEnds } from '../graph-model';
-import { Placeholder } from '../workbench/Workbench';
+import { Placeholder } from '../../../shell/workbench/Workbench';
 import { edgeKey, layoutLayers } from './layers-model';
 import type { GraphViewProps } from './types';
 import { usePanZoom } from './usePanZoom';

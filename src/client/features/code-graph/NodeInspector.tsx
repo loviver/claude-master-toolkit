@@ -9,8 +9,8 @@ import { drillTarget, LINK_COLORS, LINK_LABELS, type Neighbours, type RenderNode
 import { groupRows, neighbourRows, rankPosition, type EdgeInfo, type NeighbourRow, type PeekFrame } from './inspector-model';
 import { symbolIcon } from './nav-model';
 import { PeekPopover, usePeek, type Peek, type ResolveDeclaration } from './PeekPopover';
-import { Codicon } from './workbench/codicons';
-import list from './workbench/list.module.css';
+import { Codicon } from '../../shell/workbench/codicons';
+import list from '../../shell/workbench/list.module.css';
 import styles from './Panels.module.css';
 
 /** What a peek needs: where to read code, how to follow a name, and how to really go there. */

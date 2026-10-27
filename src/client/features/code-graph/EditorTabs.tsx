@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Codicon } from './codicons';
-import { GRAPH_TAB, type EditorState } from '../workbench-model';
-import styles from './Workbench.module.css';
+import { Codicon } from '../../shell/workbench/codicons';
+import { GRAPH_TAB, type EditorState } from './workbench-model';
+import styles from '../../shell/workbench/Workbench.module.css';
 
 const basename = (file: string) => file.slice(file.lastIndexOf('/') + 1);
 
