@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
-import { FileCode } from 'lucide-react';
-import { CopyableValue, EmptyState, Skeleton } from '../../components/ui';
+import VscodeSingleSelect from '@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js';
+import VscodeOption from '@vscode-elements/react-elements/dist/components/VscodeOption.js';
 import { useCodeGraphSource } from '../../hooks/queries/useCodeGraph';
 import type { CodeGraphOutlineDTO } from '../../lib/types';
-import { CANVAS_BG } from './graph-model';
 import { lineChanged } from './explorer-model';
-import styles from './CodeGraph.module.css';
+import { innermostAt, splitIdentifiers } from './nav-model';
+import { Breadcrumbs, Placeholder, ProgressLine } from './workbench/Workbench';
+import styles from './CodeViewer.module.css';
 
 interface CodeViewerProps {
   project: string;
@@ -17,23 +18,56 @@ interface CodeViewerProps {
   /** Lines the diff touches, marked in the gutter. */
   changedRanges: ReadonlyArray<readonly [number, number]>;
   onSymbol: (symbol: CodeGraphOutlineDTO) => void;
+  /** Ctrl/Cmd+click on an identifier: go to its declaration (or its usages, on the declaration itself). */
+  onGoToDeclaration: (name: string, line: number) => void;
+  /** A plain click on a line: where the caret is, for linking the graph selection to the code. */
+  onCaret?: (line: number) => void;
+  /** A folder breadcrumb was clicked: narrow the graph to it. */
+  onScope: (dir: string) => void;
   errorMessage: (err: unknown) => string;
 }
 
-/** Code reads like the graph canvas: a fixed dark "screen" in both themes. */
-const THEME = { ...themes.oneDark, plain: { ...themes.oneDark.plain, backgroundColor: CANVAS_BG } };
+/** VSCode's Dark+ token colors on the theme's editor background. */
+const THEME = { ...themes.vsDark, plain: { ...themes.vsDark.plain, backgroundColor: 'var(--vscode-editor-background)' } };
 
-export function CodeViewer({ project, file, revision, target, changedRanges, onSymbol, errorMessage }: CodeViewerProps) {
+/** Token types whose text is never a reference to a symbol. */
+const NOT_CODE = new Set(['comment', 'string', 'template-string', 'char', 'regex', 'number', 'boolean', 'keyword', 'builtin', 'url']);
+
+/** True while Ctrl/Cmd is held: identifiers turn into links, as in an IDE. */
+function useLinkModifier(): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => setHeld(e.ctrlKey || e.metaKey);
+    const release = () => setHeld(false);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKey);
+    window.addEventListener('blur', release);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKey);
+      window.removeEventListener('blur', release);
+    };
+  }, []);
+  return held;
+}
+
+export function CodeViewer({
+  project, file, revision, target, changedRanges, onSymbol, onGoToDeclaration, onCaret, onScope, errorMessage,
+}: CodeViewerProps) {
   const source = useCodeGraphSource(project, file, revision);
+  const linking = useLinkModifier();
   const scrollRef = useRef<HTMLDivElement>(null);
   const range = target.range;
+  const outline = source.data?.outline ?? [];
 
   // Symbols by first line, so the gutter can mark where each one starts.
   const startsAt = useMemo(() => {
     const m = new Map<number, CodeGraphOutlineDTO>();
-    for (const s of source.data?.outline ?? []) if (!m.has(s.startLine)) m.set(s.startLine, s);
+    for (const s of outline) if (!m.has(s.startLine)) m.set(s.startLine, s);
     return m;
-  }, [source.data]);
+  }, [outline]);
+  // The breadcrumb symbol is the innermost one around the target line, as in VSCode.
+  const current = useMemo(() => (range ? innermostAt(outline, range[0]) : undefined), [outline, range]);
 
   useEffect(() => {
     const host = scrollRef.current;
@@ -42,37 +76,63 @@ export function CodeViewer({ project, file, revision, target, changedRanges, onS
     if (line) host.scrollTop = Math.max(0, line.offsetTop - host.clientHeight / 3);
   }, [range, target.nonce, source.data]);
 
+  const parts = file.split('/');
+  const crumbs = parts.map((part, i) => {
+    const isFile = i === parts.length - 1;
+    const dir = parts.slice(0, i + 1).join('/');
+    return {
+      key: dir,
+      label: part,
+      icon: isFile ? 'file-code' : undefined,
+      onClick: isFile ? undefined : () => onScope(dir),
+    };
+  });
+
   return (
-    <div className={styles.codeViewer}>
-      <div className={styles.codeHeader}>
-        <CopyableValue value={range ? `${file}:${range[0]}` : file} mono maxChars={48} expandable label="File" />
-        {source.data && source.data.outline.length > 0 && (
-          <select
-            className={styles.outlineSelect}
-            aria-label="Jump to symbol"
-            value=""
+    <div className={styles.viewer}>
+      <Breadcrumbs crumbs={crumbs}>
+        {outline.length > 0 && (
+          <VscodeSingleSelect
+            className={styles.outline}
+            aria-label="Go to symbol"
+            value={current?.id ?? ''}
             onChange={(e) => {
-              const s = source.data!.outline.find((o) => o.id === e.target.value);
+              const s = outline.find((o) => o.id === (e.target as HTMLSelectElement).value);
               if (s) onSymbol(s);
             }}
           >
-            <option value="" disabled>Jump to symbol ({source.data.outline.length})</option>
-            {source.data.outline.map((s) => (
-              <option key={s.id} value={s.id}>{s.symbol} · {s.kind} · L{s.startLine}</option>
+            <VscodeOption value="">Go to symbol ({outline.length})</VscodeOption>
+            {outline.map((s) => (
+              <VscodeOption key={s.id} value={s.id} description={`${s.kind} · L${s.startLine}`}>{s.symbol}</VscodeOption>
             ))}
-          </select>
+          </VscodeSingleSelect>
         )}
-      </div>
+      </Breadcrumbs>
 
       {source.isLoading ? (
-        <Skeleton height="100%" radius="sm" />
+        <div className={styles.loading}><ProgressLine /></div>
       ) : source.isError ? (
-        <EmptyState icon={FileCode} title="Could not open the file" description={errorMessage(source.error)} />
+        <Placeholder icon="error" title="Could not open the file">{errorMessage(source.error)}</Placeholder>
       ) : source.data ? (
         <Highlight theme={THEME} code={source.data.content.replace(/\n$/, '')} language={source.data.language ?? 'text'}>
           {({ className, style, tokens, getLineProps, getTokenProps }) => (
-            <div ref={scrollRef} className={styles.codeScroll} style={style}>
-              <pre className={`${className} ${styles.code}`}>
+            <div ref={scrollRef} className={`${styles.scroll} ${linking ? styles.linking : ''}`} style={style}>
+              <pre
+                className={`${className} ${styles.code}`}
+                onClick={(e) => {
+                  const el = e.target as HTMLElement;
+                  if (!e.ctrlKey && !e.metaKey) {
+                    const caret = Number(el.closest<HTMLElement>('[data-line]')?.dataset.line);
+                    if (caret) onCaret?.(caret);
+                    return;
+                  }
+                  const ident = el.closest<HTMLElement>('[data-ident]');
+                  const line = Number(el.closest<HTMLElement>('[data-line]')?.dataset.line);
+                  if (!ident?.textContent || !line) return;
+                  e.preventDefault();
+                  onGoToDeclaration(ident.textContent, line);
+                }}
+              >
                 {tokens.map((line, i) => {
                   const n = i + 1;
                   const sym = startsAt.get(n);
@@ -83,17 +143,26 @@ export function CodeViewer({ project, file, revision, target, changedRanges, onS
                       key={i}
                       {...lineProps}
                       data-line={n}
-                      className={`${lineProps.className} ${styles.codeLine} ${inRange ? styles.codeLineActive : ''}`}
+                      className={`${lineProps.className} ${styles.line} ${inRange ? styles.lineActive : ''}`}
                     >
-                      <span className={`${styles.gutter} ${lineChanged(n, changedRanges) ? styles.gutterChanged : ''}`}>
+                      <span className={styles.gutter}>
                         {sym ? (
                           <button type="button" className={styles.gutterSymbol} onClick={() => onSymbol(sym)} title={`Select ${sym.symbol}`}>
                             {n}
                           </button>
                         ) : n}
                       </span>
-                      <span className={styles.codeText}>
-                        {line.map((token, j) => <span key={j} {...getTokenProps({ token })} />)}
+                      <span className={`${styles.dirty} ${lineChanged(n, changedRanges) ? styles.dirtyOn : ''}`} />
+                      <span className={styles.text}>
+                        {line.map((token, j) => (
+                          token.types.some((t) => NOT_CODE.has(t))
+                            ? <span key={j} {...getTokenProps({ token })} />
+                            : (
+                              <span key={j} {...getTokenProps({ token })}>
+                                {splitIdentifiers(token.content).map((p, k) => (p.ident ? <span key={k} data-ident="">{p.text}</span> : p.text))}
+                              </span>
+                            )
+                        ))}
                       </span>
                     </div>
                   );

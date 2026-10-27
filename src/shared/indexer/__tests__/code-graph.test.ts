@@ -18,7 +18,7 @@ beforeEach(() => {
   db.exec(`CREATE TABLE symbols (
     project_path TEXT, file TEXT, symbol TEXT, kind TEXT, signature TEXT,
     start_line INTEGER, end_line INTEGER, exported INTEGER,
-    deps TEXT, callers TEXT, refs TEXT, referrers TEXT, dep_sites TEXT, tokens_estimate INTEGER
+    deps TEXT, callers TEXT, refs TEXT, referrers TEXT, dep_sites TEXT, heritage TEXT, tokens_estimate INTEGER
   )`);
   db.exec(`CREATE TABLE indexed_files (
     project_path TEXT, file TEXT, hash TEXT, indexed_at INTEGER, imports TEXT
@@ -30,14 +30,14 @@ afterEach(() => db.close());
 function sym(
   file: string,
   symbol: string,
-  opts: { deps?: string[]; refs?: string[]; kind?: string; exported?: boolean; project?: string } = {},
+  opts: { deps?: string[]; refs?: string[]; heritage?: string[]; kind?: string; exported?: boolean; project?: string } = {},
 ): void {
   db.prepare(
-    `INSERT INTO symbols (project_path, file, symbol, kind, signature, start_line, end_line, exported, deps, callers, refs, tokens_estimate)
-     VALUES (?, ?, ?, ?, ?, 3, 9, ?, ?, '[]', ?, 0)`,
+    `INSERT INTO symbols (project_path, file, symbol, kind, signature, start_line, end_line, exported, deps, callers, refs, heritage, tokens_estimate)
+     VALUES (?, ?, ?, ?, ?, 3, 9, ?, ?, '[]', ?, ?, 0)`,
   ).run(
     opts.project ?? PROJECT, file, symbol, opts.kind ?? 'function', `${symbol}()`, opts.exported === false ? 0 : 1,
-    JSON.stringify(opts.deps ?? []), JSON.stringify(opts.refs ?? []),
+    JSON.stringify(opts.deps ?? []), JSON.stringify(opts.refs ?? []), opts.heritage ? JSON.stringify(opts.heritage) : null,
   );
 }
 
@@ -181,11 +181,67 @@ describe('buildCodeGraph — scope, focus, limit', () => {
     expect(ids(two)).toContain('src/feat/a.ts::useA');
   });
 
+  // Impact is project-wide: a scope left over from browsing a folder used to hide the
+  // focus itself ("neither a node nor a folder") or the callers outside that folder.
+  it('focus ignores scope: the target and its callers are found anywhere', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol', scope: 'src/lib', focus: 'src/feat/b.ts::useB', depth: 1 });
+    expect(g.stats.focusMatches).toBe(1);
+    expect(ids(g)).toContain('src/feat/b.ts::useB');
+    expect(ids(g)).toContain('src/feat/c.ts::leaf');
+  });
+
   it('an unknown focus yields an empty graph rather than the whole repo', () => {
     seed();
     const g = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'nope::nothing' });
     expect(g.nodes).toEqual([]);
     expect(g.links).toEqual([]);
+    expect(g.stats.focusMatches).toBe(0);
+  });
+
+  it('direction "callers" walks only incoming edges: what a change would break', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'src/lib/core.ts::core', depth: 2, direction: 'callers' });
+    expect(ids(g)).toEqual(['src/feat/a.ts::useA', 'src/feat/b.ts::useB', 'src/feat/c.ts::leaf', 'src/lib/core.ts::core']);
+    const fromB = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'src/feat/b.ts::useB', depth: 1, direction: 'callers' });
+    expect(ids(fromB)).toEqual(['src/feat/b.ts::useB', 'src/feat/c.ts::leaf']);
+  });
+
+  it('direction "deps" walks only outgoing edges', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'src/feat/b.ts::useB', depth: 3, direction: 'deps' });
+    expect(ids(g)).toEqual(['src/feat/b.ts::useB', 'src/lib/core.ts::core', 'src/lib/core.ts::helper']);
+  });
+
+  it('a folder focus seeds the walk with every node under it, at any level', () => {
+    seed();
+    const sym = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'src/feat', depth: 1, direction: 'deps' });
+    expect(ids(sym)).toEqual([
+      'src/feat/a.ts::useA',
+      'src/feat/b.ts::useB',
+      'src/feat/c.ts::leaf',
+      'src/lib/core.ts::core',
+      'src/lib/core.ts::helper',
+    ]);
+    expect(sym.stats.focusMatches).toBe(3);
+    const files = buildCodeGraph(db, PROJECT, { level: 'file', focus: 'src/lib/', depth: 1, direction: 'callers' });
+    expect(ids(files)).toEqual(['src/feat/a.ts', 'src/feat/b.ts', 'src/lib/core.ts']);
+    const modules = buildCodeGraph(db, PROJECT, { level: 'module', focus: 'src', depth: 1 });
+    expect(modules.stats.focusMatches).toBe(2);
+  });
+
+  it('a folder focus matches whole path segments', () => {
+    seed();
+    sym('src/featured/z.ts', 'z');
+    const g = buildCodeGraph(db, PROJECT, { level: 'file', focus: 'src/feat', depth: 1, direction: 'deps' });
+    expect(ids(g)).not.toContain('src/featured/z.ts');
+  });
+
+  it('folder seeds survive the limit ahead of higher-ranked neighbours', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'file', focus: 'src/feat', depth: 1, limit: 3 });
+    expect(ids(g)).toEqual(['src/feat/a.ts', 'src/feat/b.ts', 'src/feat/c.ts']);
+    expect(g.stats.truncated).toBe(true);
   });
 
   it('limit keeps the top-ranked nodes, drops dangling links and reports truncation', () => {
@@ -207,6 +263,67 @@ describe('buildCodeGraph — scope, focus, limit', () => {
   it('an empty index is an empty graph', () => {
     const g = buildCodeGraph(db, PROJECT, { level: 'module' });
     expect(g).toMatchObject({ nodes: [], links: [], stats: { totalNodes: 0, truncated: false } });
+  });
+});
+
+describe('buildCodeGraph — inheritance and dispatch', () => {
+  const STRATEGY = 'src/s/strategy.ts::Strategy';
+
+  /** Strategy ← A, B, D (implements); B ← C (extends). Svc.go calls Strategy.run through the interface. */
+  function seedStrategies(callTarget = `${STRATEGY}.run`): void {
+    sym('src/s/strategy.ts', 'Strategy', { kind: 'interface' });
+    sym('src/s/a.ts', 'A', { kind: 'class', heritage: [STRATEGY] });
+    sym('src/s/a.ts', 'A.run', { kind: 'method' });
+    sym('src/s/b.ts', 'B', { kind: 'class', heritage: [STRATEGY] });
+    sym('src/s/b.ts', 'B.run', { kind: 'method' });
+    sym('src/s/c.ts', 'C', { kind: 'class', heritage: ['src/s/b.ts::B'] });
+    sym('src/s/c.ts', 'C.run', { kind: 'method' });
+    sym('src/s/d.ts', 'D', { kind: 'class', heritage: [STRATEGY] });
+    sym('src/svc.ts', 'Svc.go', { kind: 'method', deps: [callTarget] });
+  }
+
+  it('draws extends/implements as inherit links from subtype to supertype', () => {
+    seedStrategies();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol' });
+    expect(linkKeys(g).filter((k) => k.includes(':inherit:'))).toEqual([
+      `src/s/a.ts::A>${STRATEGY}:inherit:1`,
+      `src/s/b.ts::B>${STRATEGY}:inherit:1`,
+      'src/s/c.ts::C>src/s/b.ts::B:inherit:1',
+      `src/s/d.ts::D>${STRATEGY}:inherit:1`,
+    ]);
+  });
+
+  it('a call through an interface reaches the contract and dispatches to every implementation', () => {
+    seedStrategies();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol' });
+    const fromGo = linkKeys(g).filter((k) => k.startsWith('src/svc.ts::Svc.go>'));
+    expect(fromGo).toEqual([
+      'src/svc.ts::Svc.go>src/s/a.ts::A.run:dispatch:1',
+      'src/svc.ts::Svc.go>src/s/b.ts::B.run:dispatch:1',
+      'src/svc.ts::Svc.go>src/s/c.ts::C.run:dispatch:1',
+      `src/svc.ts::Svc.go>${STRATEGY}:call:1`,
+    ]);
+    expect(g.stats.unresolved).toBe(0);
+  });
+
+  it('a call to a concrete method also dispatches to its overrides', () => {
+    seedStrategies('src/s/b.ts::B.run');
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol' });
+    expect(linkKeys(g).filter((k) => k.startsWith('src/svc.ts::Svc.go>'))).toEqual([
+      'src/svc.ts::Svc.go>src/s/b.ts::B.run:call:1',
+      'src/svc.ts::Svc.go>src/s/c.ts::C.run:dispatch:1',
+    ]);
+  });
+
+  it('the callers impact of a strategy method reaches the code that dispatches to it', () => {
+    seedStrategies();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'src/s/a.ts::A.run', depth: 1, direction: 'callers' });
+    expect(ids(g)).toEqual(['src/s/a.ts::A.run', 'src/svc.ts::Svc.go']);
+  });
+
+  it('a member call whose owner is not indexed still counts as unresolved', () => {
+    sym('src/svc.ts', 'go', { deps: ['src/nope.ts::Ghost.run'] });
+    expect(buildCodeGraph(db, PROJECT, { level: 'symbol' }).stats.unresolved).toBe(1);
   });
 });
 

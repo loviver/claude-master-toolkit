@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { ctkPaths } from '../../shared/paths/ctk-home-paths.js';
+import type { InstallCtx } from './codex.js';
 
 export type ManifestEntry =
   | { type: 'symlink'; path: string }
@@ -36,4 +37,21 @@ export function writeManifest(m: Manifest): void {
 
 export function deleteManifest(agent: string): void {
   if (existsSync(manifestPath(agent))) rmSync(manifestPath(agent));
+}
+
+const isCheckout = (root: string) => existsSync(join(root, '.git'));
+
+/**
+ * A packaged copy (`npm i -g`) running `ctk install` would repoint every link and the MCP
+ * of an install a git checkout owns, and an `npm uninstall` later leaves them all dangling.
+ * Refuse unless forced; a missing owner or another checkout may take over.
+ */
+export function assertNotHijacking(agent: string, ctx: InstallCtx): void {
+  const owner = readManifest(agent)?.pkgRoot;
+  if (ctx.force || !owner || resolve(owner) === resolve(ctx.pkgRoot)) return;
+  if (!isCheckout(owner) || isCheckout(ctx.pkgRoot)) return;
+  throw new Error(
+    `${agent} is installed from the git checkout ${owner}; this copy (${ctx.pkgRoot}) would take it over. ` +
+      `Run the install from that checkout, or pass --force to switch.`,
+  );
 }

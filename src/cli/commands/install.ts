@@ -67,13 +67,13 @@ function installCaveman() {
   }
 }
 
-export async function installClaudeCommand(opts: { skipCaveman?: boolean } = {}) {
+export async function installClaudeCommand(opts: { skipCaveman?: boolean; force?: boolean } = {}) {
   const pkgRoot = findPackageRoot();
   head("Claude Code");
   say(`Package root: ${pkgRoot}`);
   warnOnConflict(pkgRoot);
   try {
-    print(installClaude({ home: os.homedir(), pkgRoot }));
+    print(installClaude({ home: os.homedir(), pkgRoot, force: opts.force }));
   } catch (e) {
     die((e as Error).message);
   }
@@ -81,13 +81,13 @@ export async function installClaudeCommand(opts: { skipCaveman?: boolean } = {})
   head("✓ Claude stack installed (undo: ctk uninstall claude)");
 }
 
-export async function installCodexCommand() {
+export async function installCodexCommand(opts: { force?: boolean } = {}) {
   const pkgRoot = findPackageRoot();
   head("Codex");
   say(`Package root: ${pkgRoot}`);
   warnOnConflict(pkgRoot);
   try {
-    print(installCodex({ home: os.homedir(), pkgRoot }));
+    print(installCodex({ home: os.homedir(), pkgRoot, force: opts.force }));
   } catch (e) {
     die((e as Error).message);
   }
@@ -96,11 +96,11 @@ export async function installCodexCommand() {
 }
 
 /** Installs every agent whose config dir exists; skips (with a note) the ones that are not installed. */
-export async function installAllCommand(opts: { skipCaveman?: boolean } = {}) {
+export async function installAllCommand(opts: { skipCaveman?: boolean; force?: boolean } = {}) {
   const home = os.homedir();
   const targets: Array<[string, string, () => Promise<void>]> = [
     ["claude", ".claude", () => installClaudeCommand(opts)],
-    ["codex", ".codex", () => installCodexCommand()],
+    ["codex", ".codex", () => installCodexCommand(opts)],
   ];
   let ran = 0;
   for (const [name, dir, run] of targets) {

@@ -1,0 +1,110 @@
+/* The graph is an editor: it sits on the editor background, overlays are editor widgets. */
+
+.canvasWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+}
+
+.canvas,
+.canvas2d {
+  position: absolute;
+  inset: 0;
+}
+
+.tooltip {
+  padding: 2px 8px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 3px;
+}
+
+.tooltip span {
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Always-on names. Positioned per frame from JS; hidden until the declutter pass places them. */
+.labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.zoneLabel,
+.nodeLabel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  will-change: transform;
+  text-shadow: 0 0 3px var(--vscode-editor-background), 0 0 6px var(--vscode-editor-background);
+}
+
+.zoneLabel {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+}
+
+.nodeLabel {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.selectedLabel {
+  font-weight: 700;
+  color: var(--vscode-tab-activeForeground);
+}
+
+.legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 4px 10px;
+  list-style: none;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 4px;
+  box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+  pointer-events: none;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend i.edgeSwatch {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.legendHint {
+  color: var(--vscode-descriptionForeground);
+}

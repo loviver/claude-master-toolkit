@@ -162,8 +162,14 @@ export interface TurnPairDTO {
 
 /** Granularity of the code graph: directories, files, or individual symbols. */
 export type CodeGraphLevel = 'module' | 'file' | 'symbol';
-/** `call` edges come from resolved call sites (deps), `ref` from type/const references. */
-export type CodeGraphLinkType = 'call' | 'ref';
+/**
+ * `call` edges come from resolved call sites (deps), `ref` from type/const references,
+ * `inherit` from extends/implements (subtype → supertype), and `dispatch` from a call through
+ * a supertype to each override or implementation it may run (class hierarchy analysis).
+ */
+export type CodeGraphLinkType = 'call' | 'ref' | 'inherit' | 'dispatch';
+/** Which edges a focus walk follows: `callers` = what a change would break, `deps` = what it builds on. */
+export type CodeGraphDirection = 'callers' | 'deps' | 'both';
 
 export interface CodeGraphNodeDTO {
   /** `dir` (module), `file` (file) or `file::symbol` (symbol). */
@@ -202,6 +208,8 @@ export interface CodeGraphStatsDTO {
   unresolved: number;
   /** True when `limit` cut nodes off. */
   truncated: boolean;
+  /** Nodes the `focus` matched (the node itself, or every node under a folder); absent without focus. */
+  focusMatches?: number;
 }
 
 export interface CodeGraphDTO {
@@ -277,6 +285,49 @@ export interface CodeGraphOutlineDTO {
   kind: string;
   startLine: number;
   endLine: number;
+}
+
+/** Where a symbol lives: enough for the code viewer to open it. */
+export interface CodeGraphSymbolRefDTO {
+  /** Qualified `file::symbol` id. */
+  id: string;
+  symbol: string;
+  kind: string;
+  file: string;
+  startLine: number;
+  endLine: number;
+}
+
+/** A project-wide Go to Symbol hit. */
+export interface CodeGraphSymbolHitDTO extends CodeGraphSymbolRefDTO {
+  exported: boolean;
+  signature: string | null;
+}
+
+/** A symbol on the other end of a call, with the call-site lines (in the calling symbol's file). */
+export interface CodeGraphUsageDTO extends CodeGraphSymbolRefDTO {
+  /** Sorted call-site lines; empty when the index recorded none. */
+  lines: number[];
+  /** Only reached through a supertype's method (an override that call may run), never called directly. */
+  dispatch?: true;
+}
+
+/** One symbol and everything around it: the IDE's find usages, call hierarchy and type hierarchy. */
+export interface CodeGraphSymbolDTO extends CodeGraphSymbolHitDTO {
+  /** Symbols that call this one (directly or through a supertype it overrides). */
+  callers: CodeGraphUsageDTO[];
+  /** Symbols that name this one as a type or value without calling it. */
+  referrers: CodeGraphSymbolRefDTO[];
+  /** Symbols this one calls. */
+  callees: CodeGraphUsageDTO[];
+  /** Types and values this one names without calling them. */
+  references: CodeGraphSymbolRefDTO[];
+  /** Types this one extends or implements. */
+  supertypes: CodeGraphSymbolRefDTO[];
+  /** Types that extend or implement this one directly. */
+  subtypes: CodeGraphSymbolRefDTO[];
+  /** Direct members (`Owner.member`) declared in the same file. */
+  members: CodeGraphSymbolRefDTO[];
 }
 
 /** An indexed file's text as it is on disk now (may be newer than the index). */

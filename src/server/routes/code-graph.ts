@@ -16,17 +16,23 @@ import {
   MAX_LIMIT,
   type CodeGraph,
 } from '../../shared/indexer/code-graph.js';
+import { searchSymbols, symbolDetails, SEARCH_MAX } from '../../shared/indexer/code-nav.js';
+import { loadSymbolGraph, type SymbolGraph } from '../../shared/indexer/symbol-graph.js';
 import { assessRisk } from '../../shared/risk/index.js';
 import type {
+  CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphLevel,
   CodeGraphRevisionDTO,
   CodeGraphRiskDTO,
   CodeGraphSourceDTO,
+  CodeGraphSymbolDTO,
+  CodeGraphSymbolHitDTO,
 } from '../../shared/api-types.js';
 import { Lru } from '../lib/lru.js';
 
 const LEVELS: readonly CodeGraphLevel[] = ['module', 'file', 'symbol'];
+const DIRECTIONS: readonly CodeGraphDirection[] = ['callers', 'deps', 'both'];
 const MAX_DEPTH = 6;
 const CACHE_ENTRIES = 24;
 /** Bigger files are generated or vendored: not worth shipping to a code viewer. */
@@ -38,10 +44,13 @@ interface GraphQuery extends ProjectQuery {
   scope?: string;
   focus?: string;
   depth?: string;
+  direction?: string;
   limit?: string;
 }
 interface RiskQuery extends ProjectQuery { level?: string; base?: string; worktree?: string }
 interface SourceQuery extends ProjectQuery { file?: string }
+interface SymbolsQuery extends ProjectQuery { q?: string; limit?: string }
+interface SymbolQuery extends ProjectQuery { id?: string }
 
 /** `undefined` when absent, `null` when present but not an integer in [min, max]. */
 function intParam(raw: string | undefined, min: number, max: number): number | undefined | null {
@@ -53,6 +62,11 @@ function intParam(raw: string | undefined, min: number, max: number): number | u
 function parseLevel(raw: string | undefined): CodeGraphLevel | null {
   if (raw === undefined || raw === '') return 'module';
   return (LEVELS as readonly string[]).includes(raw) ? (raw as CodeGraphLevel) : null;
+}
+
+function parseDirection(raw: string | undefined): CodeGraphDirection | undefined | null {
+  if (raw === undefined || raw === '') return undefined;
+  return (DIRECTIONS as readonly string[]).includes(raw) ? (raw as CodeGraphDirection) : null;
 }
 
 /**
@@ -74,6 +88,8 @@ function requireProject(reply: FastifyReply, project: string | undefined): proje
 export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
   // Graphs are pure over the index, so a revision-keyed cache can never serve stale data.
   const cache = new Lru<string, CodeGraph>(CACHE_ENTRIES);
+  // Find usages reads the whole def/ref graph: load it once per index revision, not per click.
+  const symbolGraphs = new Lru<string, SymbolGraph>(4);
 
   app.get('/code-graph/projects', async (_req, reply) => reply.send(indexedProjects(getSqlite())));
 
@@ -89,17 +105,19 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
     const level = parseLevel(req.query.level);
     const depth = intParam(req.query.depth, 1, MAX_DEPTH);
     const limit = intParam(req.query.limit, 1, MAX_LIMIT);
+    const direction = parseDirection(req.query.direction);
     if (level === null) return reply.status(400).send({ error: `level must be one of ${LEVELS.join(', ')}` });
     if (depth === null) return reply.status(400).send({ error: `depth must be an integer in [1, ${MAX_DEPTH}]` });
     if (limit === null) return reply.status(400).send({ error: `limit must be an integer in [1, ${MAX_LIMIT}]` });
+    if (direction === null) return reply.status(400).send({ error: `direction must be one of ${DIRECTIONS.join(', ')}` });
     if (!requireProject(reply, project)) return reply;
 
     const db = getSqlite();
     const revision = graphRevision(db, project);
-    const key = JSON.stringify([project, revision, level, scope, focus, depth, limit]);
+    const key = JSON.stringify([project, revision, level, scope, focus, depth, direction, limit]);
     let graph = cache.get(key);
     if (!graph) {
-      graph = buildCodeGraph(db, project, { level, scope, focus, depth, limit });
+      graph = buildCodeGraph(db, project, { level, scope, focus, depth, direction, limit });
       cache.set(key, graph);
     }
     const body: CodeGraphDTO = { project, revision, ...graph };
@@ -137,6 +155,32 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
       throw err;
     }
     const body: CodeGraphSourceDTO = { file, language: sourceLanguage(file), content, outline: fileOutline(db, project, file) };
+    return reply.send(body);
+  });
+
+  app.get<{ Querystring: SymbolsQuery }>('/code-graph/symbols', async (req, reply) => {
+    const { project, q } = req.query;
+    const limit = intParam(req.query.limit, 1, SEARCH_MAX);
+    if (q === undefined) return reply.status(400).send({ error: 'q is required' });
+    if (limit === null) return reply.status(400).send({ error: `limit must be an integer in [1, ${SEARCH_MAX}]` });
+    if (!requireProject(reply, project)) return reply;
+    const body: CodeGraphSymbolHitDTO[] = searchSymbols(getSqlite(), project, q, limit);
+    return reply.send(body);
+  });
+
+  app.get<{ Querystring: SymbolQuery }>('/code-graph/symbol', async (req, reply) => {
+    const { project, id } = req.query;
+    if (!id) return reply.status(400).send({ error: 'id is required' });
+    if (!requireProject(reply, project)) return reply;
+    const db = getSqlite();
+    const key = JSON.stringify([project, graphRevision(db, project)]);
+    let graph = symbolGraphs.get(key);
+    if (!graph) {
+      graph = loadSymbolGraph(db, project);
+      symbolGraphs.set(key, graph);
+    }
+    const body: CodeGraphSymbolDTO | null = symbolDetails(db, project, id, graph);
+    if (!body) return reply.status(404).send({ error: `symbol not indexed: ${id}` });
     return reply.send(body);
   });
 

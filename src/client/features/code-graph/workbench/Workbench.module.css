@@ -1,0 +1,529 @@
+/* Workbench chrome: sizes are VSCode's part sizes (--wb-*), colors its theme vars (--vscode-*). */
+
+.root {
+  display: grid;
+  grid-template-rows: var(--wb-titlebar) minmax(0, 1fr) var(--wb-statusbar);
+  height: 100vh;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+  line-height: 1.4;
+  user-select: none;
+}
+
+.body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--wb-activitybar) auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+/* ── Title bar ── */
+
+.titleBar {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 600px) 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--vscode-titleBar-activeForeground);
+  background: var(--vscode-titleBar-activeBackground);
+  border-bottom: 1px solid var(--vscode-titleBar-border);
+}
+
+.titleStart,
+.titleEnd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.titleEnd {
+  justify-content: flex-end;
+}
+
+.appIcon {
+  padding: 0 6px;
+  color: var(--vscode-activityBar-activeBorder);
+}
+
+.projectSelect {
+  width: 240px;
+}
+
+.commandCenter {
+  position: relative;
+}
+
+.commandCenter vscode-textfield {
+  width: 100%;
+}
+
+/* A quick-open group header ("In this graph", "Symbols"), as VSCode labels its separators. */
+.quickSection {
+  padding: 4px 12px 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-pickerGroup-foreground, var(--vscode-descriptionForeground));
+}
+
+.quickList {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  color: var(--vscode-quickInput-foreground);
+  background: var(--vscode-quickInput-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+  box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+}
+
+/* ── Activity bar ── */
+
+.activityBar {
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-activityBar-background);
+  border-right: 1px solid var(--vscode-activityBar-border);
+}
+
+.activityItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--wb-activitybar);
+  height: var(--wb-activitybar);
+  padding: 0;
+  font-size: 24px;
+  color: var(--vscode-activityBar-inactiveForeground);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.activityItem :global(.codicon) {
+  font-size: 24px;
+}
+
+.activityItem:hover,
+.activityItem[aria-pressed='true'] {
+  color: var(--vscode-activityBar-foreground);
+}
+
+.activityItem[aria-pressed='true']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--vscode-activityBar-activeBorder);
+}
+
+.activityItem:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.activityBadge {
+  position: absolute;
+  right: 6px;
+  bottom: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  color: var(--vscode-activityBarBadge-foreground);
+  background: var(--vscode-activityBarBadge-background);
+  border-radius: 16px;
+}
+
+.activitySpacer {
+  flex: 1;
+}
+
+/* ── Side bars (primary + auxiliary) ── */
+
+.sideBar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  color: var(--vscode-sideBar-foreground);
+  background: var(--vscode-sideBar-background);
+}
+
+.sideBarStart {
+  border-right: 1px solid var(--vscode-sideBar-border);
+}
+
+.sideBarEnd {
+  border-left: 1px solid var(--vscode-sideBar-border);
+}
+
+.paneHeader {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: var(--wb-pane-header);
+  padding: 0 8px 0 20px;
+}
+
+.paneTitle {
+  flex: 1;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--vscode-sideBarTitle-foreground);
+}
+
+.paneActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.paneBody {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Sash: the 4px drag handle between parts, highlighted like VSCode on hover/drag. */
+.sash {
+  position: absolute;
+  z-index: 15;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.sashStart { right: -2px; }
+.sashEnd { left: -2px; }
+/* Between two editor groups: `left` comes inline from the group's width. */
+.sashBetween { margin-left: -2px; }
+
+.sash:hover,
+.sash[data-active='true'] {
+  background: var(--vscode-sash-hoverBorder);
+  transition: background 0.1s 0.3s;
+}
+
+.sash[data-active='true'] { transition: none; }
+
+/* ── Editor group ── */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--vscode-editor-background);
+}
+
+.tabsBar {
+  display: flex;
+  flex-shrink: 0;
+  height: var(--wb-tab);
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  box-shadow: inset 0 -1px 0 var(--vscode-editorGroupHeader-tabsBorder);
+}
+
+.tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 0 4px 0 10px;
+  color: var(--vscode-tab-inactiveForeground);
+  background: var(--vscode-tab-inactiveBackground);
+  border-right: 1px solid var(--vscode-tab-border);
+  border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: var(--vscode-tab-hoverBackground);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--vscode-tab-activeForeground);
+  background: var(--vscode-tab-activeBackground);
+  border-bottom-color: var(--vscode-tab-activeBackground);
+}
+
+.tab[aria-selected='true']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--vscode-tab-activeBorderTop);
+}
+
+.tab:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.tabLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabPreview .tabLabel {
+  font-style: italic;
+}
+
+.tabModified {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.tabClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.tab:hover .tabClose,
+.tab[aria-selected='true'] .tabClose {
+  visibility: visible;
+}
+
+.tabClose:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.tabPinned {
+  width: 20px;
+  text-align: center;
+  opacity: 0.6;
+}
+
+.editorActions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.editorContent {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Editors stay mounted: hiding keeps the canvas size, so WebGL never sees a 0×0 host. */
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.layer[hidden] {
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Breadcrumbs ── */
+
+.breadcrumbs {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  height: var(--wb-breadcrumbs);
+  padding: 0 12px;
+  overflow: hidden;
+  color: var(--vscode-breadcrumb-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.crumb {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  font: inherit;
+  white-space: nowrap;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.crumb:hover {
+  color: var(--vscode-breadcrumb-focusForeground);
+}
+
+.crumbSep {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.breadcrumbsEnd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+/* ── Status bar ── */
+
+.statusBar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--vscode-statusBar-foreground);
+  background: var(--vscode-statusBar-background);
+  border-top: 1px solid var(--vscode-statusBar-border);
+}
+
+.statusGroup {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.statusItem {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0 5px;
+  margin: 0 3px;
+  font: inherit;
+  white-space: nowrap;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.statusItem :global(.codicon) {
+  font-size: 14px;
+}
+
+button.statusItem {
+  cursor: pointer;
+}
+
+button.statusItem:hover {
+  color: var(--vscode-statusBarItem-hoverForeground);
+  background: var(--vscode-statusBarItem-hoverBackground);
+}
+
+.statusItem[aria-pressed='false'] {
+  opacity: 0.6;
+}
+
+.statusRemote {
+  margin: 0;
+  padding: 0 10px;
+  color: var(--vscode-statusBarItem-remoteForeground);
+  background: var(--vscode-statusBarItem-remoteBackground);
+}
+
+.statusWarn {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.statusActive {
+  color: var(--vscode-statusBarItem-hoverForeground);
+  background: var(--vscode-statusBarItem-prominentBackground);
+}
+
+/* ── Shared states ── */
+
+.progress {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.placeholder {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  user-select: text;
+}
+
+.placeholder :global(.codicon) {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.placeholderTitle {
+  font-size: 13px;
+  color: var(--vscode-foreground);
+}
+
+.placeholderText {
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.placeholderText code {
+  font-family: var(--vscode-editor-font-family);
+  color: var(--vscode-textPreformat-foreground);
+}

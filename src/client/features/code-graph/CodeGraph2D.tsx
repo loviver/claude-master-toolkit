@@ -11,12 +11,14 @@ import {
   STATE_COLORS,
   kindCategory,
   linkEnds,
+  strongerLink,
   type Neighbours,
   type RenderGraph,
 } from './graph-model';
+import type { CodeGraphLinkType } from '../../lib/types';
 import type { CodeGraphOverlay } from './CodeGraph3D';
 import { seedPosition } from './explorer-model';
-import styles from './CodeGraph.module.css';
+import styles from './GraphCanvas.module.css';
 
 /**
  * 2D WebGL renderer: Sigma draws, ForceAtlas2 (in a web worker) lays out. The view a
@@ -35,7 +37,7 @@ interface NodeAttrs {
 
 interface EdgeAttrs {
   size: number;
-  linkType: 'call' | 'ref';
+  linkType: CodeGraphLinkType;
 }
 
 type CodeSigma = Sigma<NodeAttrs, EdgeAttrs>;
@@ -58,8 +60,8 @@ interface CodeGraph2DProps {
 
 /** Above this many edges arrowheads are noise and cost frame time. */
 const ARROW_EDGES = 5000;
-const LABEL_COLOR = '#ece9e2';                  // --gray-100
-const HOVER_BOX = '#26231d';                    // --gray-800
+const LABEL_COLOR = '#cccccc';                  // --vscode-foreground
+const HOVER_BOX = '#202020';                    // --vscode-editorWidget-background
 /** Edge colors carry alpha so dense regions read as density, not as a solid fill. */
 const EDGE_ALPHA = '55';
 const EDGE_FOCUS_ALPHA = 'dd';
@@ -195,6 +197,9 @@ export function CodeGraph2D({
       sigma.refresh({ skipIndexation: true });
     });
 
+    // Dragging the split sash resizes the host: Sigma must re-measure or the canvas stretches.
+    const resize = new ResizeObserver(() => { sigma.resize(); sigma.refresh(); });
+    resize.observe(hostRef.current!);
     sigmaRef.current = sigma;
     modelRef.current = model;
     return () => {
@@ -202,6 +207,7 @@ export function CodeGraph2D({
         clearTimeout(layoutRef.current.timer);
         layoutRef.current.fa2.kill();
       }
+      resize.disconnect();
       sigma.kill();
       sigmaRef.current = null;
       modelRef.current = null;
@@ -242,15 +248,15 @@ export function CodeGraph2D({
       model.addNode(n.id, { ...attrs, ...pos });
     }
 
-    // Sigma draws one edge per direction: `call` and `ref` between the same pair fold into one.
-    const want = new Map<string, { source: string; target: string; weight: number; type: 'call' | 'ref' }>();
+    // Sigma draws one edge per direction: link types between the same pair fold into the strongest.
+    const want = new Map<string, { source: string; target: string; weight: number; type: CodeGraphLinkType }>();
     for (const l of graph.links) {
       const [source, target] = linkEnds(l);
       const key = `${source}\0${target}`;
       const prev = want.get(key);
       if (prev) {
         prev.weight += l.weight;
-        if (l.type === 'call') prev.type = 'call';
+        prev.type = strongerLink(prev.type, l.type);
       } else {
         want.set(key, { source, target, weight: l.weight, type: l.type });
       }

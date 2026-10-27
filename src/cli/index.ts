@@ -69,8 +69,8 @@ import {
   planStatusCommand,
   planGenerateCommand,
 } from "./commands/plan-exec.js";
+import { CTK_VERSION } from "../shared/version.js";
 
-const VERSION = "0.5.2";
 const VALID_PANDORICA_TYPES =
   "bugfix|decision|architecture|discovery|pattern|config|preference|session_summary";
 
@@ -79,7 +79,7 @@ const program = new Command()
   .description(
     "Claude Master Toolkit — token-efficient CLI + metrics dashboard",
   )
-  .version(VERSION)
+  .version(CTK_VERSION)
   .option("--json", "Output in JSON format (AI-friendly)")
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -94,17 +94,20 @@ install
   .command("claude")
   .description("Install Claude Code stack into ~/.claude (symlinks + settings)")
   .option("--skip-caveman", "Skip caveman plugin install")
+  .option("--force", "Take over an install a git checkout owns")
   .action(installClaudeCommand);
 
 install
   .command("codex")
   .description("Install Codex stack into ~/.codex (MCP block in config.toml + neutral skills)")
+  .option("--force", "Take over an install a git checkout owns")
   .action(installCodexCommand);
 
 install
   .command("all")
   .description("Install every supported agent found on this machine")
   .option("--skip-caveman", "Skip caveman plugin install")
+  .option("--force", "Take over an install a git checkout owns")
   .action(installAllCommand);
 
 const uninstall = program

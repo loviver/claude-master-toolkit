@@ -14,7 +14,7 @@ function depsOf(syms: ReturnType<typeof collectSymbols>, name: string): string[]
 }
 
 describe('ts-indexer dep resolution', () => {
-  it('records the method actually called, qualified by its file — not the receiver', () => {
+  it('records the method actually called as `file::Class.method` — the id it is indexed under', () => {
     const p = mkProject();
     p.createSourceFile('/svc.ts', `export class Svc { doThing() { return 1; } }`);
     const main = p.createSourceFile(
@@ -23,8 +23,21 @@ describe('ts-indexer dep resolution', () => {
         `export function run() { const s = new Svc(); return s.doThing(); }`,
     );
     const deps = depsOf(collectSymbols(main, '/', '/main.ts'), 'run');
-    expect(deps).toContain('svc.ts::doThing');
+    expect(deps).toContain('svc.ts::Svc.doThing');
+    expect(deps).not.toContain('svc.ts::doThing'); // no such symbol: the edge would be dropped
     expect(deps).not.toContain('s'); // receiver must NOT be recorded
+  });
+
+  it('records a call through an interface as `file::Interface.member`, ready for dispatch', () => {
+    const p = mkProject();
+    p.createSourceFile('/strategy.ts', `export interface Strategy { run(n: number): number }`);
+    const main = p.createSourceFile(
+      '/main.ts',
+      `import { Strategy } from './strategy';
+` +
+        `export function go(s: Strategy) { return s.run(1); }`,
+    );
+    expect(depsOf(collectSymbols(main, '/', '/main.ts'), 'go')).toContain('strategy.ts::Strategy.run');
   });
 
   it('resolves an imported function to its declared, file-qualified id', () => {
@@ -97,6 +110,37 @@ function symOf(syms: ReturnType<typeof collectSymbols>, name: string) {
   if (!s) throw new Error(`symbol ${name} not found`);
   return s;
 }
+
+describe('ts-indexer heritage', () => {
+  it('records extends and implements of classes and interfaces as file-qualified ids', () => {
+    const p = mkProject();
+    p.createSourceFile('/strategy.ts', `export interface Strategy { run(): void }\nexport interface Named { name: string }`);
+    p.createSourceFile('/base.ts', `export abstract class Base { run() {} }`);
+    const main = p.createSourceFile(
+      '/impl.ts',
+      `import { Strategy, Named } from './strategy';\nimport { Base } from './base';\n` +
+        `export class Impl extends Base implements Strategy, Named { name = 'x'; run() {} }\n` +
+        `export interface Fancy extends Strategy {}\n` +
+        `export class Plain extends Map<string, number> {}`,
+    );
+    const syms = collectSymbols(main, '/', '/impl.ts');
+    const heritageOf = (name: string) => syms.find((x) => x.symbol === name)?.heritage;
+    expect(heritageOf('Impl')).toEqual(['base.ts::Base', 'strategy.ts::Strategy', 'strategy.ts::Named']);
+    expect(heritageOf('Fancy')).toEqual(['strategy.ts::Strategy']);
+    expect(heritageOf('Plain')).toEqual([]); // builtins are not in-project edges
+  });
+
+  it('keeps heritage out of refs so the same relation is not drawn twice', () => {
+    const p = mkProject();
+    p.createSourceFile('/strategy.ts', `export interface Strategy { run(): void }`);
+    const main = p.createSourceFile(
+      '/impl.ts',
+      `import { Strategy } from './strategy';\nexport class Impl implements Strategy { run() {} }`,
+    );
+    const impl = collectSymbols(main, '/', '/impl.ts').find((x) => x.symbol === 'Impl')!;
+    expect(impl.refs).not.toContain('strategy.ts::Strategy');
+  });
+});
 
 describe('ts-indexer signatures', () => {
   it('extracts a signature for an arrow-function const', () => {

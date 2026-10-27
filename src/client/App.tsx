@@ -13,7 +13,6 @@ import { Memories } from './features/memories/Memories';
 import { Projects } from './features/projects/Projects';
 import { GraphExplorer } from './features/graph/GraphExplorer';
 import { Settings } from './features/settings/Settings';
-import { Skeleton } from './components/ui';
 
 // three.js is heavy: the code graph ships as its own chunk, loaded only when visited.
 const CodeGraphPage = lazy(() =>
@@ -30,10 +29,6 @@ export function App() {
             <Route path="/sessions"      element={<SessionList />} />
             <Route path="/sessions/:id"  element={<SessionDetail />} />
             <Route path="/graph"         element={<GraphExplorer />} />
-            <Route
-              path="/code-graph"
-              element={<Suspense fallback={<Skeleton height={640} radius="md" />}><CodeGraphPage /></Suspense>}
-            />
             <Route path="/projects"      element={<Projects />} />
             <Route path="/models"        element={<Models />} />
             <Route path="/tools"         element={<Tools />} />
@@ -42,6 +37,11 @@ export function App() {
             <Route path="/memories"      element={<Memories />} />
             <Route path="/settings"      element={<Settings />} />
           </Route>
+          {/* A full-screen IDE workbench: it brings its own chrome instead of the dashboard layout. */}
+          <Route
+            path="/code-graph"
+            element={<Suspense fallback={<div style={{ height: '100vh', background: '#1f1f1f' }} />}><CodeGraphPage /></Suspense>}
+          />
         </Routes>
       </BrowserRouter>
     </QueryProvider>

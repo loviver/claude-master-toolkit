@@ -1,4 +1,5 @@
 import type {
+  CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphLevel,
   CodeGraphLinkType,
@@ -191,6 +192,17 @@ export function drillTarget(
   }
 }
 
+export const DIRECTIONS: Array<{ value: CodeGraphDirection; label: string }> = [
+  { value: 'callers', label: 'Used by (what breaks)' },
+  { value: 'deps', label: 'Depends on' },
+  { value: 'both', label: 'Both ways' },
+];
+
+/** An impact view walks callers unless told otherwise: "what would changing this break". */
+export function parseDirection(raw: string | null): CodeGraphDirection {
+  return DIRECTIONS.find((d) => d.value === raw)?.value ?? 'callers';
+}
+
 /** Above these sizes the finer level stops being a readable overview. */
 const SYMBOL_LEVEL_MAX = 2000;
 const FILE_LEVEL_MAX = 2000;
@@ -221,7 +233,7 @@ export function kindCategory(kind: string): KindCategory {
   }
 }
 
-export const CANVAS_BG = '#16140f';            // --gray-900
+export const CANVAS_BG = '#1f1f1f';            // --vscode-editor-background (WebGL needs a literal)
 
 export const KIND_COLORS: Record<KindCategory, string> = {
   module:   '#da7756',                          // --claude-500
@@ -241,13 +253,27 @@ export const STATE_COLORS = {
   touched:  '#e99393',                          // --red-300   (changed on this branch)
   blast:    '#eec18a',                          // --amber-300 (calls changed code)
   hot:      '#6dd3a5',                          // --green-300 (just reindexed)
-  dim:      '#3a3731',                          // --gray-700
+  dim:      '#2b2b2b',                          // --vscode-panel-border
 } as const;
 
 export const LINK_COLORS: Record<CodeGraphLinkType, string> = {
-  call: '#a7a6fa',                              // --blue-300
-  ref:  '#78736a',                              // --gray-500
+  call:     '#a7a6fa',                          // --blue-300
+  dispatch: '#6dc4d3',                          // --cyan-300
+  inherit:  '#c69be8',                          // --purple-300
+  ref:      '#78736a',                          // --gray-500
 };
+
+export const LINK_LABELS: Record<CodeGraphLinkType, string> = {
+  call: 'Calls', dispatch: 'May run (via interface)', inherit: 'Extends / implements', ref: 'References',
+};
+
+/** Runtime flow first: what may execute beats what is called directly, beats structure. */
+const LINK_PRIORITY: Record<CodeGraphLinkType, number> = { dispatch: 3, call: 2, inherit: 1, ref: 0 };
+
+/** The type a folded edge shows when several link types join the same pair. */
+export function strongerLink(a: CodeGraphLinkType, b: CodeGraphLinkType): CodeGraphLinkType {
+  return LINK_PRIORITY[b] > LINK_PRIORITY[a] ? b : a;
+}
 
 /**
  * Zone (folder) colors for the coarse levels, where every node is the same kind and the

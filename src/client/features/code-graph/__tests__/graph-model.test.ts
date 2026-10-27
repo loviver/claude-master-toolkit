@@ -11,9 +11,14 @@ import {
   linkEnds,
   mergeGraph,
   neighbourhood,
+  parseDirection,
   placeLabels,
   searchNodes,
+  strongerLink,
   zoneCentroids,
+  zonePalette,
+  ZONE_COLORS,
+  ZONE_OTHER,
   type RenderNode,
 } from '../graph-model';
 
@@ -171,6 +176,27 @@ describe('searchNodes', () => {
   });
 });
 
+describe('strongerLink', () => {
+  it('keeps the type that says most about runtime flow when several fold into one edge', () => {
+    expect(strongerLink('ref', 'call')).toBe('call');
+    expect(strongerLink('call', 'dispatch')).toBe('dispatch');
+    expect(strongerLink('inherit', 'ref')).toBe('inherit');
+    expect(strongerLink('call', 'inherit')).toBe('call');
+  });
+});
+
+describe('parseDirection', () => {
+  it('defaults to callers: an impact view answers "what would this break"', () => {
+    expect(parseDirection(null)).toBe('callers');
+    expect(parseDirection('sideways')).toBe('callers');
+  });
+
+  it('keeps a known direction', () => {
+    expect(parseDirection('deps')).toBe('deps');
+    expect(parseDirection('both')).toBe('both');
+  });
+});
+
 describe('drillTarget', () => {
   it('opens the next level scoped to the clicked node', () => {
     expect(drillTarget(node('src/shared', { kind: 'module', file: null }), 'module')).toEqual({ level: 'file', scope: 'src/shared' });
@@ -210,5 +236,19 @@ describe('kindCategory', () => {
 describe('escapeHtml', () => {
   it('neutralizes markup coming from file and symbol names', () => {
     expect(escapeHtml(`<img src=x onerror="a()">&'`)).toBe('&lt;img src=x onerror=&quot;a()&quot;&gt;&amp;&#39;');
+  });
+});
+
+describe('zonePalette', () => {
+  it('gives the biggest zones the palette in order and the long tail one shared color', () => {
+    const nodes = [
+      ...Array.from({ length: 3 }, (_, i) => node(`b${i}`, { group: 'src/b' })),
+      ...Array.from({ length: 5 }, (_, i) => node(`a${i}`, { group: 'src/a' })),
+      ...ZONE_COLORS.map((_, i) => node(`t${i}`, { group: `tail/${i}` })),
+    ];
+    const palette = zonePalette(nodes);
+    expect(palette.get('src/a')).toBe(ZONE_COLORS[0]);
+    expect(palette.get('src/b')).toBe(ZONE_COLORS[1]);
+    expect(palette.get(`tail/${ZONE_COLORS.length - 1}`)).toBe(ZONE_OTHER);
   });
 });

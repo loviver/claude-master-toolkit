@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync } from 'fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { readManifest, writeManifest, deleteManifest, manifestPath } from '../manifest.js';
+import { readManifest, writeManifest, deleteManifest, manifestPath, assertNotHijacking } from '../manifest.js';
 
 let tmp: string;
 let saved: string | undefined;
@@ -38,5 +38,38 @@ describe('manifest', () => {
     mkdirSync(join(tmp, 'installs'), { recursive: true });
     writeFileSync(manifestPath('codex'), '{nope');
     expect(readManifest('codex')).toBeNull();
+  });
+
+  describe('assertNotHijacking', () => {
+    const owned = (pkgRoot: string) => writeManifest({ agent: 'codex', pkgRoot, installedAt: 'now', entries: [] });
+    const checkout = () => {
+      const dev = join(tmp, 'dev');
+      mkdirSync(join(dev, '.git'), { recursive: true });
+      return dev;
+    };
+
+    // An `npm i -g` copy running `ctk install` used to silently repoint a dev checkout's links.
+    it('refuses a non-git copy taking over an install a git checkout owns', () => {
+      const dev = checkout();
+      owned(dev);
+      mkdirSync(join(tmp, 'npm'));
+      expect(() => assertNotHijacking('codex', { home: tmp, pkgRoot: join(tmp, 'npm') })).toThrow(/git checkout.*--force/s);
+    });
+
+    it('allows it with force, from the owner itself, or from another checkout', () => {
+      const dev = checkout();
+      owned(dev);
+      mkdirSync(join(tmp, 'npm'));
+      expect(() => assertNotHijacking('codex', { home: tmp, pkgRoot: join(tmp, 'npm'), force: true })).not.toThrow();
+      expect(() => assertNotHijacking('codex', { home: tmp, pkgRoot: dev })).not.toThrow();
+      mkdirSync(join(tmp, 'dev2', '.git'), { recursive: true });
+      expect(() => assertNotHijacking('codex', { home: tmp, pkgRoot: join(tmp, 'dev2') })).not.toThrow();
+    });
+
+    it('allows it when there is no manifest or the owner is gone (heals a removed checkout)', () => {
+      expect(() => assertNotHijacking('codex', { home: tmp, pkgRoot: '/npm' })).not.toThrow();
+      owned(join(tmp, 'gone'));
+      expect(() => assertNotHijacking('codex', { home: tmp, pkgRoot: '/npm' })).not.toThrow();
+    });
   });
 });

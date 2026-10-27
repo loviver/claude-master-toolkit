@@ -16,6 +16,7 @@ export type {
   ToolCallStructuredDTO,
   CodeGraphLevel,
   CodeGraphLinkType,
+  CodeGraphDirection,
   CodeGraphNodeDTO,
   CodeGraphLinkDTO,
   CodeGraphStatsDTO,
@@ -28,6 +29,10 @@ export type {
   CodeGraphFileDTO,
   CodeGraphOutlineDTO,
   CodeGraphSourceDTO,
+  CodeGraphSymbolRefDTO,
+  CodeGraphSymbolHitDTO,
+  CodeGraphUsageDTO,
+  CodeGraphSymbolDTO,
 } from '../../shared/api-types';
 import type {
   ModelKey,

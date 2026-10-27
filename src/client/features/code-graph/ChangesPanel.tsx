@@ -1,13 +1,16 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, Crosshair, GitBranch } from 'lucide-react';
-import { Badge, EmptyState, Skeleton } from '../../components/ui';
+import { useState, type CSSProperties } from 'react';
+import VscodeCheckbox from '@vscode-elements/react-elements/dist/components/VscodeCheckbox.js';
+import VscodeCollapsible from '@vscode-elements/react-elements/dist/components/VscodeCollapsible.js';
+import VscodeBadge from '@vscode-elements/react-elements/dist/components/VscodeBadge.js';
 import type { CodeGraphChangeDTO, CodeGraphRiskDTO } from '../../lib/types';
 import { parseQualifiedId } from '../../../shared/indexer/ids';
-import styles from './CodeGraph.module.css';
+import { Codicon } from './workbench/codicons';
+import { Placeholder } from './workbench/Workbench';
+import list from './workbench/list.module.css';
+import styles from './Panels.module.css';
 
 interface ChangesPanelProps {
   risk: CodeGraphRiskDTO | undefined;
-  isLoading: boolean;
   error: string | null;
   worktree: boolean;
   onWorktree: (on: boolean) => void;
@@ -17,119 +20,138 @@ interface ChangesPanelProps {
   onImpact: (symbolId: string) => void;
 }
 
-const TIER_VARIANT: Record<string, 'success' | 'warning' | 'error'> = {
-  DIRECT: 'success', GUARDED: 'warning', DELEGATE: 'error',
-};
 const CALLERS_MAX = 20;
+const basename = (file: string) => file.slice(file.lastIndexOf('/') + 1);
 
 function ChangeRow({ change, onOpen, onImpact }: { change: CodeGraphChangeDTO } & Pick<ChangesPanelProps, 'onOpen' | 'onImpact'>) {
   const [open, setOpen] = useState(false);
   const n = change.callers.length;
   return (
-    <li className={styles.changeItem}>
-      <div className={styles.changeRow}>
+    <li>
+      <div
+        role="treeitem"
+        tabIndex={0}
+        aria-expanded={n > 0 ? open : undefined}
+        className={list.row}
+        title={`${change.file}:${change.startLine}`}
+        onClick={() => onOpen(change.file, [change.startLine, change.endLine], change.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onOpen(change.file, [change.startLine, change.endLine], change.id); }}
+      >
         <button
           type="button"
-          className={styles.changeToggle}
-          aria-expanded={open}
-          disabled={n === 0}
-          onClick={() => setOpen((v) => !v)}
+          className={list.twistie}
           aria-label={open ? 'Hide callers' : 'Show callers'}
+          disabled={n === 0}
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         >
-          {n > 0 && (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+          {n > 0 && <Codicon name={open ? 'chevron-down' : 'chevron-right'} />}
         </button>
-        <button
-          type="button"
-          className={styles.changeName}
-          onClick={() => onOpen(change.file, [change.startLine, change.endLine], change.id)}
-          title={`${change.file}:${change.startLine}`}
-        >
-          {change.symbol}
-          <span>{change.file}</span>
-        </button>
-        <span className={n > 0 ? styles.callerCount : styles.callerCountNone} title={`${n} untouched caller${n === 1 ? '' : 's'} depend on this`}>
-          {n}
+        <Codicon name="symbol-method" className={`${list.icon} ${styles.symbolIcon}`} />
+        <span className={list.label}>{change.symbol}</span>
+        <span className={list.description}>{basename(change.file)}</span>
+        <span className={list.actions}>
+          <button
+            type="button"
+            className={list.action}
+            title="Impact view in the graph"
+            aria-label="Impact view in the graph"
+            onClick={(e) => { e.stopPropagation(); onImpact(change.id); }}
+          >
+            <Codicon name="target" />
+          </button>
         </span>
-        <button type="button" className={styles.changeImpact} onClick={() => onImpact(change.id)} title="Impact view in the graph">
-          <Crosshair size={12} />
-        </button>
+        <VscodeBadge variant="counter" title={`${n} untouched caller${n === 1 ? '' : 's'} depend on this`}>{n}</VscodeBadge>
       </div>
       {open && (
-        <ul className={styles.callerList}>
+        <ul className={list.list} role="group">
           {change.callers.slice(0, CALLERS_MAX).map((id) => {
             const at = parseQualifiedId(id) ?? { file: '', symbol: id };
             return (
               <li key={id}>
-                <button type="button" className={styles.callerItem} onClick={() => onOpen(at.file, null, id)} title={id}>
-                  {at.symbol}<span>{at.file}</span>
+                <button
+                  type="button"
+                  className={list.row}
+                  style={{ '--row-indent': '38px' } as CSSProperties}
+                  onClick={() => onOpen(at.file, null, id)}
+                  title={id}
+                >
+                  <Codicon name="arrow-small-left" className={list.icon} />
+                  <span className={list.label}>{at.symbol}</span>
+                  <span className={list.description}>{at.file}</span>
                 </button>
               </li>
             );
           })}
-          {n > CALLERS_MAX && <li className={styles.muted}>+{n - CALLERS_MAX} more</li>}
+          {n > CALLERS_MAX && <li className={list.empty}>+{n - CALLERS_MAX} more</li>}
         </ul>
       )}
     </li>
   );
 }
 
-export function ChangesPanel({ risk, isLoading, error, worktree, onWorktree, onOpen, onImpact }: ChangesPanelProps) {
+/** Source-control-like view of the diff: changed symbols ranked by who depends on them. */
+export function ChangesPanel({ risk, error, worktree, onWorktree, onOpen, onImpact }: ChangesPanelProps) {
+  const callersAtRisk = risk ? new Set(risk.changes.flatMap((c) => c.callers)).size : 0;
   return (
-    <div className={styles.changes}>
-      <label className={styles.worktreeToggle}>
-        <input type="checkbox" checked={worktree} onChange={(e) => onWorktree(e.target.checked)} />
-        Include uncommitted edits
-      </label>
+    <>
+      <div className={styles.filter}>
+        <VscodeCheckbox
+          label="Include uncommitted edits"
+          checked={worktree}
+          onChange={(e) => onWorktree((e.target as HTMLInputElement).checked)}
+        />
+      </div>
 
       {error ? (
-        <EmptyState icon={GitBranch} title="Changes unavailable" description={error} />
-      ) : isLoading || !risk ? (
-        <Skeleton height={120} radius="sm" />
-      ) : risk.files.length === 0 ? (
-        <EmptyState
-          icon={GitBranch}
-          title="No changes"
-          description={`Nothing differs from ${risk.base}${worktree ? ' (working tree included)' : ''}.`}
-        />
+        <Placeholder icon="error" title="Changes unavailable">{error}</Placeholder>
+      ) : !risk ? null : risk.files.length === 0 ? (
+        <Placeholder icon="check" title="No changes">
+          Nothing differs from <code>{risk.base}</code>{worktree ? ' (working tree included)' : ''}.
+        </Placeholder>
       ) : (
         <>
-          <div className={styles.changeSummary}>
-            <Badge variant={TIER_VARIANT[risk.tier] ?? 'warning'}>{risk.tier}</Badge>
-            <span>
-              vs <code>{risk.base}</code> · score {risk.score.toFixed(2)}
-            </span>
-          </div>
-          <p className={styles.changeFacts}>
+          <p className={styles.summary}>
+            <span className={styles[`tier${risk.tier}`]}>{risk.tier}</span>
+            {' '}vs <code>{risk.base}</code> · score {risk.score.toFixed(2)}
+            <br />
             {risk.files.length} file{risk.files.length === 1 ? '' : 's'} · {risk.changes.length} symbol
-            {risk.changes.length === 1 ? '' : 's'} · {new Set(risk.changes.flatMap((c) => c.callers)).size} callers at risk
+            {risk.changes.length === 1 ? '' : 's'} · {callersAtRisk} callers at risk
           </p>
 
-          <h4 className={styles.inspectorHeading}>Changed symbols <span>by callers</span></h4>
-          {risk.changes.length === 0 ? (
-            <p className={styles.muted}>The diff touches no indexed symbol.</p>
-          ) : (
-            <ul className={styles.changeList}>
-              {risk.changes.map((c) => <ChangeRow key={c.id} change={c} onOpen={onOpen} onImpact={onImpact} />)}
-            </ul>
-          )}
+          <VscodeCollapsible heading="Changed symbols" description="by callers" open>
+            <VscodeBadge variant="counter" slot="decorations">{risk.changes.length}</VscodeBadge>
+            {risk.changes.length === 0 ? (
+              <p className={list.empty}>The diff touches no indexed symbol.</p>
+            ) : (
+              <ul className={list.list} role="tree" aria-label="Changed symbols">
+                {risk.changes.map((c) => <ChangeRow key={c.id} change={c} onOpen={onOpen} onImpact={onImpact} />)}
+              </ul>
+            )}
+          </VscodeCollapsible>
 
-          <h4 className={styles.inspectorHeading}>Changed files <span>{risk.files.length}</span></h4>
-          <ul className={styles.changeList}>
-            {risk.files.map((f) => (
-              <li key={f.file}>
-                <button
-                  type="button"
-                  className={styles.callerItem}
-                  onClick={() => onOpen(f.file, f.ranges[0] ? [f.ranges[0][0], f.ranges[0][1]] : null, null)}
-                  title={f.file}
-                >
-                  {f.file}<span>+{f.added}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <VscodeCollapsible heading="Changed files" open>
+            <VscodeBadge variant="counter" slot="decorations">{risk.files.length}</VscodeBadge>
+            <ul className={list.list} aria-label="Changed files">
+              {risk.files.map((f) => (
+                <li key={f.file}>
+                  <button
+                    type="button"
+                    className={list.row}
+                    onClick={() => onOpen(f.file, f.ranges[0] ? [f.ranges[0][0], f.ranges[0][1]] : null, null)}
+                    title={f.file}
+                  >
+                    <span className={list.twistie} />
+                    <Codicon name="file-code" className={`${list.icon} ${styles.fileIcon}`} />
+                    <span className={`${list.label} ${list.modified}`}>{basename(f.file)}</span>
+                    <span className={list.description}>{f.file}</span>
+                    <span className={`${list.decoration} ${styles.added}`}>+{f.added}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </VscodeCollapsible>
         </>
       )}
-    </div>
+    </>
   );
 }

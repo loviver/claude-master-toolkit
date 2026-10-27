@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { fetchApi, toQueryString } from './api';
 import type {
+  CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphFileDTO,
   CodeGraphLevel,
@@ -8,6 +9,8 @@ import type {
   CodeGraphRevisionDTO,
   CodeGraphRiskDTO,
   CodeGraphSourceDTO,
+  CodeGraphSymbolDTO,
+  CodeGraphSymbolHitDTO,
 } from '../../lib/types';
 
 /** How often a live view checks the index fingerprint (cheap: ~1ms server-side). */
@@ -19,6 +22,7 @@ export interface CodeGraphParams {
   scope?: string;
   focus?: string;
   depth?: number;
+  direction?: CodeGraphDirection;
 }
 
 export function useCodeGraphProjects() {
@@ -40,10 +44,13 @@ export function useCodeGraphRevision(project: string | undefined, live: boolean)
 }
 
 export function useCodeGraph(params: CodeGraphParams, revision: string | undefined) {
-  const { project, level, scope, focus, depth } = params;
+  const { project, level, scope, focus, depth, direction } = params;
   return useQuery({
-    queryKey: ['code-graph', 'graph', project, level, scope, focus, depth, revision],
-    queryFn: () => fetchApi<CodeGraphDTO>(`/code-graph${toQueryString({ project, level, scope, focus, depth })}`, { timeoutMs: 60_000 }),
+    queryKey: ['code-graph', 'graph', project, level, scope, focus, depth, direction, revision],
+    queryFn: () => fetchApi<CodeGraphDTO>(
+      `/code-graph${toQueryString({ project, level, scope, focus, depth, direction })}`,
+      { timeoutMs: 60_000 },
+    ),
     enabled: !!project && !!revision,
     // Keep showing the previous graph while the next revision loads: the view merges, never blanks.
     placeholderData: keepPreviousData,
@@ -70,6 +77,42 @@ export function useCodeGraphSource(project: string | undefined, file: string | n
     enabled: !!project && !!file && !!revision,
     staleTime: Infinity,
     retry: false,
+  });
+}
+
+/** Project-wide Go to Symbol. Shared by the search box (hook) and Ctrl+click's fallback (fetchQuery). */
+export function codeGraphSymbolSearchQuery(project: string | undefined, query: string, revision: string | undefined) {
+  return {
+    queryKey: ['code-graph', 'symbols', project, query, revision],
+    // Not toQueryString: it drops the value 'all', a perfectly good symbol name.
+    queryFn: () => fetchApi<CodeGraphSymbolHitDTO[]>(`/code-graph/symbols?${new URLSearchParams({ project: project ?? '', q: query })}`),
+    staleTime: Infinity,
+  };
+}
+
+export function useCodeGraphSymbolSearch(project: string | undefined, query: string, revision: string | undefined) {
+  return useQuery({
+    ...codeGraphSymbolSearchQuery(project, query, revision),
+    enabled: !!project && !!revision && query.trim().length > 0,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** One symbol's usages, callees and hierarchy. Shared by the symbol view (hook) and Ctrl+click (fetchQuery). */
+export function codeGraphSymbolQuery(project: string | undefined, id: string, revision: string | undefined) {
+  return {
+    queryKey: ['code-graph', 'symbol', project, id, revision],
+    queryFn: () => fetchApi<CodeGraphSymbolDTO>(`/code-graph/symbol${toQueryString({ project, id })}`),
+    staleTime: Infinity,
+    retry: false,
+  };
+}
+
+export function useCodeGraphSymbol(project: string | undefined, id: string | null, revision: string | undefined) {
+  return useQuery({
+    ...codeGraphSymbolQuery(project, id ?? '', revision),
+    enabled: !!project && !!id && !!revision,
+    placeholderData: keepPreviousData,
   });
 }
 

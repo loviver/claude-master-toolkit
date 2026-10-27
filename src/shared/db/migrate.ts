@@ -175,6 +175,8 @@ export function migrate(): void {
   // Indexer schema v4: call-site lines per dep, `{ "file::symbol": [line…] }`
   addColumnSafe('symbols', 'dep_sites', 'TEXT');
   addColumnSafe('indexed_files', 'imports', 'TEXT');
+  // Indexer schema v6: in-project types a class/interface extends or implements, `["file::symbol"…]`
+  addColumnSafe('symbols', 'heritage', 'TEXT');
 
   // v6: Benchmarks — ctk A/B data with export/import provenance
   db.exec(BENCH_SCHEMA_SQL);

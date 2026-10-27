@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type {
   CodeGraphChangeDTO,
   CodeGraphChangedFileDTO,
+  CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphFileDTO,
   CodeGraphLevel,
@@ -29,11 +30,16 @@ export const MAX_LIMIT = 10_000;
 
 export interface CodeGraphOptions {
   level: CodeGraphLevel;
-  /** Keep only files under this path (whole segments: `src/feat` excludes `src/featured`). */
+  /** Keep only files under this path (whole segments: `src/feat` excludes `src/featured`). Ignored with `focus`. */
   scope?: string;
-  /** Node id at `level`; returns its neighbourhood within `depth` hops, both directions. */
+  /**
+   * Node id at `level`, or a folder: returns the neighbourhood within `depth` hops of that
+   * node, or of every node under the folder (whole segments, like `scope`).
+   */
   focus?: string;
   depth?: number;
+  /** Edges the focus walk follows; `both` by default. */
+  direction?: CodeGraphDirection;
   limit?: number;
 }
 
@@ -90,16 +96,21 @@ function fileIndexTimes(db: Database.Database, projectPath: string): Map<string,
   return new Map(rows.map((r) => [r.file, r.indexed_at]));
 }
 
-/** Undirected BFS from `start`, at most `depth` hops. */
-function neighbourhood(start: string, links: CodeGraphLinkDTO[], depth: number): Set<string> {
+/** BFS from `seeds`, at most `depth` hops, along the edges `direction` names. */
+function neighbourhood(
+  seeds: string[],
+  links: CodeGraphLinkDTO[],
+  depth: number,
+  direction: CodeGraphDirection,
+): Set<string> {
   const adj = new Map<string, string[]>();
   const link = (a: string, b: string) => (adj.get(a) ?? adj.set(a, []).get(a)!).push(b);
   for (const l of links) {
-    link(l.source, l.target);
-    link(l.target, l.source);
+    if (direction !== 'callers') link(l.source, l.target);
+    if (direction !== 'deps') link(l.target, l.source);
   }
-  const seen = new Set([start]);
-  let frontier = [start];
+  const seen = new Set(seeds);
+  let frontier = [...seeds];
   for (let hop = 0; hop < depth && frontier.length > 0; hop++) {
     const next: string[] = [];
     for (const id of frontier) {
@@ -116,7 +127,9 @@ function neighbourhood(start: string, links: CodeGraphLinkDTO[], depth: number):
 }
 
 export function buildCodeGraph(db: Database.Database, projectPath: string, opts: CodeGraphOptions): CodeGraph {
-  const { level, scope } = opts;
+  const { level } = opts;
+  // Impact is project-wide: a scope would hide the focus or its callers outside the folder.
+  const scope = opts.focus === undefined ? opts.scope : undefined;
   const graph = loadSymbolGraph(db, projectPath);
   const indexTimes = fileIndexTimes(db, projectPath);
 
@@ -153,16 +166,19 @@ export function buildCodeGraph(db: Database.Database, projectPath: string, opts:
   for (const [id, node] of nodes) node.rank = top > 0 ? rank.get(id)! / top : 0;
 
   let candidates = [...nodes.keys()];
+  let seeds = new Set<string>();
   if (opts.focus !== undefined) {
-    candidates = nodes.has(opts.focus)
-      ? [...neighbourhood(opts.focus, links, opts.depth ?? DEFAULT_DEPTH)]
-      : [];
+    const { focus } = opts;
+    seeds = new Set(nodes.has(focus)
+      ? [focus]
+      : [...nodes.values()].filter((n) => inScope(n.file ?? n.id, focus)).map((n) => n.id));
+    candidates = [...neighbourhood([...seeds], links, opts.depth ?? DEFAULT_DEPTH, opts.direction ?? 'both')];
   }
 
   const limit = Math.min(Math.max(1, opts.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
   const kept = candidates
     .sort((a, b) =>
-      Number(b === opts.focus) - Number(a === opts.focus) ||
+      Number(seeds.has(b)) - Number(seeds.has(a)) ||
       nodes.get(b)!.rank - nodes.get(a)!.rank ||
       a.localeCompare(b))
     .slice(0, limit);
@@ -177,6 +193,7 @@ export function buildCodeGraph(db: Database.Database, projectPath: string, opts:
       totalLinks: links.length,
       unresolved,
       truncated: kept.length < candidates.length,
+      ...(opts.focus !== undefined && { focusMatches: seeds.size }),
     },
   };
 }

@@ -5,7 +5,7 @@ import { basename, dirname, join } from 'path';
 import { ctkPaths } from '../../shared/paths/ctk-home-paths.js';
 import { backupFile } from './fs-util.js';
 import { mergeJsonPatch, removeJsonKey, setJsonKey, unmergeJsonPatch } from './merge-json.js';
-import { deleteManifest, readManifest, writeManifest, type ManifestEntry } from './manifest.js';
+import { assertNotHijacking, deleteManifest, readManifest, writeManifest, type ManifestEntry } from './manifest.js';
 import type { InstallCtx, InstallReport } from './codex.js';
 
 const AGENT = 'claude-code';
@@ -59,6 +59,7 @@ export function installClaude(ctx: InstallCtx): InstallReport {
   const p = paths(ctx);
   if (!existsSync(p.claudeDir)) throw new Error('~/.claude not found: is Claude Code installed?');
   if (!existsSync(p.dist)) throw new Error(`claude-dist not found at ${p.dist}: broken package?`);
+  assertNotHijacking(AGENT, ctx);
 
   const report: InstallReport = { actions: [], warnings: [] };
   const entries: ManifestEntry[] = [];

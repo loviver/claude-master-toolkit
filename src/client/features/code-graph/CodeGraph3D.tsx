@@ -20,7 +20,7 @@ import {
   type RenderLink,
   type RenderNode,
 } from './graph-model';
-import styles from './CodeGraph.module.css';
+import styles from './GraphCanvas.module.css';
 
 type Engine = ForceGraph3DInstance<RenderNode, RenderLink>;
 

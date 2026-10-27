@@ -1,53 +1,79 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, FileCode, Folder, FolderOpen } from 'lucide-react';
-import { Input } from '../../components/ui';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import VscodeTextfield from '@vscode-elements/react-elements/dist/components/VscodeTextfield.js';
 import type { CodeGraphFileDTO } from '../../lib/types';
 import { ancestorDirs, buildFileTree, matchFiles, type TreeDir } from './explorer-model';
-import styles from './CodeGraph.module.css';
+import { Codicon } from './workbench/codicons';
+import list from './workbench/list.module.css';
+import styles from './Panels.module.css';
 
 interface FileTreeProps {
   files: CodeGraphFileDTO[];
   changed: ReadonlySet<string>;
   activeFile: string | null;
+  /** Single click: preview the file. */
   onOpenFile: (file: string) => void;
+  /** Double click: open it in a regular (pinned) tab. */
+  onPinFile: (file: string) => void;
   /** Narrow the graph to a folder. */
   onScope: (dir: string) => void;
+  /** Show the impact view of everything under a folder. */
+  onImpact: (dir: string) => void;
 }
 
-function DirRows({ dir, depth, expanded, toggle, activeFile, onOpenFile, onScope }: {
+/** VSCode tree geometry: 8px per level on top of the 8px row inset. */
+const indent = (depth: number): CSSProperties => ({ '--row-indent': `${8 + depth * 8}px` } as CSSProperties);
+
+function DirRows({ dir, depth, expanded, toggle, activeFile, onOpenFile, onPinFile, onScope, onImpact }: {
   dir: TreeDir;
   depth: number;
   expanded: ReadonlySet<string>;
   toggle: (path: string) => void;
-} & Pick<FileTreeProps, 'activeFile' | 'onOpenFile' | 'onScope'>) {
-  const pad = { paddingLeft: `calc(${depth} * var(--space-3) + var(--space-2))` };
+} & Pick<FileTreeProps, 'activeFile' | 'onOpenFile' | 'onPinFile' | 'onScope' | 'onImpact'>) {
   return (
     <>
       {dir.dirs.map((d) => {
         const open = expanded.has(d.path);
         return (
           <li key={d.path}>
-            <div className={styles.treeRow} style={pad}>
-              <button type="button" className={styles.treeItem} onClick={() => toggle(d.path)} aria-expanded={open} title={d.path}>
-                {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                {open ? <FolderOpen size={13} /> : <Folder size={13} />}
-                <span className={styles.treeName}>{d.name}</span>
-                {d.changed > 0 && <span className={styles.changeDot} title={`${d.changed} changed`} />}
-              </button>
-              <button
-                type="button"
-                className={styles.treeScope}
-                onClick={() => onScope(d.path)}
-                title={`Show only ${d.path} in the graph`}
-              >
-                {d.fileCount}
-              </button>
+            <div
+              role="treeitem"
+              tabIndex={0}
+              aria-expanded={open}
+              className={list.row}
+              style={indent(depth)}
+              title={`${d.path} · ${d.fileCount} files`}
+              onClick={() => toggle(d.path)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(d.path); } }}
+            >
+              <span className={list.twistie}><Codicon name={open ? 'chevron-down' : 'chevron-right'} /></span>
+              <span className={`${list.label} ${d.changed > 0 ? list.modified : ''}`}>{d.name}</span>
+              <span className={list.actions}>
+                <button
+                  type="button"
+                  className={list.action}
+                  title={`Impact of ${d.path}: what uses it`}
+                  aria-label={`Impact of ${d.path}`}
+                  onClick={(e) => { e.stopPropagation(); onImpact(d.path); }}
+                >
+                  <Codicon name="target" />
+                </button>
+                <button
+                  type="button"
+                  className={list.action}
+                  title={`Show only ${d.path} in the graph`}
+                  aria-label={`Show only ${d.path} in the graph`}
+                  onClick={(e) => { e.stopPropagation(); onScope(d.path); }}
+                >
+                  <Codicon name="filter" />
+                </button>
+              </span>
+              {d.changed > 0 && <span className={`${list.decoration} ${list.modified}`} title={`${d.changed} changed`}>●</span>}
             </div>
             {open && (
-              <ul className={styles.treeList}>
+              <ul className={list.list} role="group">
                 <DirRows
                   dir={d} depth={depth + 1} expanded={expanded} toggle={toggle}
-                  activeFile={activeFile} onOpenFile={onOpenFile} onScope={onScope}
+                  activeFile={activeFile} onOpenFile={onOpenFile} onPinFile={onPinFile} onScope={onScope} onImpact={onImpact}
                 />
               </ul>
             )}
@@ -56,28 +82,50 @@ function DirRows({ dir, depth, expanded, toggle, activeFile, onOpenFile, onScope
       })}
       {dir.files.map((f) => (
         <li key={f.path}>
-          <div className={styles.treeRow} style={pad}>
-            <button
-              type="button"
-              className={styles.treeItem}
-              aria-current={f.path === activeFile ? 'true' : undefined}
-              onClick={() => onOpenFile(f.path)}
-              title={f.path}
-            >
-              <span className={styles.treeIndent} />
-              <FileCode size={13} />
-              <span className={styles.treeName}>{f.name}</span>
-              {f.changed && <span className={styles.changeDot} title="Changed" />}
-            </button>
-            {f.symbols > 0 && <span className={styles.treeCount}>{f.symbols}</span>}
-          </div>
+          <FileRow
+            file={f.path} name={f.name} changed={f.changed} symbols={f.symbols} style={indent(depth)}
+            active={f.path === activeFile} onOpenFile={onOpenFile} onPinFile={onPinFile}
+          />
         </li>
       ))}
     </>
   );
 }
 
-export function FileTree({ files, changed, activeFile, onOpenFile, onScope }: FileTreeProps) {
+function FileRow({ file, name, description, changed, symbols, style, active, onOpenFile, onPinFile }: {
+  file: string;
+  name: string;
+  description?: string;
+  changed: boolean;
+  symbols?: number;
+  style?: CSSProperties;
+  active: boolean;
+} & Pick<FileTreeProps, 'onOpenFile' | 'onPinFile'>) {
+  return (
+    <div
+      role="treeitem"
+      tabIndex={0}
+      aria-current={active ? 'true' : undefined}
+      className={list.row}
+      style={style}
+      title={symbols ? `${file} · ${symbols} symbols` : file}
+      onClick={() => onOpenFile(file)}
+      onDoubleClick={() => onPinFile(file)}
+      onKeyDown={(e) => { if (e.key === 'Enter') onPinFile(file); }}
+    >
+      <span className={list.twistie} />
+      <Codicon name="file-code" className={`${list.icon} ${styles.fileIcon}`} />
+      <span className={`${list.label} ${changed ? list.modified : ''}`}>{name}</span>
+      {description && <span className={list.description}>{description}</span>}
+      {changed && <span className={`${list.decoration} ${list.modified}`} title="Modified">M</span>}
+    </div>
+  );
+}
+
+const dirname = (file: string) => file.slice(0, Math.max(0, file.lastIndexOf('/')));
+const basename = (file: string) => file.slice(file.lastIndexOf('/') + 1);
+
+export function FileTree({ files, changed, activeFile, onOpenFile, onPinFile, onScope, onImpact }: FileTreeProps) {
   const tree = useMemo(() => buildFileTree(files, changed), [files, changed]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(tree.dirs.map((d) => d.path)));
   const [query, setQuery] = useState('');
@@ -99,44 +147,39 @@ export function FileTree({ files, changed, activeFile, onOpenFile, onScope }: Fi
   });
 
   return (
-    <div className={styles.tree}>
-      <div className={styles.sidebarSearch}>
-        <Input
+    <>
+      <div className={styles.filter}>
+        <VscodeTextfield
           type="search"
-          placeholder={`Filter ${files.length.toLocaleString()} files…`}
+          placeholder={`Filter ${files.length.toLocaleString()} files`}
           aria-label="Filter files"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) onOpenFile(matches[0].file); }}
-        />
+          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) onPinFile(matches[0].file); }}
+        >
+          <Codicon name="filter" className={styles.filterIcon} slot="content-before" />
+        </VscodeTextfield>
       </div>
       {query.trim() ? (
-        <ul className={styles.treeList}>
-          {matches.length === 0 && <li className={styles.muted}>No file matches</li>}
+        <ul className={list.list} role="tree" aria-label="Matching files">
+          {matches.length === 0 && <li className={list.empty}>No file matches</li>}
           {matches.map((f) => (
             <li key={f.file}>
-              <button
-                type="button"
-                className={`${styles.treeItem} ${styles.treeMatch}`}
-                aria-current={f.file === activeFile ? 'true' : undefined}
-                onClick={() => onOpenFile(f.file)}
-                title={f.file}
-              >
-                <FileCode size={13} />
-                <span className={styles.treeName}>{f.file}</span>
-                {changed.has(f.file) && <span className={styles.changeDot} title="Changed" />}
-              </button>
+              <FileRow
+                file={f.file} name={basename(f.file)} description={dirname(f.file)} changed={changed.has(f.file)}
+                active={f.file === activeFile} onOpenFile={onOpenFile} onPinFile={onPinFile}
+              />
             </li>
           ))}
         </ul>
       ) : (
-        <ul className={styles.treeList}>
+        <ul className={list.list} role="tree" aria-label="Files">
           <DirRows
             dir={tree} depth={0} expanded={expanded} toggle={toggle}
-            activeFile={activeFile} onOpenFile={onOpenFile} onScope={onScope}
+            activeFile={activeFile} onOpenFile={onOpenFile} onPinFile={onPinFile} onScope={onScope} onImpact={onImpact}
           />
         </ul>
       )}
-    </div>
+    </>
   );
 }

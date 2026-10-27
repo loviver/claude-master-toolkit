@@ -4,11 +4,13 @@ import { CodexAdapter } from '../../shared/agents/codex.js';
 import { ctkHome, ctkPaths } from '../../shared/paths/ctk-home-paths.js';
 import { removeManagedBlock, upsertManagedBlock } from './merge-toml.js';
 import { mergeJsonPatch, unmergeJsonPatch } from './merge-json.js';
-import { deleteManifest, readManifest, writeManifest, type ManifestEntry } from './manifest.js';
+import { assertNotHijacking, deleteManifest, readManifest, writeManifest, type ManifestEntry } from './manifest.js';
 
 export interface InstallCtx {
   home: string;
   pkgRoot: string;
+  /** Take over an install another (git checkout) package root owns. */
+  force?: boolean;
 }
 
 export interface InstallReport {
@@ -62,6 +64,7 @@ const mcpBody = (pkgRoot: string) =>
 export function installCodex(ctx: InstallCtx): InstallReport {
   const codexDir = adapter.globalConfigDir(ctx.home);
   if (!existsSync(codexDir)) throw new Error('~/.codex not found: is Codex CLI installed?');
+  assertNotHijacking('codex', ctx);
 
   const report: InstallReport = { actions: [], warnings: [] };
   const entries: ManifestEntry[] = [];

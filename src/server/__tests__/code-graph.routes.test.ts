@@ -13,6 +13,8 @@ import type {
   CodeGraphProjectDTO,
   CodeGraphRevisionDTO,
   CodeGraphSourceDTO,
+  CodeGraphSymbolDTO,
+  CodeGraphSymbolHitDTO,
 } from '../../shared/api-types';
 
 const PROJECT = '/tmp/ctk-code-graph-project-does-not-exist';
@@ -114,6 +116,44 @@ describe('code graph API', () => {
     expect((await get('/api/code-graph')).statusCode).toBe(400);
     expect((await get(`/api/code-graph?project=${encodeURIComponent(PROJECT)}&level=galaxy`)).statusCode).toBe(400);
     expect((await get(`/api/code-graph?project=${encodeURIComponent(PROJECT)}&depth=-1`)).statusCode).toBe(400);
+    expect((await get(`/api/code-graph?project=${encodeURIComponent(PROJECT)}&direction=sideways`)).statusCode).toBe(400);
+  });
+
+  it('walks the focus in the requested direction (each direction cached apart)', async () => {
+    const url = (direction: string) =>
+      `/api/code-graph?project=${encodeURIComponent(PROJECT)}&level=file&focus=src/core.ts&direction=${direction}`;
+    const deps = (await get(url('deps'))).json<CodeGraphDTO>();
+    expect(deps.nodes.map((n) => n.id)).toEqual(['src/core.ts']);
+    expect(deps.stats.focusMatches).toBe(1);
+    const callers = (await get(url('callers'))).json<CodeGraphDTO>();
+    expect(callers.nodes.map((n) => n.id)).toContain('src/app/a.ts');
+  });
+
+  it('searches symbols project-wide, best match first', async () => {
+    const res = await get(`/api/code-graph/symbols?project=${encodeURIComponent(PROJECT)}&q=use`);
+    expect(res.statusCode).toBe(200);
+    const hits = res.json<CodeGraphSymbolHitDTO[]>();
+    expect(hits.map((h) => h.id)).toEqual(['src/app/a.ts::useA', 'src/app/b.ts::useB']);
+    expect(hits[0]).toMatchObject({ file: 'src/app/a.ts', startLine: 1, endLine: 5, kind: 'function' });
+  });
+
+  it('rejects a symbol search without a query or with a bad limit', async () => {
+    expect((await get(`/api/code-graph/symbols?project=${encodeURIComponent(PROJECT)}`)).statusCode).toBe(400);
+    expect((await get(`/api/code-graph/symbols?project=${encodeURIComponent(PROJECT)}&q=a&limit=0`)).statusCode).toBe(400);
+  });
+
+  it('returns one symbol with its usages', async () => {
+    const res = await get(`/api/code-graph/symbol?project=${encodeURIComponent(PROJECT)}&id=${encodeURIComponent('src/core.ts::core')}`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json<CodeGraphSymbolDTO>();
+    expect(body.id).toBe('src/core.ts::core');
+    expect(body.callers.map((c) => c.id)).toEqual(['src/app/a.ts::useA', 'src/app/b.ts::useB']);
+  });
+
+  it('answers 404 for an unknown symbol and 400 without an id', async () => {
+    const base = `/api/code-graph/symbol?project=${encodeURIComponent(PROJECT)}`;
+    expect((await get(`${base}&id=${encodeURIComponent('src/core.ts::nope')}`)).statusCode).toBe(404);
+    expect((await get(base)).statusCode).toBe(400);
   });
 
   it('reports risk as 422 when the project has no git checkout, instead of a 500', async () => {

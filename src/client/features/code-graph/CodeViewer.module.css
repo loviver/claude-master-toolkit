@@ -1,0 +1,101 @@
+/* Read-only editor: VSCode gutter (line numbers, then the dirty-diff bar), 13px editor font. */
+
+.viewer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.outline {
+  width: 260px;
+}
+
+.loading {
+  position: relative;
+  flex: 1;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  user-select: text;
+}
+
+.code {
+  position: relative;
+  margin: 0;
+  padding: 0 0 50vh;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+  line-height: 19px;
+  background: transparent !important;
+}
+
+.line {
+  display: flex;
+  min-width: max-content;
+}
+
+.lineActive {
+  background: var(--vscode-editor-rangeHighlightBackground);
+  box-shadow: inset 0 1px 0 var(--vscode-editor-lineHighlightBorder), inset 0 -1px 0 var(--vscode-editor-lineHighlightBorder);
+}
+
+.gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 56px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground);
+  user-select: none;
+  background: var(--vscode-editor-background);
+}
+
+.lineActive .gutter {
+  color: var(--vscode-editorLineNumber-activeForeground);
+}
+
+/* Dirty-diff decoration: the 3px bar VSCode draws right of the line numbers. */
+.dirty {
+  position: sticky;
+  left: 56px;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 3px;
+  margin-right: 14px;
+  background: var(--vscode-editor-background);
+}
+
+.dirtyOn {
+  background: var(--vscode-editorGutter-modifiedBackground);
+}
+
+.gutterSymbol {
+  padding: 0;
+  font: inherit;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.gutterSymbol:hover {
+  text-decoration: underline;
+}
+
+.text {
+  padding-right: 16px;
+  white-space: pre;
+}
+
+/* Ctrl/Cmd held: identifiers are links to their declaration. */
+.linking [data-ident]:hover {
+  color: var(--vscode-editorLink-activeForeground, var(--vscode-textLink-activeForeground));
+  text-decoration: underline;
+  cursor: pointer;
+}

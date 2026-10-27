@@ -1,0 +1,138 @@
+/* Side bar views (explorer, changes, details). Rows come from workbench/list.module.css. */
+
+.filter {
+  flex-shrink: 0;
+  padding: 0 12px 8px 20px;
+}
+
+.filter vscode-textfield {
+  width: 100%;
+}
+
+.filterIcon {
+  padding-left: 4px;
+  opacity: 0.7;
+}
+
+.fileIcon {
+  color: var(--vscode-textLink-foreground);
+}
+
+.symbolIcon {
+  color: #b180d7; /* VSCode symbolIcon.methodForeground */
+}
+
+.added {
+  color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+/* ── Changes ── */
+
+.summary {
+  margin: 0;
+  padding: 0 12px 8px 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--vscode-descriptionForeground);
+}
+
+.summary code,
+.inspectorHeader code {
+  font-family: var(--vscode-editor-font-family);
+  color: var(--vscode-textPreformat-foreground);
+}
+
+.tierDIRECT { color: var(--vscode-gitDecoration-addedResourceForeground); font-weight: 600; }
+.tierGUARDED { color: var(--vscode-gitDecoration-modifiedResourceForeground); font-weight: 600; }
+.tierDELEGATE { color: var(--vscode-errorForeground); font-weight: 600; }
+
+/* ── Details ── */
+
+.inspectorHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 12px 20px;
+  user-select: text;
+}
+
+.inspectorTitle {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
+  color: var(--vscode-tab-activeForeground);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.touched,
+.blast {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.touched { color: var(--vscode-gitDecoration-modifiedResourceForeground); }
+.blast { color: var(--vscode-errorForeground); }
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.location span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.signature {
+  margin: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--vscode-textPreformat-foreground);
+  background: var(--vscode-textCodeBlock-background);
+  border-radius: 3px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.facts dt {
+  color: var(--vscode-descriptionForeground);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

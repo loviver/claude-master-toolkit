@@ -18,6 +18,8 @@ export interface IndexedSymbol {
   depSites?: Record<string, number[]>;
   /** Non-call references to in-project top-level symbols (types, consts…). Qualified `file::symbol`. */
   refs: string[];
+  /** Classes/interfaces only: in-project types it extends or implements. Qualified `file::symbol`. */
+  heritage?: string[];
   tokensEstimate: number;
   contentHash: string;
 }
@@ -85,9 +87,21 @@ function extractSignature(node: Node): string | null {
 }
 
 /**
+ * The class or interface a member declaration belongs to: members are indexed as
+ * `Owner.member`, so an edge to one must carry the owner to land on a node.
+ */
+function memberOwner(decl: Node): string | null {
+  const parent = decl.getParent();
+  return parent && (Node.isClassDeclaration(parent) || Node.isInterfaceDeclaration(parent))
+    ? parent.getName() ?? null
+    : null;
+}
+
+/**
  * Resolve a call's callee to the DECLARED name of the symbol it targets,
- * using the type-checker. For `svc.doThing()` this returns `doThing` (the
- * method), not `svc` (the receiver); for an imported `parseThing()` it follows
+ * using the type-checker. For `svc.doThing()` this returns `Svc.doThing` (the
+ * method, as indexed), not `svc` (the receiver); through an interface it returns
+ * `Strategy.run`, which the graph fans out to implementations. For an imported `parseThing()` it follows
  * the import alias to the real declaration. Calls that resolve into a `.d.ts`
  * or `node_modules` are dropped — they are never in-project edges. When the
  * checker can't resolve (dynamic/`any` dispatch) we fall back to the BARE
@@ -107,7 +121,8 @@ function resolveCallTarget(expr: Node, projectPath: string): string | null {
       if (!name || name === '__type' || !/^[A-Za-z_]/.test(name)) return null;
       // Qualify with the target's file so same-named symbols don't collide.
       // No declaration file (rare builtin) → bare name.
-      return fp ? qualifyId(relative(projectPath, fp), name) : name;
+      const owner = decl ? memberOwner(decl) : null;
+      return fp ? qualifyId(relative(projectPath, fp), owner ? `${owner}.${name}` : name) : name;
     }
   } catch {
     // fall through to syntactic extraction
@@ -180,9 +195,9 @@ function resolveRefTarget(id: Node, projectPath: string): string | null {
  * symbols. Kept apart from `deps` so call-edge blast radius isn't inflated by
  * type usage. Excludes the symbol itself and anything already a call edge.
  */
-function extractRefs(node: Node, projectPath: string, ownId: string, deps: string[]): string[] {
+function extractRefs(node: Node, projectPath: string, ownId: string, skipIds: string[]): string[] {
   const refs = new Set<string>();
-  const skip = new Set([ownId, ...deps]);
+  const skip = new Set([ownId, ...skipIds]);
   for (const id of node.getDescendantsOfKind(SyntaxKind.Identifier)) {
     const parent = id.getParent();
     // `obj.prop`: the property name is a member, never a top-level symbol.
@@ -191,6 +206,21 @@ function extractRefs(node: Node, projectPath: string, ownId: string, deps: strin
     if (resolved && !skip.has(resolved)) refs.add(resolved);
   }
   return Array.from(refs).slice(0, 50);
+}
+
+/** In-project types a class or interface extends / implements, in declaration order. */
+function extractHeritage(node: Node, projectPath: string): string[] {
+  const clauses = Node.isClassDeclaration(node)
+    ? [node.getExtends(), ...node.getImplements()]
+    : Node.isInterfaceDeclaration(node)
+      ? node.getExtends()
+      : [];
+  const out: string[] = [];
+  for (const clause of clauses) {
+    const target = clause && resolveRefTarget(clause.getExpression(), projectPath);
+    if (target && !out.includes(target)) out.push(target);
+  }
+  return out;
 }
 
 export function collectImports(sourceFile: SourceFile): FileImport[] {
@@ -221,6 +251,7 @@ export function collectSymbols(
   const pushSymbol = (node: Node, name: string, kind: string, exported: boolean) => {
     const text = node.getText();
     const { deps, sites } = extractDeps(node, projectPath);
+    const heritage = kind === 'class' || kind === 'interface' ? extractHeritage(node, projectPath) : undefined;
     out.push({
       projectPath,
       file: relFile,
@@ -232,7 +263,8 @@ export function collectSymbols(
       exported,
       deps,
       depSites: sites,
-      refs: extractRefs(node, projectPath, qualifyId(relFile, name), deps),
+      refs: extractRefs(node, projectPath, qualifyId(relFile, name), [...deps, ...(heritage ?? [])]),
+      ...(heritage && { heritage }),
       tokensEstimate: estimateTokens(text),
       contentHash: hashContent(text),
     });

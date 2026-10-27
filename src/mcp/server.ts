@@ -4,11 +4,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerTools } from './tools.js';
 import { closeSharedDb } from './handlers.js';
 import { ensureMigrated } from '../shared/paths/ctk-home.js';
+import { CTK_VERSION } from '../shared/version.js';
 
 async function main(): Promise<void> {
   ensureMigrated();
   const server = new McpServer(
-    { name: 'ctk', version: '0.5.2' },
+    { name: 'ctk', version: CTK_VERSION },
     { capabilities: { tools: {} } },
   );
 

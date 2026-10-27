@@ -9,13 +9,16 @@ import { migrate } from '../db/migrate.js';
 // arrow-fn signatures — a v2 index lacks all of it, so it must rebuild.
 // v4: adds symbols.dep_sites (call-site lines per dep) — older rows lack it, so rebuild.
 // v5: typed non-function consts get a signature (`useX: Hook<T>`) — v4 rows hold null.
-export const INDEXER_SCHEMA_VERSION = 5;
+// v6: member call edges carry their owner (`file::Svc.doThing`, matching how methods are
+// indexed — v5 edges to methods resolved to no node) + symbols.heritage (extends/implements).
+export const INDEXER_SCHEMA_VERSION = 6;
 
 // migrate() only runs on a fresh DB, so an existing DB from an older ctk needs its index columns added here.
 const INDEX_COLUMNS: ReadonlyArray<[table: string, col: string]> = [
   ['symbols', 'refs'],
   ['symbols', 'referrers'],
   ['symbols', 'dep_sites'],
+  ['symbols', 'heritage'],
   ['indexed_files', 'imports'],
 ];
 
