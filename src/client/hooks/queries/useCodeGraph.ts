@@ -1,6 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { fetchApi, toQueryString } from './api';
+import { DIFF_FOCUS } from '../../../shared/api-types';
 import type {
+  CodeGraphDiffDTO,
   CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphFileDTO,
@@ -23,6 +25,10 @@ export interface CodeGraphParams {
   focus?: string;
   depth?: number;
   direction?: CodeGraphDirection;
+  /** Node cap; the server default (2000) when absent. */
+  limit?: number;
+  /** With the diff focus: count uncommitted edits too. */
+  worktree?: boolean;
 }
 
 export function useCodeGraphProjects() {
@@ -44,11 +50,12 @@ export function useCodeGraphRevision(project: string | undefined, live: boolean)
 }
 
 export function useCodeGraph(params: CodeGraphParams, revision: string | undefined) {
-  const { project, level, scope, focus, depth, direction } = params;
+  const { project, level, scope, focus, depth, direction, limit } = params;
+  const worktree = focus === DIFF_FOCUS && params.worktree ? 1 : undefined;
   return useQuery({
-    queryKey: ['code-graph', 'graph', project, level, scope, focus, depth, direction, revision],
+    queryKey: ['code-graph', 'graph', project, level, scope, focus, depth, direction, limit, worktree, revision],
     queryFn: () => fetchApi<CodeGraphDTO>(
-      `/code-graph${toQueryString({ project, level, scope, focus, depth, direction })}`,
+      `/code-graph${toQueryString({ project, level, scope, focus, depth, direction, limit, worktree })}`,
       { timeoutMs: 60_000 },
     ),
     enabled: !!project && !!revision,
@@ -75,6 +82,26 @@ export function useCodeGraphSource(project: string | undefined, file: string | n
     queryKey: ['code-graph', 'source', project, file, revision],
     queryFn: () => fetchApi<CodeGraphSourceDTO>(`/code-graph/source${toQueryString({ project, file: file ?? undefined })}`),
     enabled: !!project && !!file && !!revision,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** One changed file's diff vs the branch base; `worktree` counts uncommitted edits, like the risk query. */
+export function useCodeGraphDiff(
+  project: string | undefined,
+  file: string | null,
+  base: string | undefined,
+  worktree: boolean,
+  revision: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['code-graph', 'diff', project, file, base, worktree, revision],
+    queryFn: () => fetchApi<CodeGraphDiffDTO>(
+      `/code-graph/diff${toQueryString({ project, file: file ?? undefined, base, worktree: worktree ? 1 : undefined })}`,
+    ),
+    enabled: enabled && !!project && !!file && !!revision,
     staleTime: Infinity,
     retry: false,
   });

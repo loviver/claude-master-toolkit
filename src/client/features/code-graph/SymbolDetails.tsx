@@ -115,7 +115,7 @@ export function SymbolDetails({ project, id, revision, onOpen, onInspect, onImpa
   const location = `${s.file}:${s.startLine}`;
   const plain = (r: CodeGraphSymbolRefDTO) => <SymbolRow symbol={r} onOpen={() => onOpen(r)} onInspect={() => onInspect(r)} />;
   return (
-    <div aria-label="Symbol">
+    <div className={styles.inspector} aria-label="Symbol">
       {query.isFetching && <ProgressLine />}
       <header className={styles.inspectorHeader}>
         <h3 className={styles.inspectorTitle}>

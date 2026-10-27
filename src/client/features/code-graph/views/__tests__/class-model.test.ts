@@ -5,7 +5,7 @@ import { callTreeChildren, isRecursive } from '../call-tree-model';
 
 const node = (id: string, kind: string, extra: Partial<CodeGraphNodeDTO> = {}): CodeGraphNodeDTO => ({
   id, label: id.split('::')[1], kind, file: id.split('::')[0], group: 'src', rank: 0, size: 1,
-  exported: true, signature: null, startLine: 1, endLine: 2, indexedAt: 0, ...extra,
+  exported: true, signature: null, startLine: 1, endLine: 2, indexedAt: 0, loc: 2, callers: 0, churn: 0, ...extra,
 });
 const link = (source: string, target: string, type: 'call' | 'ref' | 'inherit' | 'dispatch') => ({ source, target, type, weight: 1 });
 

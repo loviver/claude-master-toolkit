@@ -99,3 +99,57 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Review diff: both line numbers, the +/− mark, VSCode's inserted/removed line backgrounds. */
+.diffGutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: 44px 44px;
+  width: 96px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground);
+  user-select: none;
+  background: var(--vscode-editor-background);
+}
+
+.diffMark {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  user-select: none;
+}
+
+.diffAdd {
+  background: var(--vscode-diffEditor-insertedLineBackground, rgba(155, 185, 85, 0.2));
+}
+
+.diffAdd .diffMark {
+  color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.diffDel {
+  background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.2));
+}
+
+.diffDel .diffMark {
+  color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.diffHunk {
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-diffEditor-unchangedRegionBackground, var(--vscode-sideBar-background));
+}
+
+.diffSection {
+  font-style: italic;
+}
+
+.diffMeta {
+  margin-right: 8px;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}

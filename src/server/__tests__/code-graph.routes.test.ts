@@ -2,12 +2,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { execFileSync } from 'child_process';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import type { FastifyInstance } from 'fastify';
 import { migrate } from '../../shared/db/migrate';
 import { closeDb } from '../../shared/db/db';
 import { buildApp } from '../index';
 import type {
+  CodeGraphDiffDTO,
   CodeGraphDTO,
   CodeGraphFileDTO,
   CodeGraphProjectDTO,
@@ -161,6 +163,12 @@ describe('code graph API', () => {
     expect(res.statusCode).toBe(422);
     expect(res.json()).toHaveProperty('error');
   });
+
+  it('answers the diff-impact graph (focus=@diff) as 422 without a git checkout', async () => {
+    const res = await get(`/api/code-graph?project=${encodeURIComponent(PROJECT)}&level=file&focus=%40diff`);
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toHaveProperty('error');
+  });
 });
 
 describe('code graph explorer API (files + source)', () => {
@@ -243,5 +251,102 @@ describe('code graph explorer API (files + source)', () => {
     const res = await get('source', { project: repo, file: 'src/gone.ts' });
     expect(res.statusCode).toBe(404);
     expect(res.json<{ error: string }>().error).toMatch(/no longer on disk/);
+  });
+});
+
+describe('code graph review API (diff)', () => {
+  let dir: string;
+  let repo: string;
+  let app: FastifyInstance;
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'ctk-code-graph-diff-'));
+    repo = join(dir, 'repo');
+    mkdirSync(join(repo, 'src'), { recursive: true });
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 't@t');
+    git('config', 'user.name', 't');
+    writeFileSync(join(repo, 'src/core.ts'), 'export function core() {\n  return 1;\n}\n');
+    writeFileSync(join(repo, 'src/same.ts'), 'export const same = 1;\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'feat');
+    writeFileSync(join(repo, 'src/core.ts'), 'export function core() {\n  return 2;\n}\n');
+    writeFileSync(join(repo, 'src/new.test.ts'), 'it(1);\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'feat');
+    // Uncommitted: only visible with worktree=1.
+    writeFileSync(join(repo, 'src/same.ts'), 'export const same = 2;\n');
+
+    process.env.CTK_DB_PATH = join(dir, 'ctk.sqlite');
+    closeDb();
+    migrate();
+    const db = new Database(process.env.CTK_DB_PATH);
+    try {
+      // Only core.ts is indexed: new.test.ts is the "changed but not indexed" case a reviewer hits.
+      db.prepare(
+        `INSERT INTO symbols (project_path, file, symbol, kind, signature, start_line, end_line, exported,
+           deps, callers, refs, tokens_estimate, content_hash, updated_at)
+         VALUES (?, 'src/core.ts', 'core', 'function', '', 1, 3, 1, '[]', '[]', '[]', 0, 'h', 0)`,
+      ).run(repo);
+      db.prepare(`INSERT INTO indexed_files (project_path, file, hash, indexed_at) VALUES (?, 'src/core.ts', 'h', 100)`).run(repo);
+    } finally {
+      db.close();
+    }
+    app = await buildApp({ serveStatic: false });
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    closeDb();
+    delete process.env.CTK_DB_PATH;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const get = (path: string, query: Record<string, string>) =>
+    app.inject({ method: 'GET', url: `/api/code-graph/${path}?${new URLSearchParams(query)}` });
+
+  it('serves a changed file as hunks against the merge-base', async () => {
+    const res = await get('diff', { project: repo, file: 'src/core.ts', base: 'main' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<CodeGraphDiffDTO>();
+    expect(body).toMatchObject({ file: 'src/core.ts', base: 'main', worktree: false, language: 'typescript', status: 'modified', binary: false });
+    expect(body.hunks[0].lines).toEqual([
+      { kind: 'context', old: 1, new: 1, text: 'export function core() {' },
+      { kind: 'del', old: 2, new: null, text: '  return 1;' },
+      { kind: 'add', old: null, new: 2, text: '  return 2;' },
+      { kind: 'context', old: 3, new: 3, text: '}' },
+    ]);
+  });
+
+  it('serves the diff of a changed file the index never saw', async () => {
+    const res = await get('diff', { project: repo, file: 'src/new.test.ts', base: 'main' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CodeGraphDiffDTO>().status).toBe('added');
+  });
+
+  it('counts uncommitted edits only with worktree=1', async () => {
+    expect((await get('diff', { project: repo, file: 'src/same.ts', base: 'main' })).statusCode).toBe(404);
+    const res = await get('diff', { project: repo, file: 'src/same.ts', base: 'main', worktree: '1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CodeGraphDiffDTO>().worktree).toBe(true);
+  });
+
+  it('refuses files outside the diff, traversal and bad input', async () => {
+    expect((await get('diff', { project: repo, file: '../secret', base: 'main' })).statusCode).toBe(404);
+    expect((await get('diff', { project: repo, file: 'src/other.ts', base: 'main' })).statusCode).toBe(404);
+    expect((await get('diff', { project: repo, base: 'main' })).statusCode).toBe(400);
+    expect((await get('diff', { project: repo, file: 'src/core.ts', base: '--output=/tmp/x' })).statusCode).toBe(400);
+  });
+
+  it('reports an unknown base as 422', async () => {
+    expect((await get('diff', { project: repo, file: 'src/core.ts', base: 'nope' })).statusCode).toBe(422);
+  });
+
+  it('lets the source viewer open a changed file the index does not list', async () => {
+    const res = await get('source', { project: repo, file: 'src/new.test.ts' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<CodeGraphSourceDTO>()).toMatchObject({ content: 'it(1);\n', outline: [] });
   });
 });

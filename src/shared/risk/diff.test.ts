@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUnifiedDiff } from './diff.js';
+import { parseFileDiff, parseNameStatus, parseUnifiedDiff } from './diff.js';
 
 describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
   it('a single hunk with 3 added lines → one range on the + side', () => {
@@ -15,7 +15,7 @@ describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
     ].join('\n');
 
     expect(parseUnifiedDiff(diff)).toEqual([
-      { file: 'src/foo.ts', start: 11, end: 13, added: 3 },
+      { file: 'src/foo.ts', start: 11, end: 13, added: 3, removed: 0 },
     ]);
   });
 
@@ -29,7 +29,7 @@ describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
     ].join('\n');
 
     expect(parseUnifiedDiff(diff)).toEqual([
-      { file: 'src/bar.ts', start: 5, end: 5, added: 1 },
+      { file: 'src/bar.ts', start: 5, end: 5, added: 1, removed: 1 },
     ]);
   });
 
@@ -46,8 +46,8 @@ describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
     ].join('\n');
 
     expect(parseUnifiedDiff(diff)).toEqual([
-      { file: 'src/baz.ts', start: 1, end: 2, added: 2 },
-      { file: 'src/baz.ts', start: 22, end: 22, added: 1 },
+      { file: 'src/baz.ts', start: 1, end: 2, added: 2, removed: 0 },
+      { file: 'src/baz.ts', start: 22, end: 22, added: 1, removed: 1 },
     ]);
   });
 
@@ -66,8 +66,8 @@ describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
     ].join('\n');
 
     expect(parseUnifiedDiff(diff)).toEqual([
-      { file: 'src/one.ts', start: 1, end: 1, added: 1 },
-      { file: 'src/two.ts', start: 4, end: 5, added: 2 },
+      { file: 'src/one.ts', start: 1, end: 1, added: 1, removed: 0 },
+      { file: 'src/two.ts', start: 4, end: 5, added: 2, removed: 0 },
     ]);
   });
 
@@ -81,7 +81,7 @@ describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
     ].join('\n');
 
     expect(parseUnifiedDiff(diff)).toEqual([
-      { file: 'src/del.ts', start: 23, end: 23, added: 0 },
+      { file: 'src/del.ts', start: 23, end: 23, added: 0, removed: 2 },
     ]);
   });
 
@@ -102,5 +102,105 @@ describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
 
   it('an empty diff → no ranges', () => {
     expect(parseUnifiedDiff('')).toEqual([]);
+  });
+});
+
+describe('parseFileDiff — one file diff to reviewable hunks', () => {
+  it('numbers context, deleted and added lines on their own side', () => {
+    const diff = [
+      'diff --git a/src/foo.ts b/src/foo.ts',
+      'index abc1234..def5678 100644',
+      '--- a/src/foo.ts',
+      '+++ b/src/foo.ts',
+      '@@ -3,3 +3,3 @@ function foo() {',
+      ' keep',
+      '-old',
+      '+new',
+      ' tail',
+    ].join('\n');
+
+    expect(parseFileDiff(diff)).toEqual({
+      status: 'modified',
+      binary: false,
+      hunks: [{
+        oldStart: 3,
+        newStart: 3,
+        section: 'function foo() {',
+        lines: [
+          { kind: 'context', old: 3, new: 3, text: 'keep' },
+          { kind: 'del', old: 4, new: null, text: 'old' },
+          { kind: 'add', old: null, new: 4, text: 'new' },
+          { kind: 'context', old: 5, new: 5, text: 'tail' },
+        ],
+      }],
+    });
+  });
+
+  it('a new file is "added" and its lines only have a new side', () => {
+    const diff = [
+      'diff --git a/a.ts b/a.ts',
+      'new file mode 100644',
+      '--- /dev/null',
+      '+++ b/a.ts',
+      '@@ -0,0 +1,2 @@',
+      '+one',
+      '+two',
+    ].join('\n');
+
+    const d = parseFileDiff(diff);
+    expect(d.status).toBe('added');
+    expect(d.hunks[0].lines).toEqual([
+      { kind: 'add', old: null, new: 1, text: 'one' },
+      { kind: 'add', old: null, new: 2, text: 'two' },
+    ]);
+  });
+
+  it('a removed file is "deleted"', () => {
+    const diff = ['--- a/a.ts', '+++ /dev/null', '@@ -1 +0,0 @@', '-gone'].join('\n');
+    const d = parseFileDiff(diff);
+    expect(d.status).toBe('deleted');
+    expect(d.hunks[0].lines).toEqual([{ kind: 'del', old: 1, new: null, text: 'gone' }]);
+  });
+
+  it('skips the "no newline" marker and keeps several hunks apart', () => {
+    const diff = [
+      '--- a/a.ts',
+      '+++ b/a.ts',
+      '@@ -1 +1 @@',
+      '-a',
+      '\\ No newline at end of file',
+      '+b',
+      '@@ -10 +10 @@',
+      '-x',
+      '+y',
+    ].join('\n');
+
+    const d = parseFileDiff(diff);
+    expect(d.hunks).toHaveLength(2);
+    expect(d.hunks[0].lines.map((l) => l.text)).toEqual(['a', 'b']);
+    expect(d.hunks[1]).toMatchObject({ oldStart: 10, newStart: 10, section: '' });
+  });
+
+  it('a binary file has no hunks and says so', () => {
+    const diff = ['diff --git a/logo.png b/logo.png', 'Binary files a/logo.png and b/logo.png differ'].join('\n');
+    expect(parseFileDiff(diff)).toEqual({ status: 'modified', binary: true, hunks: [] });
+  });
+
+  it('an empty diff → no hunks', () => {
+    expect(parseFileDiff('')).toEqual({ status: 'modified', binary: false, hunks: [] });
+  });
+});
+
+describe('parseNameStatus — git status per changed file', () => {
+  it('maps A/M/D to added/modified/deleted, renames to modified on the new path, copies to added', () => {
+    const text = ['A\tsrc/new.ts', 'M\tsrc/edit.ts', 'D\tsrc/gone.ts', 'R087\tsrc/old.ts\tsrc/moved.ts', 'C100\tsrc/a.ts\tsrc/b.ts', 'T\tsrc/t.ts', ''].join('\n');
+    expect(parseNameStatus(text)).toEqual(new Map([
+      ['src/new.ts', 'added'],
+      ['src/edit.ts', 'modified'],
+      ['src/gone.ts', 'deleted'],
+      ['src/moved.ts', 'modified'],
+      ['src/b.ts', 'added'],
+      ['src/t.ts', 'modified'],
+    ]));
   });
 });

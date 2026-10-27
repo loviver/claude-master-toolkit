@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type {
   CodeGraphChangeDTO,
   CodeGraphChangedFileDTO,
+  CodeGraphChangeStatus,
   CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphFileDTO,
@@ -37,10 +38,14 @@ export interface CodeGraphOptions {
    * node, or of every node under the folder (whole segments, like `scope`).
    */
   focus?: string;
+  /** Explicit seed node ids at `level` (e.g. the branch diff); wins over `focus`. Unknown ids are skipped. */
+  focusIds?: readonly string[];
   depth?: number;
   /** Edges the focus walk follows; `both` by default. */
   direction?: CodeGraphDirection;
   limit?: number;
+  /** Commits per file (see `fileChurn`); omitted means churn 0 everywhere. */
+  churn?: ReadonlyMap<string, number>;
 }
 
 export type CodeGraph = Pick<CodeGraphDTO, 'level' | 'nodes' | 'links' | 'stats'>;
@@ -75,7 +80,7 @@ export function containerId(level: CodeGraphLevel, file: string, symbol: string)
 
 function newNode(level: CodeGraphLevel, id: string, row: SymbolRow): CodeGraphNodeDTO {
   const dir = dirOf(row.file);
-  const base = { id, rank: 0, size: 0, exported: false, indexedAt: 0, group: groupOf(dir) };
+  const base = { id, rank: 0, size: 0, exported: false, indexedAt: 0, loc: 0, callers: 0, churn: 0, group: groupOf(dir) };
   switch (level) {
     case 'symbol':
       return {
@@ -129,12 +134,14 @@ function neighbourhood(
 export function buildCodeGraph(db: Database.Database, projectPath: string, opts: CodeGraphOptions): CodeGraph {
   const { level } = opts;
   // Impact is project-wide: a scope would hide the focus or its callers outside the folder.
-  const scope = opts.focus === undefined ? opts.scope : undefined;
+  const focused = opts.focus !== undefined || opts.focusIds !== undefined;
+  const scope = focused ? undefined : opts.scope;
   const graph = loadSymbolGraph(db, projectPath);
   const indexTimes = fileIndexTimes(db, projectPath);
 
   const owner = new Map<string, string>();
   const nodes = new Map<string, CodeGraphNodeDTO>();
+  const files = new Map<string, Set<string>>();
   let unresolved = 0;
   for (const [id, row] of graph.byId) {
     if (!inScope(row.file, scope)) continue;
@@ -144,6 +151,8 @@ export function buildCodeGraph(db: Database.Database, projectPath: string, opts:
     node.size++;
     node.exported ||= Boolean(row.exported);
     node.indexedAt = Math.max(node.indexedAt, indexTimes.get(row.file) ?? 0);
+    node.loc += row.end_line - row.start_line + 1;
+    (files.get(cid) ?? files.set(cid, new Set()).get(cid)!).add(row.file);
     unresolved += graph.dropped.get(id) ?? 0;
   }
 
@@ -158,6 +167,14 @@ export function buildCodeGraph(db: Database.Database, projectPath: string, opts:
   }
   const links = [...folded.values()];
 
+  const fanIn = new Map<string, Set<string>>();
+  for (const l of links) (fanIn.get(l.target) ?? fanIn.set(l.target, new Set()).get(l.target)!).add(l.source);
+  for (const [id, node] of nodes) {
+    node.callers = fanIn.get(id)?.size ?? 0;
+    // A module counts each of its files once, however many symbols they hold.
+    if (opts.churn) for (const f of files.get(id)!) node.churn += opts.churn.get(f) ?? 0;
+  }
+
   const rank = rankSymbols(
     [...nodes.keys()],
     links.map((l) => [l.source, l.target, l.weight * EDGE_WEIGHT[l.type]]),
@@ -167,11 +184,13 @@ export function buildCodeGraph(db: Database.Database, projectPath: string, opts:
 
   let candidates = [...nodes.keys()];
   let seeds = new Set<string>();
-  if (opts.focus !== undefined) {
-    const { focus } = opts;
-    seeds = new Set(nodes.has(focus)
-      ? [focus]
-      : [...nodes.values()].filter((n) => inScope(n.file ?? n.id, focus)).map((n) => n.id));
+  if (focused) {
+    const { focus, focusIds } = opts;
+    seeds = new Set(focusIds
+      ? focusIds.filter((id) => nodes.has(id))
+      : nodes.has(focus!)
+        ? [focus!]
+        : [...nodes.values()].filter((n) => inScope(n.file ?? n.id, focus!)).map((n) => n.id));
     candidates = [...neighbourhood([...seeds], links, opts.depth ?? DEFAULT_DEPTH, opts.direction ?? 'both')];
   }
 
@@ -193,7 +212,7 @@ export function buildCodeGraph(db: Database.Database, projectPath: string, opts:
       totalLinks: links.length,
       unresolved,
       truncated: kept.length < candidates.length,
-      ...(opts.focus !== undefined && { focusMatches: seeds.size }),
+      ...(focused && { focusMatches: seeds.size }),
     },
   };
 }
@@ -277,6 +296,7 @@ interface RiskTouch {
 
 interface RiskTouchDetail extends RiskTouch {
   exported: boolean;
+  deps: string[];
   range: [number, number];
 }
 
@@ -285,34 +305,66 @@ interface RiskRange {
   start: number;
   end: number;
   added: number;
+  removed: number;
+}
+
+/** Lines of `[start, end]` not covered by any of `cover`, as inclusive spans. */
+function uncovered([start, end]: [number, number], cover: Array<[number, number]>): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  let from = start;
+  for (let line = start; line <= end + 1; line++) {
+    const covered = line <= end && cover.some(([s, e]) => line >= s && line <= e);
+    if (line > end || covered) {
+      if (line > from) out.push([from, line - 1]);
+      from = line + 1;
+    }
+  }
+  return out;
 }
 
 /**
- * The diff as the explorer lists it: touched symbols (most-called first, each with the
- * untouched callers it puts at risk) and the changed line spans per file.
+ * The diff as the explorer lists it: touched symbols (most-called first, each with its
+ * changed lines, the untouched callers it puts at risk and what it uses) and per file the
+ * changed spans, including those no symbol covers.
  */
 export function riskChanges(
   touched: RiskTouchDetail[],
   ranges: RiskRange[],
 ): { changes: CodeGraphChangeDTO[]; files: CodeGraphChangedFileDTO[] } {
   const touchedIds = new Set(touched.map((t) => qualifyId(t.file, t.symbol)));
+  const qualified = (ids: string[], drop: (id: string) => boolean) =>
+    [...new Set(ids.filter((id) => parseQualifiedId(id) && !drop(id)))].sort();
   const changes = touched
-    .map((t) => ({
-      id: qualifyId(t.file, t.symbol),
-      file: t.file,
-      symbol: t.symbol,
-      exported: t.exported,
-      startLine: t.range[0],
-      endLine: t.range[1],
-      callers: [...new Set(t.callers.filter((c) => parseQualifiedId(c) && !touchedIds.has(c)))].sort(),
-    }))
+    .map((t) => {
+      const id = qualifyId(t.file, t.symbol);
+      const [lo, hi] = t.range;
+      const hits = ranges.filter((r) => r.file === t.file && r.start <= hi && r.end >= lo);
+      const spans = hits.map((r): [number, number] => [Math.max(r.start, lo), Math.min(r.end, hi)]);
+      return {
+        id,
+        file: t.file,
+        symbol: t.symbol,
+        exported: t.exported,
+        startLine: lo,
+        endLine: hi,
+        callers: qualified(t.callers, (c) => touchedIds.has(c)),
+        deps: qualified(t.deps, (d) => d === id),
+        ranges: spans,
+        // A pure deletion is a zero-width touch: it marks the spot, it adds no line.
+        added: hits.reduce((n, r, i) => n + (r.added ? spans[i][1] - spans[i][0] + 1 : 0), 0),
+        removed: hits.reduce((n, r) => n + r.removed, 0),
+      };
+    })
     .sort((a, b) => b.callers.length - a.callers.length || a.id.localeCompare(b.id));
 
   const byFile = new Map<string, CodeGraphChangedFileDTO>();
   for (const r of ranges) {
-    const f = byFile.get(r.file) ?? byFile.set(r.file, { file: r.file, ranges: [], added: 0 }).get(r.file)!;
+    const f = byFile.get(r.file) ?? byFile.set(r.file, { file: r.file, ranges: [], added: 0, removed: 0, outside: [] }).get(r.file)!;
     f.ranges.push([r.start, r.end]);
     f.added += r.added;
+    f.removed += r.removed;
+    const cover = touched.filter((t) => t.file === r.file).map((t) => t.range);
+    f.outside.push(...uncovered([r.start, r.end], cover));
   }
   const files = [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
   return { changes, files };
@@ -334,4 +386,22 @@ export function projectRisk(level: CodeGraphLevel, touched: RiskTouch[]): { touc
     }
   }
   return { touched: [...hit].sort(), blast: [...blast].sort() };
+}
+
+/**
+ * Git status per touched node of a level. A container (file, module) is `added` only when
+ * every touched file under it is; files the status map misses count as modified.
+ */
+export function projectStatus(
+  level: CodeGraphLevel,
+  touched: RiskTouch[],
+  files: ReadonlyMap<string, 'added' | 'modified' | 'deleted'>,
+): Record<string, CodeGraphChangeStatus> {
+  const out: Record<string, CodeGraphChangeStatus> = {};
+  for (const t of touched) {
+    const id = containerId(level, t.file, t.symbol);
+    const status = files.get(t.file) === 'added' ? 'added' : 'modified';
+    out[id] = out[id] === 'modified' ? 'modified' : status;
+  }
+  return out;
 }

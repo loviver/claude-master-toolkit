@@ -73,7 +73,7 @@ export function NodeInspector({
     : node.id;
 
   return (
-    <div aria-label="Selected node">
+    <div className={styles.inspector} aria-label="Selected node">
       <header className={styles.inspectorHeader}>
         <h3 className={styles.inspectorTitle}>{node.label}</h3>
         <div className={styles.badges}>

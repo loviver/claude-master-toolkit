@@ -27,27 +27,27 @@ describe('mapTouchedSymbols — range overlap against the symbols table', () => 
       CREATE TABLE symbols (
         project_path TEXT, file TEXT, symbol TEXT,
         start_line INTEGER, end_line INTEGER,
-        exported INTEGER, callers TEXT
+        exported INTEGER, callers TEXT, deps TEXT
       );
     `);
     const insert = db.prepare(`
-      INSERT INTO symbols (project_path, file, symbol, start_line, end_line, exported, callers)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO symbols (project_path, file, symbol, start_line, end_line, exported, callers, deps)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    insert.run(PROJ, 'src/a.ts', 'foo', 10, 20, 1, JSON.stringify(['bar', 'baz']));
-    insert.run(PROJ, 'src/a.ts', 'qux', 30, 40, 0, null);
-    insert.run(PROJ, 'src/b.ts', 'other', 1, 5, 1, JSON.stringify(['foo']));
-    insert.run('/other', 'src/a.ts', 'wrongProj', 10, 20, 1, null);
+    insert.run(PROJ, 'src/a.ts', 'foo', 10, 20, 1, JSON.stringify(['bar', 'baz']), JSON.stringify(['src/b.ts::other']));
+    insert.run(PROJ, 'src/a.ts', 'qux', 30, 40, 0, null, null);
+    insert.run(PROJ, 'src/b.ts', 'other', 1, 5, 1, JSON.stringify(['foo']), null);
+    insert.run('/other', 'src/a.ts', 'wrongProj', 10, 20, 1, null, null);
   });
 
   afterEach(() => db.close());
 
-  const range = (file: string, start: number, end: number): TouchedRange => ({ file, start, end, added: 1 });
+  const range = (file: string, start: number, end: number): TouchedRange => ({ file, start, end, added: 1, removed: 0 });
 
   it('returns only the symbol whose line span overlaps the touched range', () => {
     const touched = mapTouchedSymbols(db, PROJ, [range('src/a.ts', 15, 16)]);
     expect(touched).toEqual([
-      { file: 'src/a.ts', symbol: 'foo', exported: true, callers: ['bar', 'baz'], range: [10, 20] },
+      { file: 'src/a.ts', symbol: 'foo', exported: true, callers: ['bar', 'baz'], deps: ['src/b.ts::other'], range: [10, 20] },
     ]);
   });
 
@@ -56,10 +56,10 @@ describe('mapTouchedSymbols — range overlap against the symbols table', () => 
     expect(touched.map((t) => t.symbol)).toEqual(['foo']);
   });
 
-  it('parses a null callers column as an empty array', () => {
+  it('parses null callers and deps columns as empty arrays', () => {
     const touched = mapTouchedSymbols(db, PROJ, [range('src/a.ts', 35, 35)]);
     expect(touched).toEqual([
-      { file: 'src/a.ts', symbol: 'qux', exported: false, callers: [], range: [30, 40] },
+      { file: 'src/a.ts', symbol: 'qux', exported: false, callers: [], deps: [], range: [30, 40] },
     ]);
   });
 

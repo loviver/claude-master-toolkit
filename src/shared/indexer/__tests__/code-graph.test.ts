@@ -6,6 +6,7 @@ import {
   graphRevision,
   indexedProjects,
   projectRisk,
+  projectStatus,
   riskChanges,
   sourceLanguage,
 } from '../code-graph.js';
@@ -191,6 +192,16 @@ describe('buildCodeGraph — scope, focus, limit', () => {
     expect(ids(g)).toContain('src/feat/c.ts::leaf');
   });
 
+  it('focusIds seeds the walk with a set of nodes (the diff), unknown ids skipped', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, {
+      level: 'file', focusIds: ['src/lib/core.ts', 'gone.ts'], depth: 1, direction: 'callers',
+    });
+    expect(g.stats.focusMatches).toBe(1);
+    expect(ids(g)).toContain('src/lib/core.ts');
+    expect(ids(g)).toEqual(['src/feat/a.ts', 'src/feat/b.ts', 'src/lib/core.ts']);
+  });
+
   it('an unknown focus yields an empty graph rather than the whole repo', () => {
     seed();
     const g = buildCodeGraph(db, PROJECT, { level: 'symbol', focus: 'nope::nothing' });
@@ -368,29 +379,48 @@ describe('projectRisk', () => {
 });
 
 describe('riskChanges', () => {
-  it('lists touched symbols most-called first, keeping only untouched qualified callers', () => {
+  it('lists touched symbols most-called first, with their changed lines, callers and deps', () => {
     const touched = [
-      { file: 'a.ts', symbol: 'leaf', exported: false, range: [1, 4] as [number, number], callers: [] },
+      { file: 'a.ts', symbol: 'leaf', exported: false, range: [1, 4] as [number, number], callers: [], deps: [] },
       {
         file: 'b.ts', symbol: 'hub', exported: true, range: [10, 20] as [number, number],
         callers: ['c.ts::use', 'a.ts::leaf', 'bare', 'c.ts::use', 'd.ts::other'],
+        deps: ['e.ts::repo', 'b.ts::hub', 'bare', 'a.ts::leaf', 'e.ts::repo'],
       },
     ];
     const ranges = [
-      { file: 'b.ts', start: 12, end: 13, added: 2 },
-      { file: 'a.ts', start: 2, end: 2, added: 1 },
-      { file: 'b.ts', start: 18, end: 18, added: 0 },
+      { file: 'b.ts', start: 12, end: 13, added: 2, removed: 1 },
+      { file: 'a.ts', start: 2, end: 2, added: 1, removed: 0 },
+      { file: 'b.ts', start: 18, end: 18, added: 0, removed: 3 },
     ];
     expect(riskChanges(touched, ranges)).toEqual({
       changes: [
-        { id: 'b.ts::hub', file: 'b.ts', symbol: 'hub', exported: true, startLine: 10, endLine: 20, callers: ['c.ts::use', 'd.ts::other'] },
-        { id: 'a.ts::leaf', file: 'a.ts', symbol: 'leaf', exported: false, startLine: 1, endLine: 4, callers: [] },
+        {
+          id: 'b.ts::hub', file: 'b.ts', symbol: 'hub', exported: true, startLine: 10, endLine: 20,
+          callers: ['c.ts::use', 'd.ts::other'], deps: ['a.ts::leaf', 'e.ts::repo'],
+          ranges: [[12, 13], [18, 18]], added: 2, removed: 4,
+        },
+        {
+          id: 'a.ts::leaf', file: 'a.ts', symbol: 'leaf', exported: false, startLine: 1, endLine: 4,
+          callers: [], deps: [], ranges: [[2, 2]], added: 1, removed: 0,
+        },
       ],
       files: [
-        { file: 'a.ts', ranges: [[2, 2]], added: 1 },
-        { file: 'b.ts', ranges: [[12, 13], [18, 18]], added: 2 },
+        { file: 'a.ts', ranges: [[2, 2]], added: 1, removed: 0, outside: [] },
+        { file: 'b.ts', ranges: [[12, 13], [18, 18]], added: 2, removed: 4, outside: [] },
       ],
     });
+  });
+
+  it('clips a hunk to each symbol it crosses and keeps the rest as lines outside any symbol', () => {
+    const touched = [{ file: 'a.ts', symbol: 'fn', exported: true, range: [5, 9] as [number, number], callers: [], deps: [] }];
+    const ranges = [
+      { file: 'a.ts', start: 1, end: 6, added: 6, removed: 0 },
+      { file: 'a.ts', start: 30, end: 31, added: 2, removed: 1 },
+    ];
+    const { changes, files } = riskChanges(touched, ranges);
+    expect(changes[0]).toMatchObject({ ranges: [[5, 6]], added: 2, removed: 0 });
+    expect(files[0]).toMatchObject({ added: 8, removed: 1, outside: [[1, 4], [30, 31]] });
   });
 });
 
@@ -401,5 +431,63 @@ describe('sourceLanguage', () => {
     expect(sourceLanguage('main.rs')).toBe('rust');
     expect(sourceLanguage('Makefile')).toBeNull();
     expect(sourceLanguage('notes.zig')).toBeNull();
+  });
+});
+
+describe('buildCodeGraph — metrics', () => {
+  it('symbol level: loc is the symbol span, callers counts distinct incoming nodes', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol' });
+    const core = g.nodes.find((n) => n.id === 'src/lib/core.ts::core')!;
+    expect(core.loc).toBe(7);
+    expect(core.callers).toBe(2);
+    expect(g.nodes.find((n) => n.id === 'src/feat/a.ts::useA')!.callers).toBe(0);
+  });
+
+  it('aggregated levels sum loc over folded symbols', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'file' });
+    expect(g.nodes.find((n) => n.id === 'src/lib/core.ts')!.loc).toBe(14);
+  });
+
+  it('callers is counted before the limit truncates the graph', () => {
+    seed();
+    const g = buildCodeGraph(db, PROJECT, { level: 'symbol', limit: 1 });
+    expect(g.nodes[0].callers).toBe(2);
+  });
+
+  it('churn comes from the per-file map; a module counts each file once', () => {
+    seed();
+    const churn = new Map([['src/lib/core.ts', 5], ['src/feat/a.ts', 2], ['src/feat/b.ts', 1]]);
+    const sym = buildCodeGraph(db, PROJECT, { level: 'symbol', churn });
+    expect(sym.nodes.find((n) => n.id === 'src/lib/core.ts::helper')!.churn).toBe(5);
+    const mod = buildCodeGraph(db, PROJECT, { level: 'module', churn });
+    expect(mod.nodes.find((n) => n.id === 'src/lib')!.churn).toBe(5);
+    expect(mod.nodes.find((n) => n.id === 'src/feat')!.churn).toBe(3);
+  });
+
+  it('churn is 0 without a churn map', () => {
+    seed();
+    expect(buildCodeGraph(db, PROJECT, { level: 'file' }).nodes.every((n) => n.churn === 0)).toBe(true);
+  });
+});
+
+describe('projectStatus', () => {
+  const touched = [
+    { file: 'src/lib/new.ts', symbol: 'fresh', callers: [] },
+    { file: 'src/lib/core.ts', symbol: 'core', callers: [] },
+    { file: 'src/feat/a.ts', symbol: 'useA', callers: [] },
+  ];
+  const files = new Map([['src/lib/new.ts', 'added'], ['src/lib/core.ts', 'modified'], ['src/feat/a.ts', 'added']] as const);
+
+  it('takes each touched node\'s file status; files the status map misses count as modified', () => {
+    expect(projectStatus('symbol', touched, files)).toEqual({
+      'src/lib/new.ts::fresh': 'added', 'src/lib/core.ts::core': 'modified', 'src/feat/a.ts::useA': 'added',
+    });
+    expect(projectStatus('file', [{ file: 'x.ts', symbol: 's', callers: [] }], new Map())).toEqual({ 'x.ts': 'modified' });
+  });
+
+  it('a module is added only when every touched file in it is added', () => {
+    expect(projectStatus('module', touched, files)).toEqual({ 'src/lib': 'modified', 'src/feat': 'added' });
   });
 });

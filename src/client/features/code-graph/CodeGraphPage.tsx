@@ -15,15 +15,35 @@ import {
   useCodeGraphSymbolSearch,
 } from '../../hooks/queries/useCodeGraph';
 import { parseQualifiedId } from '../../../shared/indexer/ids';
+import { DIFF_FOCUS } from '../../../shared/api-types';
 import { ApiError } from '../../hooks/queries/api';
 import {
   KIND_COLORS,
   KIND_LABELS,
   LINK_COLORS,
   LINK_LABELS,
+  HEAT_COLORS,
+  METRIC_LABELS,
+  SIZE_METRICS,
+  COLOR_MODES,
   STATE_COLORS,
   ZONE_OTHER,
   buildAdjacency,
+  filterGraph,
+  neighbourAt,
+  parseHidden,
+  pathLinkKeys,
+  reviewSpotlight,
+  impactDistance,
+  IMPACT_COLORS,
+  IMPACT_HOPS,
+  serializeHidden,
+  shortestPath,
+  type HiddenKey,
+  colorScale,
+  metricScale,
+  parseColorMode,
+  parseSizeMetric,
   defaultLevel,
   mergeGraph,
   parseDirection,
@@ -35,9 +55,11 @@ import {
 } from './graph-model';
 import type { CodeGraphOverlay } from './CodeGraph3D';
 import { CodeGraph2D } from './CodeGraph2D';
+import { focusSeeds, hopDistance } from './impact-layout';
 import { NodeInspector } from './NodeInspector';
 import { FileTree } from './FileTree';
 import { CodeViewer } from './CodeViewer';
+import { DiffViewer } from './DiffViewer';
 import { ChangesPanel } from './ChangesPanel';
 import { SymbolDetails } from './SymbolDetails';
 import { StructureView } from './StructureView';
@@ -48,7 +70,7 @@ import {
   symbolIcon,
   type NavLocation,
 } from './nav-model';
-import { nodeIdForFile } from './explorer-model';
+import { fileNodeIds, nodeIdForFile } from './explorer-model';
 import {
   GRAPH_TAB,
   activateTab,
@@ -113,10 +135,14 @@ const LEVEL_KINDS: Record<CodeGraphLevel, KindCategory[]> = {
 };
 const DEPTHS = [1, 2, 3, 4];
 /** How long a reindexed node stays highlighted as "hot". */
+/** Server hard cap on graph nodes (`MAX_LIMIT`). */
+const MAX_GRAPH_LIMIT = 10_000;
+/** Server default cap (`DEFAULT_LIMIT`). */
+const DEFAULT_GRAPH_LIMIT = 2000;
 const HOT_MS = 60_000;
 const HOT_TICK_MS = 5_000;
 
-type UrlPatch = Partial<Record<'project' | 'level' | 'scope' | 'focus' | 'depth' | 'direction' | 'view' | 'split', string | undefined>>;
+type UrlPatch = Partial<Record<'project' | 'level' | 'scope' | 'focus' | 'depth' | 'direction' | 'view' | 'split' | 'size' | 'color' | 'hide' | 'exp' | 'review' | 'sel' | 'limit', string | undefined>>;
 type SideView = 'files' | 'structure' | 'changes';
 /** Symbol hits listed under the graph's own matches. */
 const SYMBOL_HITS_MAX = 30;
@@ -124,7 +150,8 @@ const SYMBOL_HITS_MAX = 30;
 /** View state lives in the URL so a view can be bookmarked, shared, or linked to by an agent. */
 function useGraphParams() {
   const [params, setParams] = useSearchParams();
-  const update = useCallback((patch: UrlPatch) => {
+  /** `replace` for state that changes often (the selection): no history entry per click. */
+  const update = useCallback((patch: UrlPatch, opts?: { replace?: boolean }) => {
     setParams((prev) => {
       const next = new URLSearchParams(prev);
       for (const [k, v] of Object.entries(patch)) {
@@ -132,7 +159,7 @@ function useGraphParams() {
         else next.set(k, v);
       }
       return next;
-    });
+    }, opts);
   }, [setParams]);
   return { params, update };
 }
@@ -146,6 +173,15 @@ function errorMessage(err: unknown): string {
     try { return (JSON.parse(err.body) as { error?: string }).error ?? err.message; } catch { return err.message; }
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+/** Next value in a fixed list, wrapping around: status-bar toggles cycle instead of opening a menu. */
+function cycle<T>(values: readonly T[], current: T): T {
+  return values[(values.indexOf(current) + 1) % values.length];
+}
+
+function legendToggleClass(off: boolean): string {
+  return off ? `${canvas.legendToggle} ${canvas.legendOff}` : canvas.legendToggle;
 }
 
 const valueOf = (e: Event) => (e.target as HTMLInputElement).value;
@@ -187,6 +223,15 @@ export function CodeGraphPage() {
   const depth = focus ? Number(params.get('depth') ?? 2) : undefined;
   const direction = focus ? parseDirection(params.get('direction')) : undefined;
   const viewId = parseView(params.get('view'));
+  const sizeBy = parseSizeMetric(params.get('size'));
+  const colorBy = parseColorMode(params.get('color'));
+  const hideRaw = params.get('hide');
+  const hidden = useMemo(() => parseHidden(hideRaw), [hideRaw]);
+  const exportedOnly = params.get('exp') === '1';
+  /** Review mode: spotlight the diff and its blast radius, dim the rest. */
+  const reviewMode = params.get('review') === '1';
+  const limitRaw = Number(params.get('limit'));
+  const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_GRAPH_LIMIT) : undefined;
   const renderer = viewId === '3d' ? '3d' : '2d';
   const isCanvas = viewId === '2d' || viewId === '3d';
   const viewKey = JSON.stringify([projectPath, level, scope, focus, depth, direction]);
@@ -194,12 +239,17 @@ export function CodeGraphPage() {
   const [live, setLive] = useState(true);
   const [showRisk, setShowRisk] = useState(false);
   const [worktree, setWorktree] = useState(true);
+  // A changed file opens as its diff vs base; "Open the whole file" switches to the plain viewer.
+  const [diffView, setDiffView] = useState(true);
   const [sideView, setSideView] = useState<SideView | null>('files');
   const [auxOpen, setAuxOpen] = useState(true);
   const [editor, setEditor] = useState<EditorState>(() => (params.get('split') === '1' ? toggleSplit(initialEditor) : initialEditor));
   const [linked, setLinked] = useState(true);
   const graphGroup = useSash(560, 280, 1400);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => params.get('sel'));
+  /** Start of an A→B trace; the selection is its end. */
+  const [pathFrom, setPathFrom] = useState<string | null>(null);
+  const stepRef = useRef({ id: '', direction: '', i: 0 });
   const [query, setQuery] = useState('');
   const [flyTo, setFlyTo] = useState<{ id: string; nonce: number } | null>(null);
   const [fitAll, setFitAll] = useState(0);
@@ -208,9 +258,9 @@ export function CodeGraphPage() {
 
   const revision = useCodeGraphRevision(projectPath, live);
   const rev = revision.data?.revision;
-  const graphQuery = useCodeGraph({ project: projectPath, level, scope, focus, depth, direction }, rev);
+  const graphQuery = useCodeGraph({ project: projectPath, level, scope, focus, depth, direction, limit, worktree }, rev);
   // The changes view needs the diff even with the overlay off; the overlay paints what it lists.
-  const wantRisk = showRisk || sideView === 'changes';
+  const wantRisk = showRisk || reviewMode || sideView === 'changes';
   const risk = useCodeGraphRisk(projectPath, level, rev, wantRisk, worktree);
   const files = useCodeGraphFiles(projectPath, rev);
   const symbolQuery = useDeferredValue(query.trim());
@@ -225,15 +275,20 @@ export function CodeGraphPage() {
       ? prev
       : { key: viewKey, graph: mergeGraph(prev?.key === viewKey ? prev.graph : null, data) }));
   }, [data, isPlaceholderData, viewKey]);
-  const graph = view?.key === viewKey ? view.graph : null;
+  const fullGraph = view?.key === viewKey ? view.graph : null;
+  // Filters apply to every view; node objects are shared, so toggling one keeps the layout.
+  const graph = useMemo(
+    () => fullGraph && filterGraph(fullGraph, { hidden, exportedOnly }),
+    [fullGraph, hidden, exportedOnly],
+  );
 
   // Reindexed nodes glow for HOT_MS, then fade back to their kind color.
   const [hotSince, setHotSince] = useState<Map<string, number>>(new Map());
   useEffect(() => {
-    if (!graph?.changed.length) return;
+    if (!fullGraph?.changed.length) return;
     const now = Date.now();
-    setHotSince((prev) => new Map([...prev, ...graph.changed.map((id) => [id, now] as const)]));
-  }, [graph]);
+    setHotSince((prev) => new Map([...prev, ...fullGraph.changed.map((id) => [id, now] as const)]));
+  }, [fullGraph]);
   useEffect(() => {
     if (hotSince.size === 0) return;
     const timer = setInterval(() => {
@@ -249,27 +304,80 @@ export function CodeGraphPage() {
 
   const adjacency = useMemo(() => buildAdjacency(graph?.links ?? []), [graph]);
   const nodesById = useMemo(() => new Map((graph?.nodes ?? []).map((n) => [n.id, n])), [graph]);
-  const overlay = useMemo<CodeGraphOverlay>(() => ({
-    touched: new Set(wantRisk ? risk.data?.touched : []),
-    blast: new Set(wantRisk ? risk.data?.blast : []),
-    hot: new Set(hotSince.keys()),
-  }), [wantRisk, risk.data, hotSince]);
+  const path = useMemo(
+    () => (pathFrom && selectedId && pathFrom !== selectedId && nodesById.has(pathFrom)
+      ? shortestPath(adjacency, pathFrom, selectedId) ?? []
+      : []),
+    [pathFrom, selectedId, adjacency, nodesById],
+  );
+  const activeTab = activeFileTab(editor);
+  const viewingFile = activeTab?.file ?? null;
+  /** The open file's nodes in this view, most ranked first; empty when the view does not draw it. */
+  const viewingIds = useMemo(
+    () => (viewingFile ? fileNodeIds(level, viewingFile, graph?.nodes ?? []) : []),
+    [viewingFile, level, graph],
+  );
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const viewingRef = useRef(viewingIds);
+  viewingRef.current = viewingIds;
+  // Switching tabs (or opening a file) brings the camera to that file, unless the selection is already in it.
+  useEffect(() => {
+    const ids = viewingRef.current;
+    if (ids.length && !ids.includes(selectedIdRef.current ?? '')) setFlyTo({ id: ids[0], nonce: Date.now() });
+  }, [viewingFile]);
+  const overlay = useMemo<CodeGraphOverlay>(() => {
+    const touched = new Set(wantRisk ? risk.data?.touched : []);
+    const blast = new Set(wantRisk ? risk.data?.blast : []);
+    // A traced A→B path wins over the review spotlight: it is the more specific question.
+    const impact = reviewMode && !path.length
+      ? impactDistance(adjacency, touched, focus === DIFF_FOCUS ? depth : undefined)
+      : null;
+    const spot = impact ? reviewSpotlight(graph?.links ?? [], touched, impact.keys()) : null;
+    return {
+      touched,
+      blast,
+      status: new Map(Object.entries(wantRisk ? risk.data?.status ?? {} : {})),
+      impact,
+      hot: new Set(hotSince.keys()),
+      viewing: new Set(viewingIds),
+      path: spot ? spot.nodes : new Set(path),
+      pathLinks: spot ? spot.links : pathLinkKeys(path),
+    };
+  }, [wantRisk, risk.data, hotSince, path, reviewMode, graph, adjacency, focus, depth, viewingIds]);
+  /** Impact view: hops from the focus, so the canvases lay the walk out as one ring per hop. */
+  const rings = useMemo(() => {
+    if (!focus || !graph) return null;
+    const seeds = focusSeeds(graph.nodes, focus, risk.data?.touched ?? []);
+    return seeds.size ? hopDistance(adjacency, seeds, direction ?? 'callers') : null;
+  }, [focus, graph, adjacency, direction, risk.data]);
+  /** Review maps the diff's whole upstream impact: every changed node seeds a callers walk. */
+  const toggleReview = () => updateView(reviewMode
+    ? { review: undefined, ...(focus === DIFF_FOCUS && { focus: undefined, depth: undefined, direction: undefined }) }
+    : { review: '1', focus: DIFF_FOCUS, depth: String(IMPACT_HOPS), direction: 'callers', scope: undefined });
   // Coarse levels are one kind of node: the folder is what tells them apart, so it picks the color.
   const zoneColors = useMemo(
     () => (viewId === '2d' && level !== 'symbol' && graph ? zonePalette(graph.nodes) : null),
     [viewId, level, graph],
   );
+  const sizeScale = useMemo(() => (graph ? metricScale(graph.nodes, sizeBy) : null), [graph, sizeBy]);
+  // Review paints git status + impact: a metric ramp on top would be a second, competing code.
+  const reviewPaint = overlay.impact !== null;
+  const heat = useMemo(() => {
+    const scale = !reviewPaint && graph && colorScale(graph.nodes, colorBy);
+    return scale ? new Map(graph.nodes.map((n) => [n.id, scale(n)])) : null;
+  }, [graph, colorBy, reviewPaint]);
   const zoneLegend = useMemo(
     () => (zoneColors ? [...zoneColors].filter(([, c]) => c !== ZONE_OTHER) : []),
     [zoneColors],
   );
   const results = useMemo(() => searchNodes(graph?.nodes ?? [], query), [graph, query]);
   const linkTypes = useMemo(() => {
-    const present = new Set(graph?.links.map((l) => l.type));
+    // Read off the unfiltered graph so a hidden type keeps its legend entry (to show it again).
+    const present = new Set(fullGraph?.links.map((l) => l.type));
     return (Object.keys(LINK_LABELS) as Array<keyof typeof LINK_LABELS>).filter((t) => present.has(t));
-  }, [graph]);
+  }, [fullGraph]);
 
-  const activeTab = activeFileTab(editor);
   // Same query key as the code viewer's: the structure view and Ctrl+click share its outline.
   const activeSource = useCodeGraphSource(projectPath, activeTab?.file ?? null, rev);
   const activeOutline = activeSource.data?.outline;
@@ -280,7 +388,26 @@ export function CodeGraphPage() {
   );
 
   const selected = selectedId ? nodesById.get(selectedId) : undefined;
-  useEffect(() => setSelectedId(null), [viewKey]);
+  // A new view starts unselected, except the first one: a shared link may carry `sel`.
+  const firstViewRef = useRef(true);
+  useEffect(() => {
+    if (firstViewRef.current) { firstViewRef.current = false; return; }
+    setSelectedId(null);
+    setPathFrom(null);
+  }, [viewKey]);
+  useEffect(() => {
+    if ((params.get('sel') ?? null) !== selectedId) update({ sel: selectedId ?? undefined }, { replace: true });
+    // params is read, not tracked: only the selection writes `sel`.
+  }, [selectedId, update]);
+  // A filter (or a shared `sel` the graph does not draw) can drop the selection out of view.
+  useEffect(() => {
+    if (graph && selectedId && !nodesById.has(selectedId)) setSelectedId(null);
+  }, [graph, nodesById, selectedId]);
+  const toggleHidden = (key: HiddenKey) => {
+    const next = new Set(hidden);
+    if (!next.delete(key)) next.add(key);
+    update({ hide: serializeHidden(next) });
+  };
   useEffect(() => {
     setEditor((s) => ({ ...initialEditor, split: s.split }));
   }, [projectPath]);
@@ -318,6 +445,49 @@ export function CodeGraphPage() {
     setQuery('');
     showGraph();
   };
+  // Keyboard walk of the graph: ←/→ hop to the top caller/dep, ↑/↓ cycle its siblings,
+  // P marks the start of an A→B trace, Esc clears the trace, then the selection.
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || !isCanvas) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.closest('[role="textbox"]'))) return;
+    if (e.key === 'Escape') {
+      if (pathFrom) setPathFrom(null);
+      else select(null);
+      return;
+    }
+    if (!selectedId) return;
+    if (e.key === 'p' || e.key === 'P') {
+      setPathFrom((from) => (from === selectedId ? null : selectedId));
+      return;
+    }
+    const rank = new Map((graph?.nodes ?? []).map((n) => [n.id, n.rank]));
+    const step = stepRef.current;
+    let target: string | null = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const direction = e.key === 'ArrowRight' ? 'deps' : 'callers';
+      target = neighbourAt(adjacency, rank, selectedId, direction, 0);
+      stepRef.current = { id: selectedId, direction, i: 0 };
+    } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && step.direction && step.id !== selectedId) {
+      // Siblings: the other callers/deps of the node the last hop came from.
+      const list = adjacency.get(step.id)?.[step.direction as 'callers' | 'deps'];
+      const n = list?.size ?? 0;
+      if (n) {
+        step.i = (step.i + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+        target = neighbourAt(adjacency, rank, step.id, step.direction as 'callers' | 'deps', step.i);
+      }
+    } else {
+      return;
+    }
+    e.preventDefault();
+    if (target) jumpTo(target);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keyRef.current(e);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   /** Bring a node into the graph selection if this view draws it; the editor follows regardless. */
   const reveal = (nodeId: string | null) => {
     if (!nodeId || !nodesById.has(nodeId)) return;
@@ -410,8 +580,8 @@ export function CodeGraphPage() {
             onClick={() => setSideView((v) => (v ? null : 'files'))}
           />
           <VscodeToolbarButton
-            icon={auxOpen ? 'layout-sidebar-right' : 'layout-sidebar-right-off'}
-            label="Toggle details side bar"
+            icon={auxOpen ? 'layout-panel' : 'layout-panel-off'}
+            label="Toggle details panel"
             onClick={() => setAuxOpen((v) => !v)}
           />
         </>
@@ -446,6 +616,7 @@ export function CodeGraphPage() {
       title="Changes"
       loading={risk.isFetching}
       actions={(
+        <>
         <VscodeToolbarButton
           icon="diff"
           label="Paint changes on the graph"
@@ -453,6 +624,14 @@ export function CodeGraphPage() {
           checked={showRisk}
           onClick={() => setShowRisk((v) => !v)}
         />
+        <VscodeToolbarButton
+          icon="eye"
+          label="Review mode: spotlight changes and their callers"
+          toggleable
+          checked={reviewMode}
+          onClick={toggleReview}
+        />
+        </>
       )}
     >
       <ChangesPanel
@@ -460,8 +639,10 @@ export function CodeGraphPage() {
         error={risk.isError ? errorMessage(risk.error) : null}
         worktree={worktree}
         onWorktree={setWorktree}
-        onOpen={(file, range, symbolId) => openFile(file, range, symbolId)}
+        onOpen={(file, range, symbolId) => { setDiffView(true); openFile(file, range, symbolId); }}
         onImpact={impactOf}
+        activeFile={activeTab?.file ?? null}
+        activeSymbol={inspectedId ?? (level === 'symbol' ? selectedId : null)}
       />
     </Pane>
   ) : null;
@@ -479,7 +660,7 @@ export function CodeGraphPage() {
       <Breadcrumbs crumbs={graphCrumbs}>
         {focus && (
           <>
-            <span className={wb.crumb}><Codicon name="target" /> Impact of <b>{nodesById.get(focus)?.label ?? focus}</b></span>
+            <span className={wb.crumb}><Codicon name="target" /> Impact of <b>{focus === DIFF_FOCUS ? `the diff · ${stats?.focusMatches ?? 0} changed` : nodesById.get(focus)?.label ?? focus}</b></span>
             <VscodeSingleSelect
               aria-label="Impact direction"
               value={direction}
@@ -497,6 +678,21 @@ export function CodeGraphPage() {
             <VscodeToolbarButton icon="close" label="Clear impact view" onClick={() => update({ focus: undefined, depth: undefined, direction: undefined })} />
           </>
         )}
+        {viewingFile && graph && (viewingIds.length ? (
+          <button
+            type="button"
+            className={wb.crumb}
+            title={`${viewingFile}: ${viewingIds.length} node${viewingIds.length === 1 ? '' : 's'} in this view (blue). Click to frame it.`}
+            onClick={() => setFlyTo({ id: viewingIds[0], nonce: Date.now() })}
+          >
+            <span style={{ color: STATE_COLORS.viewing }}><Codicon name="eye" /></span> Viewing <b>{viewingFile.slice(viewingFile.lastIndexOf('/') + 1)}</b>
+          </button>
+        ) : (
+          <span className={wb.crumb} title={`${viewingFile} is not drawn by this view (outside the impact walk or the node cap)`}>
+            <Codicon name="eye-closed" /> <b>{viewingFile.slice(viewingFile.lastIndexOf('/') + 1)}</b> not in this view
+            <VscodeToolbarButton icon="target" label="Map this file's impact" onClick={() => folderImpact(viewingFile)} />
+          </span>
+        ))}
       </Breadcrumbs>
       <div className={canvas.canvasWrap}>
         {graphQuery.isFetching && <ProgressLine />}
@@ -516,7 +712,11 @@ export function CodeGraphPage() {
           </Suspense>
         ) : graphQuery.isError ? (
           <Placeholder icon="error" title="Could not load the graph">{errorMessage(graphQuery.error)}</Placeholder>
-        ) : !graph ? null : focus && stats?.focusMatches === 0 ? (
+        ) : !graph ? null : focus === DIFF_FOCUS && stats?.focusMatches === 0 ? (
+          <Placeholder icon="diff" title="No indexed changes">
+            The diff touches no indexed symbol at the {level} level (imports, comments or deleted files only). See the Changes panel.
+          </Placeholder>
+        ) : focus && stats?.focusMatches === 0 ? (
           <Placeholder icon="target" title="Impact target not found">
             <code>{focus}</code> is neither a node nor a folder at the {level} level. Pick a node in the graph or a
             folder in the explorer, or switch the level.
@@ -534,6 +734,9 @@ export function CodeGraphPage() {
               flyTo={flyTo}
               fitKey={viewKey}
               fitAll={fitAll}
+              sizeScale={sizeScale}
+              heat={heat}
+              rings={rings}
               {...(renderer === '2d' ? { zoneColors } : {})}
               onSelect={selectFromGraph}
             />
@@ -551,21 +754,43 @@ export function CodeGraphPage() {
         )}
 
         {isCanvas && <ul className={canvas.legend} aria-label="Legend">
-          {zoneColors
+          {heat
+            ? HEAT_COLORS.map((c, i) => (
+              <li key={c}><i style={{ background: c }} />{i === 0 ? `Low ${METRIC_LABELS[colorBy].toLowerCase()}` : i === HEAT_COLORS.length - 1 ? 'High' : ''}</li>
+            ))
+            : zoneColors
             ? zoneLegend.map(([group, color]) => (
               <li key={group}><i style={{ background: color }} />{group}</li>
             ))
             : legendKinds.map((k) => (
-              <li key={k}><i style={{ background: KIND_COLORS[k] }} />{KIND_LABELS[k]}</li>
+              <li key={k}>
+                <button type="button" className={legendToggleClass(hidden.has(k))} title={`${hidden.has(k) ? 'Show' : 'Hide'} ${KIND_LABELS[k].toLowerCase()} nodes`} onClick={() => toggleHidden(k)}>
+                  <i style={{ background: KIND_COLORS[k] }} />{KIND_LABELS[k]}
+                </button>
+              </li>
             ))}
           {linkTypes.map((t) => (
-            <li key={t}><i className={canvas.edgeSwatch} style={{ background: LINK_COLORS[t] }} />{LINK_LABELS[t]}</li>
+            <li key={t}>
+              <button type="button" className={legendToggleClass(hidden.has(t))} title={`${hidden.has(t) ? 'Show' : 'Hide'} ${LINK_LABELS[t].toLowerCase()} links`} onClick={() => toggleHidden(t)}>
+                <i className={canvas.edgeSwatch} style={{ background: LINK_COLORS[t] }} />{LINK_LABELS[t]}
+              </button>
+            </li>
           ))}
-          {live && <li><i style={{ background: STATE_COLORS.hot }} />Just reindexed</li>}
-          {wantRisk && <li><i style={{ background: STATE_COLORS.touched }} />Changed</li>}
-          {wantRisk && <li><i style={{ background: STATE_COLORS.blast }} />Calls changed code</li>}
+          {path.length > 1 && <li><i style={{ background: STATE_COLORS.selected }} />Path · {path.length - 1} hops</li>}
+          {live && !reviewPaint && <li><i style={{ background: STATE_COLORS.hot }} />Just reindexed</li>}
+          {viewingIds.length > 0 && <li><i className={canvas.viewingSwatch} />Open file</li>}
+          {overlay.impact ? <>
+            <li><i style={{ background: STATE_COLORS.added }} />Added</li>
+            <li><i style={{ background: STATE_COLORS.modified }} />Modified</li>
+            <li title="Callers of changed code, fading with distance (deleted files have no node: see Changes)">
+              {IMPACT_COLORS.map((c) => <i key={c} style={{ background: c }} />)}Impact 1→{IMPACT_HOPS} hops
+            </li>
+          </> : <>
+            {wantRisk && <li><i style={{ background: STATE_COLORS.touched }} />Changed</li>}
+            {wantRisk && <li><i style={{ background: STATE_COLORS.blast }} />Calls changed code</li>}
+          </>}
           <li className={canvas.legendHint}>
-            Bigger = more depended on · {renderer === '2d' ? 'hover to trace links' : 'zoom in for more names'}
+            Click a kind or link to hide it · ←/→ walk · P trace · Bigger = {sizeBy === 'rank' ? 'more depended on' : `more ${METRIC_LABELS[sizeBy].toLowerCase()}`} · {renderer === '2d' ? 'hover to trace links' : 'zoom in for more names'}
           </li>
         </ul>}
       </div>
@@ -639,18 +864,32 @@ export function CodeGraphPage() {
         {editor.split && <Sash side="between" {...graphGroup} style={{ left: graphGroup.size }} />}
         {activeTab ? (
           <section className={wb.layer} style={editor.split ? { left: graphGroup.size } : undefined} aria-label={activeTab.file}>
-            <CodeViewer
-              project={project.projectPath}
-              file={activeTab.file}
-              revision={rev}
-              target={activeTab}
-              changedRanges={changedRanges}
-              errorMessage={errorMessage}
-              onScope={scopeTo}
-              onSymbol={selectInFile}
-              onCaret={followCaret}
-              onGoToDeclaration={(name, line) => void goToDeclaration(name, line)}
-            />
+            {diffView && changedFiles.has(activeTab.file) ? (
+              <DiffViewer
+                project={project.projectPath}
+                file={activeTab.file}
+                base={risk.data?.base}
+                worktree={worktree}
+                revision={rev}
+                target={activeTab}
+                errorMessage={errorMessage}
+                onScope={scopeTo}
+                onOpenSource={() => setDiffView(false)}
+              />
+            ) : (
+              <CodeViewer
+                project={project.projectPath}
+                file={activeTab.file}
+                revision={rev}
+                target={activeTab}
+                changedRanges={changedRanges}
+                errorMessage={errorMessage}
+                onScope={scopeTo}
+                onSymbol={selectInFile}
+                onCaret={followCaret}
+                onGoToDeclaration={(name, line) => void goToDeclaration(name, line)}
+              />
+            )}
           </section>
         ) : editor.split && (
           <section className={wb.layer} style={{ left: graphGroup.size }} aria-label="Code">
@@ -689,7 +928,7 @@ export function CodeGraphPage() {
       />
     </Pane>
   ) : (
-    <Pane title="Details" actions={hideAux}>
+    <Pane title={selected ? 'Details' : 'Details: select a node, or Ctrl+click a name in code'} actions={hideAux}>
       {selected ? (
         <NodeInspector
           node={selected}
@@ -712,10 +951,7 @@ export function CodeGraphPage() {
           onUsages={selectedRef ? () => goToSymbol(selectedRef, here(), false) : undefined}
         />
       ) : (
-        <Placeholder icon="info" title="Nothing selected">
-          Click a node in the graph to see what it depends on and what uses it. In code, Ctrl+click a name to go
-          to its declaration, or a declaration to list its usages.
-        </Placeholder>
+        null
       )}
     </Pane>
   );
@@ -743,7 +979,27 @@ export function CodeGraphPage() {
             </StatusItem>
           )}
           {stats?.truncated && (
-            <StatusItem icon="filter" variant="warn" title="Showing top-ranked only: drill in or use the impact view">top-ranked only</StatusItem>
+            <StatusItem
+              icon="filter"
+              variant="warn"
+              title={(limit ?? DEFAULT_GRAPH_LIMIT) < MAX_GRAPH_LIMIT
+                ? `Showing the top ${(limit ?? DEFAULT_GRAPH_LIMIT).toLocaleString()} of ${stats.totalNodes.toLocaleString()} by rank. Click to double the cap (slower), or drill in.`
+                : 'At the hard cap: drill in or use the impact view'}
+              onClick={(limit ?? DEFAULT_GRAPH_LIMIT) < MAX_GRAPH_LIMIT
+                ? () => update({ limit: String(Math.min(MAX_GRAPH_LIMIT, (limit ?? DEFAULT_GRAPH_LIMIT) * 2)) })
+                : undefined}
+            >
+              top {(limit ?? DEFAULT_GRAPH_LIMIT).toLocaleString()} of {stats.totalNodes.toLocaleString()}
+            </StatusItem>
+          )}
+          {pathFrom && (
+            <StatusItem
+              icon="git-compare"
+              title="Tracing from the marked node to the selection. Esc or click to stop."
+              onClick={() => setPathFrom(null)}
+            >
+              {path.length > 1 ? `Path: ${path.length - 1} hops` : selectedId === pathFrom ? 'Path: select the end' : 'Path: not connected'}
+            </StatusItem>
           )}
         </>
       )}
@@ -759,8 +1015,33 @@ export function CodeGraphPage() {
               {l.label}
             </StatusItem>
           ))}
+          <StatusItem
+            icon="symbol-ruler"
+            title="Node size encodes this metric (click to cycle)"
+            onClick={() => update({ size: cycle(SIZE_METRICS, sizeBy) === 'rank' ? undefined : cycle(SIZE_METRICS, sizeBy) })}
+          >
+            Size: {METRIC_LABELS[sizeBy]}
+          </StatusItem>
+          <StatusItem
+            icon="symbol-color"
+            title="Node color encodes this metric (click to cycle)"
+            onClick={() => update({ color: cycle(COLOR_MODES, colorBy) === 'kind' ? undefined : cycle(COLOR_MODES, colorBy) })}
+          >
+            Color: {METRIC_LABELS[colorBy]}
+          </StatusItem>
+          <StatusItem
+            icon="symbol-interface"
+            pressed={exportedOnly}
+            title="Show exported (public) nodes only"
+            onClick={() => update({ exp: exportedOnly ? undefined : '1' })}
+          >
+            Public
+          </StatusItem>
           <StatusItem icon="diff" pressed={showRisk} title="Paint the branch diff and its blast radius on the graph" onClick={() => setShowRisk((v) => !v)}>
             Overlay
+          </StatusItem>
+          <StatusItem icon="eye" pressed={reviewMode} title="Review mode: spotlight the diff and its blast radius, dim everything else" onClick={toggleReview}>
+            Review
           </StatusItem>
           <StatusItem icon="broadcast" pressed={live} title="Follow the index as it changes" onClick={() => setLive((v) => !v)}>
             {live ? `Live${revision.dataUpdatedAt > 0 ? ` · ${formatRelativeTime(revision.dataUpdatedAt)}` : ''}` : 'Paused'}
@@ -776,7 +1057,8 @@ export function CodeGraphPage() {
       activityBar={<ActivityBar items={activities} active={sideView} onSelect={(id) => setSideView(id as SideView | null)} />}
       sideBar={sideBar}
       editor={editorGroup}
-      auxBar={auxBar}
+      panel={auxBar}
+      panelCollapsed={!showSymbol && !selected}
       statusBar={statusBar}
     />
   );

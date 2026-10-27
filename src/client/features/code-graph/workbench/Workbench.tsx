@@ -7,20 +7,26 @@ import styles from './Workbench.module.css';
 
 /**
  * The VSCode workbench frame: title bar, activity bar, primary side bar, editor group,
- * auxiliary side bar and status bar. Purely presentational: every part is a slot.
+ * panel (below the editor), auxiliary side bar and status bar. Purely presentational:
+ * every part is a slot.
  * Parts keep their position in the tree when hidden, so the editor (and its WebGL
  * canvas) never remounts when a side bar is toggled.
  */
-export function Workbench({ titleBar, activityBar, sideBar, editor, auxBar, statusBar }: {
+export function Workbench({ titleBar, activityBar, sideBar, editor, panel = null, panelCollapsed = false, auxBar = null, statusBar }: {
   titleBar: ReactNode;
   activityBar: ReactNode;
   sideBar: ReactNode | null;
   editor: ReactNode;
-  auxBar: ReactNode | null;
+  /** The bottom panel, as VSCode's: spans the editor group and resizes vertically. */
+  panel?: ReactNode | null;
+  /** Shrink the panel to its header (nothing to show yet). */
+  panelCollapsed?: boolean;
+  auxBar?: ReactNode | null;
   statusBar: ReactNode;
 }) {
   const start = useSash(260, 170, 600);
   const end = useSash(340, 220, 720);
+  const bottom = useSash(260, 120, 640);
   return (
     <div className={`vsc-dark-modern ${styles.root}`}>
       {titleBar}
@@ -32,7 +38,19 @@ export function Workbench({ titleBar, activityBar, sideBar, editor, auxBar, stat
             <Sash side="start" {...start} />
           </aside>
         ) : <span />}
-        <main className={styles.editor}>{editor}</main>
+        <div className={styles.center}>
+          <main className={styles.editor}>{editor}</main>
+          {panel && (
+            <section
+              className={styles.panel}
+              style={{ height: panelCollapsed ? undefined : bottom.size }}
+              aria-label="Panel"
+            >
+              {!panelCollapsed && <Sash side="top" {...bottom} />}
+              {panel}
+            </section>
+          )}
+        </div>
         {auxBar ? (
           <aside className={`${styles.sideBar} ${styles.sideBarEnd}`} style={{ width: end.size }}>
             <Sash side="end" {...end} />
@@ -52,26 +70,30 @@ export function useSash(initial: number, min: number, max: number) {
   return { size, setSize, clamp, initial };
 }
 
-export function Sash({ side, size, setSize, clamp, initial, style }: { side: 'start' | 'end' | 'between'; style?: CSSProperties } & ReturnType<typeof useSash>) {
-  const drag = useRef<{ x: number; size: number } | null>(null);
+export function Sash({ side, size, setSize, clamp, initial, style }: { side: 'start' | 'end' | 'between' | 'top'; style?: CSSProperties } & ReturnType<typeof useSash>) {
+  const drag = useRef<{ at: number; size: number } | null>(null);
   const [active, setActive] = useState(false);
-  // The end bar grows leftwards: dragging left makes it wider.
-  const sign = side === 'end' ? -1 : 1;
+  // The end bar grows leftwards and the panel upwards: dragging towards them makes them bigger.
+  const sign = side === 'end' || side === 'top' ? -1 : 1;
+  const horizontal = side === 'top';
+  const sideClass = side === 'start' ? styles.sashStart
+    : side === 'end' ? styles.sashEnd
+      : side === 'top' ? styles.sashTop : styles.sashBetween;
   return (
     <div
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={horizontal ? 'horizontal' : 'vertical'}
       aria-valuenow={size}
       data-active={active}
       style={style}
-      className={`${styles.sash} ${side === 'start' ? styles.sashStart : side === 'end' ? styles.sashEnd : styles.sashBetween}`}
+      className={`${styles.sash} ${sideClass}`}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
-        drag.current = { x: e.clientX, size };
+        drag.current = { at: horizontal ? e.clientY : e.clientX, size };
         setActive(true);
       }}
       onPointerMove={(e) => {
-        if (drag.current) setSize(clamp(drag.current.size + sign * (e.clientX - drag.current.x)));
+        if (drag.current) setSize(clamp(drag.current.size + sign * ((horizontal ? e.clientY : e.clientX) - drag.current.at)));
       }}
       onPointerUp={() => { drag.current = null; setActive(false); }}
       onDoubleClick={() => setSize(initial)}

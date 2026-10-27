@@ -171,6 +171,9 @@ export type CodeGraphLinkType = 'call' | 'ref' | 'inherit' | 'dispatch';
 /** Which edges a focus walk follows: `callers` = what a change would break, `deps` = what it builds on. */
 export type CodeGraphDirection = 'callers' | 'deps' | 'both';
 
+/** `focus` value that seeds the impact walk with every node the branch diff touches. */
+export const DIFF_FOCUS = '@diff';
+
 export interface CodeGraphNodeDTO {
   /** `dir` (module), `file` (file) or `file::symbol` (symbol). */
   id: string;
@@ -191,6 +194,12 @@ export interface CodeGraphNodeDTO {
   endLine: number | null;
   /** Newest `indexed_files.indexed_at` behind this node (epoch ms, 0 if unknown). */
   indexedAt: number;
+  /** Lines spanned by the symbols folded into this node. */
+  loc: number;
+  /** Distinct nodes at this level with an edge into this one (fan-in), counted before truncation. */
+  callers: number;
+  /** Commits touching this node's file(s) in the churn window; 0 when git history is unavailable. */
+  churn: number;
 }
 
 export interface CodeGraphLinkDTO {
@@ -242,8 +251,16 @@ export interface CodeGraphChangeDTO {
   exported: boolean;
   startLine: number;
   endLine: number;
-  /** Qualified ids of 1-hop callers that the diff does not touch. */
+  /** Qualified ids of 1-hop callers that the diff does not touch (upstream impact). */
   callers: string[];
+  /** Qualified ids of what this symbol uses (downstream), excluding itself. */
+  deps: string[];
+  /** Inclusive new-side `[start, end]` spans the diff touches, clipped to the symbol. */
+  ranges: Array<[number, number]>;
+  /** `+` lines inside the symbol. */
+  added: number;
+  /** `-` lines of the hunks that touch the symbol (a hunk crossing two symbols counts in both). */
+  removed: number;
 }
 
 /** New-side line spans the diff touches in one file. */
@@ -252,7 +269,13 @@ export interface CodeGraphChangedFileDTO {
   /** Inclusive `[start, end]` line spans. */
   ranges: Array<[number, number]>;
   added: number;
+  removed: number;
+  /** Changed spans no indexed symbol covers: imports, top-level statements, comments. */
+  outside: Array<[number, number]>;
 }
+
+/** Git status of a touched node: `added` when every file under it is new on the branch. */
+export type CodeGraphChangeStatus = 'added' | 'modified';
 
 /** The current branch's diff vs base, projected onto the node ids of one level. */
 export interface CodeGraphRiskDTO {
@@ -265,6 +288,8 @@ export interface CodeGraphRiskDTO {
   touched: string[];
   /** Nodes that call touched code (blast radius), excluding touched ones. */
   blast: string[];
+  /** Git status per touched node id. */
+  status: Record<string, CodeGraphChangeStatus>;
   /** Touched symbols, most-called first. */
   changes: CodeGraphChangeDTO[];
   files: CodeGraphChangedFileDTO[];
@@ -328,6 +353,35 @@ export interface CodeGraphSymbolDTO extends CodeGraphSymbolHitDTO {
   subtypes: CodeGraphSymbolRefDTO[];
   /** Direct members (`Owner.member`) declared in the same file. */
   members: CodeGraphSymbolRefDTO[];
+}
+
+/** One line of a review hunk; `old`/`new` are its number on each side, null where the line has none. */
+export interface CodeGraphDiffLineDTO {
+  kind: 'context' | 'add' | 'del';
+  old: number | null;
+  new: number | null;
+  text: string;
+}
+
+export interface CodeGraphDiffHunkDTO {
+  oldStart: number;
+  newStart: number;
+  /** The enclosing declaration git names after `@@` (may be empty). */
+  section: string;
+  lines: CodeGraphDiffLineDTO[];
+}
+
+/** One changed file's diff vs base, for the review viewer. */
+export interface CodeGraphDiffDTO {
+  file: string;
+  base: string;
+  /** True when uncommitted edits are counted too (merge-base vs working tree). */
+  worktree: boolean;
+  /** Prism grammar name, or null when the extension has none bundled. */
+  language: string | null;
+  status: 'added' | 'deleted' | 'modified';
+  binary: boolean;
+  hunks: CodeGraphDiffHunkDTO[];
 }
 
 /** An indexed file's text as it is on disk now (may be newer than the index). */

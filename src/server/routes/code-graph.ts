@@ -11,6 +11,7 @@ import {
   indexedProjects,
   isIndexedFile,
   projectRisk,
+  projectStatus,
   riskChanges,
   sourceLanguage,
   MAX_LIMIT,
@@ -19,7 +20,10 @@ import {
 import { searchSymbols, symbolDetails, SEARCH_MAX } from '../../shared/indexer/code-nav.js';
 import { loadSymbolGraph, type SymbolGraph } from '../../shared/indexer/symbol-graph.js';
 import { assessRisk } from '../../shared/risk/index.js';
+import { getChangedFiles, getFileDiff, getFileStatuses, resolveBaseBranch } from '../../shared/risk/diff.js';
+import { fileChurn } from '../../shared/indexer/churn.js';
 import type {
+  CodeGraphDiffDTO,
   CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphLevel,
@@ -29,12 +33,14 @@ import type {
   CodeGraphSymbolDTO,
   CodeGraphSymbolHitDTO,
 } from '../../shared/api-types.js';
+import { DIFF_FOCUS } from '../../shared/api-types.js';
 import { Lru } from '../lib/lru.js';
 
 const LEVELS: readonly CodeGraphLevel[] = ['module', 'file', 'symbol'];
 const DIRECTIONS: readonly CodeGraphDirection[] = ['callers', 'deps', 'both'];
 const MAX_DEPTH = 6;
 const CACHE_ENTRIES = 24;
+const CHURN_TTL_MS = 5 * 60_000;
 /** Bigger files are generated or vendored: not worth shipping to a code viewer. */
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 
@@ -46,9 +52,12 @@ interface GraphQuery extends ProjectQuery {
   depth?: string;
   direction?: string;
   limit?: string;
+  /** With `focus=@diff`: count uncommitted edits too, like the risk query. */
+  worktree?: string;
 }
 interface RiskQuery extends ProjectQuery { level?: string; base?: string; worktree?: string }
 interface SourceQuery extends ProjectQuery { file?: string }
+interface DiffQuery extends SourceQuery { base?: string; worktree?: string }
 interface SymbolsQuery extends ProjectQuery { q?: string; limit?: string }
 interface SymbolQuery extends ProjectQuery { id?: string }
 
@@ -68,6 +77,18 @@ function parseDirection(raw: string | undefined): CodeGraphDirection | undefined
   if (raw === undefined || raw === '') return undefined;
   return (DIRECTIONS as readonly string[]).includes(raw) ? (raw as CodeGraphDirection) : null;
 }
+
+/** True when `file` is in the diff vs the default base, uncommitted edits included. No git → false. */
+function isChangedFile(project: string, file: string): boolean {
+  try {
+    return getChangedFiles({ cwd: project, worktree: true }).includes(file);
+  } catch {
+    return false;
+  }
+}
+
+/** A base ref is a name, never an option git would parse. */
+const BASE_RE = /^[\w.][\w./-]*$/;
 
 /**
  * Only projects already in the index are served. This also keeps the risk endpoint
@@ -90,6 +111,15 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
   const cache = new Lru<string, CodeGraph>(CACHE_ENTRIES);
   // Find usages reads the whole def/ref graph: load it once per index revision, not per click.
   const symbolGraphs = new Lru<string, SymbolGraph>(4);
+  // git log over the churn window is slow on big repos; history moves slower than the index.
+  const churns = new Lru<string, { at: number; map: Map<string, number> }>(4);
+  const churnOf = (project: string) => {
+    const hit = churns.get(project);
+    if (hit && Date.now() - hit.at < CHURN_TTL_MS) return hit;
+    const fresh = { at: Date.now(), map: fileChurn(project) };
+    churns.set(project, fresh);
+    return fresh;
+  };
 
   app.get('/code-graph/projects', async (_req, reply) => reply.send(indexedProjects(getSqlite())));
 
@@ -112,12 +142,23 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
     if (direction === null) return reply.status(400).send({ error: `direction must be one of ${DIRECTIONS.join(', ')}` });
     if (!requireProject(reply, project)) return reply;
 
+    let focusIds: string[] | undefined;
+    if (focus === DIFF_FOCUS) {
+      const worktree = req.query.worktree === '1' || req.query.worktree === 'true';
+      try {
+        focusIds = projectRisk(level, assessRisk({ cwd: project, worktree }).touched).touched;
+      } catch (err) {
+        return reply.status(422).send({ error: `diff impact unavailable: ${(err as Error).message}` });
+      }
+    }
+
     const db = getSqlite();
     const revision = graphRevision(db, project);
-    const key = JSON.stringify([project, revision, level, scope, focus, depth, direction, limit]);
+    const churn = churnOf(project);
+    const key = JSON.stringify([project, revision, churn.at, level, scope, focus, focusIds, depth, direction, limit]);
     let graph = cache.get(key);
     if (!graph) {
-      graph = buildCodeGraph(db, project, { level, scope, focus, depth, direction, limit });
+      graph = buildCodeGraph(db, project, { level, scope, focus, focusIds, depth, direction, limit, churn: churn.map });
       cache.set(key, graph);
     }
     const body: CodeGraphDTO = { project, revision, ...graph };
@@ -135,8 +176,11 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
     if (!file) return reply.status(400).send({ error: 'file is required' });
     if (!requireProject(reply, project)) return reply;
     const db = getSqlite();
-    // Only files the indexer walked are readable: the index is the allow-list, not the query string.
-    if (!isIndexedFile(db, project, file)) return reply.status(404).send({ error: `file not indexed: ${file}` });
+    // Only files the indexer walked or the diff touches are readable: the allow-list, not the query string.
+    // A reviewer opens changed files the index may not cover yet (new tests, a stale index).
+    if (!isIndexedFile(db, project, file) && !isChangedFile(project, file)) {
+      return reply.status(404).send({ error: `file not indexed: ${file}` });
+    }
 
     let content: string;
     try {
@@ -155,6 +199,28 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
       throw err;
     }
     const body: CodeGraphSourceDTO = { file, language: sourceLanguage(file), content, outline: fileOutline(db, project, file) };
+    return reply.send(body);
+  });
+
+  app.get<{ Querystring: DiffQuery }>('/code-graph/diff', async (req, reply) => {
+    const { project, file } = req.query;
+    const worktree = req.query.worktree === '1' || req.query.worktree === 'true';
+    if (!file) return reply.status(400).send({ error: 'file is required' });
+    if (req.query.base && !BASE_RE.test(req.query.base)) return reply.status(400).send({ error: 'base must be a ref name' });
+    if (!requireProject(reply, project)) return reply;
+
+    let body: CodeGraphDiffDTO;
+    try {
+      const base = req.query.base || resolveBaseBranch(project);
+      // The diff's own file list is the allow-list: no traversal, no reading unchanged files.
+      if (!getChangedFiles({ cwd: project, base, worktree }).includes(file)) {
+        return reply.status(404).send({ error: `file not in the diff vs ${base}: ${file}` });
+      }
+      body = { file, base, worktree, language: sourceLanguage(file), ...getFileDiff(file, { cwd: project, base, worktree }) };
+    } catch (err) {
+      // No git checkout or unknown base: nothing to review, not a server fault.
+      return reply.status(422).send({ error: `diff unavailable: ${(err as Error).message}` });
+    }
     return reply.send(body);
   });
 
@@ -192,8 +258,10 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
     if (!requireProject(reply, project)) return reply;
 
     let assessment: ReturnType<typeof assessRisk>;
+    let statuses: ReturnType<typeof getFileStatuses>;
     try {
       assessment = assessRisk({ cwd: project, base: base || undefined, worktree });
+      statuses = getFileStatuses({ cwd: project, base: assessment.base, worktree });
     } catch (err) {
       // No git checkout, unknown base, detached state: an overlay that cannot be computed, not a server fault.
       return reply.status(422).send({ error: `risk unavailable: ${(err as Error).message}` });
@@ -204,6 +272,7 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
       tier: assessment.score.tier,
       score: assessment.score.score,
       ...projectRisk(level, assessment.touched),
+      status: projectStatus(level, assessment.touched, statuses),
       ...riskChanges(assessment.touched, assessment.ranges),
     };
     return reply.send(body);

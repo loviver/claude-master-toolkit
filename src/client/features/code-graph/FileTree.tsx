@@ -4,6 +4,7 @@ import type { CodeGraphFileDTO } from '../../lib/types';
 import { ancestorDirs, buildFileTree, matchFiles, type TreeDir } from './explorer-model';
 import { Codicon } from './workbench/codicons';
 import list from './workbench/list.module.css';
+import { revealRow } from './workbench/reveal';
 import styles from './Panels.module.css';
 
 interface FileTreeProps {
@@ -106,6 +107,7 @@ function FileRow({ file, name, description, changed, symbols, style, active, onO
       role="treeitem"
       tabIndex={0}
       aria-current={active ? 'true' : undefined}
+      ref={active ? revealRow : undefined}
       className={list.row}
       style={style}
       title={symbols ? `${file} · ${symbols} symbols` : file}

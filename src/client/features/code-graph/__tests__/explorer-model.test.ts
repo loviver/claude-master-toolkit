@@ -4,6 +4,7 @@ import {
   buildFileTree,
   lineChanged,
   matchFiles,
+  fileNodeIds,
   nodeIdForFile,
   seedPosition,
 } from '../explorer-model';
@@ -62,6 +63,27 @@ describe('nodeIdForFile', () => {
     expect(nodeIdForFile('module', 'b.ts')).toBe('.');
     expect(nodeIdForFile('file', 'src/a/b.ts')).toBe('src/a/b.ts');
     expect(nodeIdForFile('symbol', 'src/a/b.ts')).toBeNull();
+  });
+});
+
+describe('fileNodeIds', () => {
+  const nodes = [
+    { id: 'src/a/b.ts::low', file: 'src/a/b.ts', rank: 0.1 },
+    { id: 'src/a/b.ts::high', file: 'src/a/b.ts', rank: 0.9 },
+    { id: 'src/a/c.ts::x', file: 'src/a/c.ts', rank: 1 },
+    { id: 'src/a/b.ts', rank: 0.5 },
+    { id: 'src/a', rank: 0.5 },
+  ];
+
+  it('finds the nodes the view draws for a file, most ranked first', () => {
+    expect(fileNodeIds('symbol', 'src/a/b.ts', nodes)).toEqual(['src/a/b.ts::high', 'src/a/b.ts::low']);
+    expect(fileNodeIds('file', 'src/a/b.ts', nodes)).toEqual(['src/a/b.ts']);
+    expect(fileNodeIds('module', 'src/a/b.ts', nodes)).toEqual(['src/a']);
+  });
+
+  it('is empty when the view does not draw the file', () => {
+    expect(fileNodeIds('file', 'src/zzz.ts', nodes)).toEqual([]);
+    expect(fileNodeIds('symbol', 'src/zzz.ts', nodes)).toEqual([]);
   });
 });
 

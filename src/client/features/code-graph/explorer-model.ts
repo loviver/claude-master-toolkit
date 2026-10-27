@@ -102,6 +102,19 @@ export function nodeIdForFile(level: CodeGraphLevel, file: string): string | nul
   }
 }
 
+/** Node ids the current view draws for `file`, most ranked first (several at the symbol level). */
+export function fileNodeIds(
+  level: CodeGraphLevel,
+  file: string,
+  nodes: ReadonlyArray<{ id: string; file?: string | null; rank: number }>,
+): string[] {
+  const id = nodeIdForFile(level, file);
+  return nodes
+    .filter((n) => (id === null ? n.file === file : n.id === id))
+    .sort((a, b) => b.rank - a.rank)
+    .map((n) => n.id);
+}
+
 /** Whether a changed line span overlaps a 1-based line. */
 export function lineChanged(line: number, ranges: ReadonlyArray<readonly [number, number]>): boolean {
   return ranges.some(([start, end]) => line >= start && line <= end);

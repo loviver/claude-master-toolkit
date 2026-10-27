@@ -38,7 +38,9 @@
 }
 
 .zoneLabel,
-.nodeLabel {
+.nodeLabel,
+.ringLabel,
+.nodeTooltip {
   position: absolute;
   top: 0;
   left: 0;
@@ -62,9 +64,35 @@
   color: var(--vscode-descriptionForeground);
 }
 
+/* Impact view: names each hop ring at its top edge. */
+.ringLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.7;
+}
+
+/* The 3D hover card, placed beside the hovered sphere by the label loop. */
+.nodeTooltip {
+  text-shadow: none;
+  z-index: 1;
+}
+
 .selectedLabel {
   font-weight: 700;
   color: var(--vscode-tab-activeForeground);
+}
+
+/* The file open in the editor: a focus-colored pill, so its node is found at a glance. */
+.viewingLabel {
+  padding: 0 4px;
+  font-weight: 700;
+  color: var(--vscode-tab-activeForeground);
+  border: 1px solid var(--vscode-focusBorder, #4daafc);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 80%, transparent);
 }
 
 .legend {
@@ -107,4 +135,35 @@
 
 .legendHint {
   color: var(--vscode-descriptionForeground);
+}
+
+/* The legend ignores the pointer so the canvas stays draggable under it; its toggles opt back in. */
+.legendToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.legendToggle:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.legendOff {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+/* Legend swatch for the open file: a ring, as the graph marks it. */
+.legend i.viewingSwatch {
+  box-sizing: border-box;
+  background: transparent;
+  border: 2px solid var(--vscode-focusBorder, #4daafc);
 }
