@@ -1,0 +1,16 @@
+{
+  "session_id": "01a1796b-7cae-71f2-a370-cb648f67eb0a",
+  "turn_id": "01a1796b-eacb-7bd3-a622-1686bfce7fed",
+  "transcript_path": "/home/user/.codex/sessions/2026/10/26/rollout-2026-10-26T12-14-09-01a1796b-7cae-71f2-a370-cb648f67eb0a.jsonl",
+  "cwd": "/tmp/ctk-scratch",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6-luna",
+  "permission_mode": "default",
+  "tool_name": "collaborationspawn_agent",
+  "tool_input": {
+    "task_name": "list_files",
+    "fork_turns": "none",
+    "message": "gAAAAABq35iUgDlKT3YrvZ1sbtuVphF0gPK91qpKTzb67G6Gjzzf6Z-SKW2rMpnH2MVYBTsEbN-C78D5zei9Sp_Z9SV-U09RiM3-8qRYe2LjLXKL76Co_DdiCRGVL01BpYLGzwY2vFFfR88NMmgKaLU7H8NzJUmd9V-owgwlgZGAQqMYqxWvOcXR-SIG7TdszR4kb2Lk2JBqzEJqNsrsXNI7lETevGcMVA=="
+  },
+  "tool_use_id": "call_4a92b5d00b9b4ea6b312f476b93bc32b"
+}

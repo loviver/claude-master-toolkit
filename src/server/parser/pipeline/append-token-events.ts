@@ -1,4 +1,4 @@
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type { AppDb } from '../../../shared/db/db.js';
 import { tokenEvents, turnToolCalls, turnContent } from '../../../shared/db/schema.js';
 import { sessionBus } from '../../events/bus.js';
 import { eventToTokenRow } from '../mappers/event-to-token-row.js';
@@ -7,7 +7,7 @@ import { eventToAssistantContent } from '../mappers/event-to-assistant-content.j
 import type { SyncContext, RefMaps } from '../types.js';
 
 export function appendTokenEvents(
-  db: BetterSQLite3Database,
+  db: AppDb,
   ctx: SyncContext,
   refs: RefMaps,
   durationByUuid: Map<string, number>,

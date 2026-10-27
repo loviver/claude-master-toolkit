@@ -1,4 +1,4 @@
-import type { ReactNode, TableHTMLAttributes, THeadHTMLAttributes, TBodyHTMLAttributes, TrHTMLAttributes } from 'react';
+import type { ReactNode, TableHTMLAttributes, HTMLAttributes, TdHTMLAttributes } from 'react';
 import styles from './Table.module.css';
 
 interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
@@ -15,19 +15,19 @@ export function Table({ children, className, ...props }: TableProps) {
   );
 }
 
-export function TableHead({ children, className, ...props }: THeadHTMLAttributes<HTMLTableSectionElement>) {
+export function TableHead({ children, className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
   return <thead className={`${styles.head} ${className ?? ''}`} {...props}>{children}</thead>;
 }
 
-export function TableBody({ children, className, ...props }: TBodyHTMLAttributes<HTMLTableSectionElement>) {
+export function TableBody({ children, className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
   return <tbody className={`${styles.body} ${className ?? ''}`} {...props}>{children}</tbody>;
 }
 
-export function TableRow({ children, className, ...props }: TrHTMLAttributes<HTMLTableRowElement>) {
+export function TableRow({ children, className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
   return <tr className={`${styles.row} ${className ?? ''}`} {...props}>{children}</tr>;
 }
 
-interface TableCellProps extends TrHTMLAttributes<HTMLTableCellElement> {
+interface TableCellProps extends TdHTMLAttributes<HTMLTableCellElement> {
   children: ReactNode;
   align?: 'left' | 'center' | 'right';
   variant?: 'head' | 'body';

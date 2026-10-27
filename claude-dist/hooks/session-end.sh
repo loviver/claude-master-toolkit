@@ -10,6 +10,9 @@
 
 set -euo pipefail
 
+# shellcheck source=./ts-shim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ts-shim.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "$SCRIPT_DIR/lib.sh"

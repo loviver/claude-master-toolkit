@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as schema from '../../../shared/db/schema.js';
 import { tokenEvents, sessions } from '../../../shared/db/schema.js';
 import { loadRefMaps } from '../builders/ref-maps.js';
 
@@ -14,7 +15,8 @@ function makeDb() {
       total_input_tokens INTEGER NOT NULL DEFAULT 0, total_output_tokens INTEGER NOT NULL DEFAULT 0,
       total_cache_read_tokens INTEGER NOT NULL DEFAULT 0, total_cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
       total_cost_usd REAL NOT NULL DEFAULT 0, jsonl_file TEXT NOT NULL,
-      custom_title TEXT, last_prompt TEXT, entrypoint TEXT
+      custom_title TEXT, last_prompt TEXT, entrypoint TEXT,
+      agent TEXT NOT NULL DEFAULT 'claude-code'
     );
     CREATE TABLE token_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, timestamp INTEGER NOT NULL,
@@ -33,7 +35,7 @@ function makeDb() {
       user_type TEXT, event_subtype TEXT, event_level TEXT
     );
   `);
-  return drizzle(sqlite);
+  return drizzle(sqlite, { schema });
 }
 
 describe('loadRefMaps', () => {

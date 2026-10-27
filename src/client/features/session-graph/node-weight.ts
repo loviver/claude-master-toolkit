@@ -1,16 +1,16 @@
-import type { SessionGraphNode } from '../../lib/types';
+import type { SessionGraphNodeDTO } from '../../lib/types';
 
 export const MIN_NODE_W = 180;
 export const MAX_NODE_W = 260;
 
-function rawSignal(n: SessionGraphNode): number {
+function rawSignal(n: SessionGraphNodeDTO): number {
   const tokens = (n.inputTokens ?? 0) + (n.outputTokens ?? 0);
   const toolsFactor = (n.tools?.length ?? 0) * 500;
   const costFactor = (n.costUsd ?? 0) * 10_000;
   return tokens + toolsFactor + costFactor;
 }
 
-export function computeNodeWeights(nodes: SessionGraphNode[]): Map<string, number> {
+export function computeNodeWeights(nodes: SessionGraphNodeDTO[]): Map<string, number> {
   const out = new Map<string, number>();
   if (nodes.length === 0) return out;
   if (nodes.length === 1) {

@@ -1,0 +1,1 @@
+{"session_id":"s-1","transcript_path":"/t.jsonl","cwd":"/home/user/proj","hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"/home/user/proj/src/b.ts","content":"x"},"tool_response":{"success":true},"tool_use_id":"toolu_4"}

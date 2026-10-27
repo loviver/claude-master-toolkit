@@ -1,15 +1,15 @@
-import { join } from 'path';
-import { homedir } from 'os';
+import { ctkPaths } from '../../paths/ctk-home.js';
 import { mkdirSync } from 'fs';
 import type { Embedder } from './port.js';
+import { loadTransformers, formatModelProgress } from './transformers-ext.js';
 
 /**
  * Local, offline embedder backed by transformers.js (`@huggingface/transformers`).
  * The model (~110MB, multilingual) is downloaded once, then fully offline.
  *
- * The package is an OPTIONAL runtime dependency: it is imported via a variable specifier so the
- * toolkit builds and runs (keyword-only) even when it is not installed. Only `embedder=local`
- * pulls it in; failure to load degrades to keyword recall upstream.
+ * The package is NOT a dependency: `ctk mem semantic enable` installs it into `~/.ctk/ext` (see
+ * transformers-ext.ts). When it is missing, loading throws TransformersMissingError and recall
+ * degrades to keyword-only upstream.
  */
 
 /** Writable model cache. transformers.js otherwise defaults to a `.cache` INSIDE its own package
@@ -18,7 +18,7 @@ function resolveModelCacheDir(): string {
   const dir =
     process.env['CTK_MODEL_CACHE'] ??
     process.env['HF_HOME'] ??
-    join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'models');
+    ctkPaths.modelsCache();
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -31,14 +31,20 @@ export async function createLocalEmbedder(
   // false so a missing/partial cache throws FAST (→ keyword fallback) instead
   // of blocking the query on a multi-minute download.
   const allowRemoteModels = opts.allowRemoteModels ?? true;
-  const pkg = '@huggingface/transformers';
-  const mod: any = await import(pkg);
+  const mod: any = await loadTransformers();
   if (mod.env) {
     mod.env.cacheDir = resolveModelCacheDir();
     mod.env.allowRemoteModels = allowRemoteModels;
     mod.env.useBrowserCache = false;
   }
-  const extractor = await mod.pipeline('feature-extraction', model);
+  // A download only happens on reindex: surface progress so the ~110MB fetch never looks frozen.
+  const progress_callback = allowRemoteModels
+    ? (ev: unknown) => {
+        const line = formatModelProgress(ev);
+        if (line) process.stderr.write(`\r${line}`);
+      }
+    : undefined;
+  const extractor = await mod.pipeline('feature-extraction', model, { progress_callback });
   let dim = 0;
 
   return {

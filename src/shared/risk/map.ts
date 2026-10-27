@@ -8,6 +8,8 @@ export interface TouchedSymbol {
   exported: boolean;
   /** Names of symbols that call this one (1-hop callers), from the AST index. */
   callers: string[];
+  /** What this symbol uses (1-hop deps), from the AST index. */
+  deps: string[];
   range: [number, number];
 }
 
@@ -22,6 +24,7 @@ interface SymbolRow {
   end_line: number;
   exported: number;
   callers: string | null;
+  deps: string | null;
 }
 
 /**
@@ -43,7 +46,7 @@ export function mapTouchedSymbols(
   }
 
   const stmt = db.prepare(
-    `SELECT symbol, start_line, end_line, exported, callers
+    `SELECT symbol, start_line, end_line, exported, callers, deps
        FROM symbols WHERE project_path = ? AND file = ?`,
   );
 
@@ -58,6 +61,7 @@ export function mapTouchedSymbols(
         symbol: row.symbol,
         exported: !!row.exported,
         callers: row.callers ? JSON.parse(row.callers) : [],
+        deps: row.deps ? JSON.parse(row.deps) : [],
         range: [row.start_line, row.end_line],
       });
     }

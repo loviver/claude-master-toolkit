@@ -102,7 +102,7 @@ RULES:
 1. Read is a LAST RESORT. Use ctk_understand first.
 2. Do NOT explore outside the Brief's Known Context without recording a finding via ctk_record.
 3. Before deep-diving a symbol, run ctk_recall to avoid duplicate work.
-4. If you make important discoveries, save to pandorica via pandorica_save AND ctk_record.
+4. If you make important discoveries, save to pandorica via mem_save AND ctk_record.
 ```
 
 Then the actual task description + relevant files.

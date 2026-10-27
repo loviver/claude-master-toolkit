@@ -27,8 +27,8 @@ export interface BenchRun {
   taskId: string;
   variant: BenchVariant;
   model: string;
-  sourceJsonl: string;
-  sessionId: string;
+  sourceJsonl: string | null;
+  sessionId: string | null;
   startedAt: number;
   endedAt: number;
   wallMs: number;
@@ -38,8 +38,8 @@ export interface BenchRun {
   cacheCreation: number;
   costUsd: number;
   turnCount: number;
-  stopReason: string;
-  toolCallsJson: string;
+  stopReason: string | null;
+  toolCallsJson: string | null;
   success: number | null;
   notes: string | null;
   checksum: string;

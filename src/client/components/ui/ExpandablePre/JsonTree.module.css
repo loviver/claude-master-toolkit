@@ -45,8 +45,8 @@
   font-style: italic;
 }
 
-.string { color: #16a34a; }
-.number { color: #2563eb; }
-.boolean { color: #9333ea; }
+.string { color: var(--accent-green); }
+.number { color: var(--accent-blue); }
+.boolean { color: var(--accent-purple); }
 .null { color: var(--text-muted); font-style: italic; }
 .empty { color: var(--text-muted); }

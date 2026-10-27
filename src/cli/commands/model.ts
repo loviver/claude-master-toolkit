@@ -1,15 +1,18 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'fs';
 import { dirname, join } from 'path';
-import { homedir } from 'os';
-import { output, outputError, readMainModel } from '../../shared/output.js';
+import { output, outputError } from '../../shared/output.js';
+import { readMainModel, resolveAgentId } from '../../shared/agents/resolve.js';
+import { resolveModel } from '../../shared/models/router.js';
 import type { ModelPreference } from '../../shared/types/index.js';
 
-const MODEL_PREF_FILE = join(homedir(), '.claude', 'state', 'claude-master-toolkit', 'model-preference');
+import { ctkPaths } from '../../shared/paths/ctk-home.js';
+
+const modelPrefFile = (): string => ctkPaths.modelPref();
 
 function readPreference(): ModelPreference {
   try {
-    if (existsSync(MODEL_PREF_FILE)) {
-      return readFileSync(MODEL_PREF_FILE, 'utf-8').trim() as ModelPreference;
+    if (existsSync(modelPrefFile())) {
+      return readFileSync(modelPrefFile(), 'utf-8').trim() as ModelPreference;
     }
   } catch {
     // Fall through
@@ -17,65 +20,26 @@ function readPreference(): ModelPreference {
   return 'inherit';
 }
 
-export function modelCommand(phase: string): void {
-  const pref = readPreference();
-
-  // pinned:<model> — absolute override
-  if (pref.startsWith('pinned:')) {
-    output(pref.slice(7));
-    return;
+export function modelCommand(phase: string, opts: { agent?: string } = {}): void {
+  let agent;
+  try {
+    agent = resolveAgentId(opts.agent);
+  } catch (e) {
+    outputError((e as Error).message);
+    process.exit(1);
   }
-
-  const current = readMainModel();
-
-  switch (pref) {
-    case 'inherit':
-      output(current);
-      break;
-
-    case 'auto':
-    case 'smart':
-      // Smart routing: only force a model when the phase has a clear reason.
-      // All other phases INHERIT the main model — sub-agents using the ctk mini-DSL
-      // (ctk_understand, ctk_find, etc.) stay coherent with the main conversation.
-      switch (phase) {
-        case 'sdd-propose':
-        case 'sdd-design':
-        case 'orchestrator':
-          // Architectural reasoning — force opus
-          output('opus');
-          break;
-        case 'sdd-archive':
-          // Mechanical close-out — force haiku
-          output('haiku');
-          break;
-        default:
-          // sdd-explore, sdd-spec, sdd-tasks, sdd-apply, sdd-verify,
-          // explore, implement, review, general → inherit
-          output(current);
-      }
-      break;
-
-    case 'opus':
-    case 'sonnet':
-    case 'haiku':
-      output(pref);
-      break;
-
-    default:
-      output(current);
-  }
+  output(resolveModel({ agent, current: readMainModel(agent), pref: readPreference(), phase }));
 }
 
 const VALID_PREFS = ['inherit', 'auto', 'smart', 'opus', 'sonnet', 'haiku'];
 
 export function modelPrefCommand(action?: string, value?: string): void {
-  mkdirSync(dirname(MODEL_PREF_FILE), { recursive: true });
+  mkdirSync(dirname(modelPrefFile()), { recursive: true });
 
   switch (action ?? 'get') {
     case 'get':
-      output(existsSync(MODEL_PREF_FILE)
-        ? readFileSync(MODEL_PREF_FILE, 'utf-8').trim()
+      output(existsSync(modelPrefFile())
+        ? readFileSync(modelPrefFile(), 'utf-8').trim()
         : 'inherit (default)');
       break;
 
@@ -86,13 +50,13 @@ export function modelPrefCommand(action?: string, value?: string): void {
       if (!VALID_PREFS.includes(value!) && !value!.startsWith('pinned:')) {
         outputError(`model-pref: invalid value '${value}'. Valid: inherit | auto | smart | opus | sonnet | haiku | pinned:<model>`);
       }
-      writeFileSync(MODEL_PREF_FILE, value!);
+      writeFileSync(modelPrefFile(), value!);
       output(`Model preference set: ${value}`);
       break;
     }
 
     case 'clear':
-      if (existsSync(MODEL_PREF_FILE)) unlinkSync(MODEL_PREF_FILE);
+      if (existsSync(modelPrefFile())) unlinkSync(modelPrefFile());
       output('Model preference cleared (→ inherit)');
       break;
 

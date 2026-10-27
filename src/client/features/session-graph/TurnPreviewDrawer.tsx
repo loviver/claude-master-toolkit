@@ -9,13 +9,16 @@ import {
   Clock, Database, FileQuestion, Folder, GitBranch, Hash, Image as ImageIcon,
   Lock, Maximize2, Minimize2, Package, Tag,
 } from 'lucide-react';
-import { useTurnContent } from '../../hooks/queries/useSessions';
-import type { SessionGraphNode, TurnPairDTO } from '../../lib/types';
+import { Link } from 'react-router-dom';
+import { useSessionCodeActivity, useTurnContent } from '../../hooks/queries/useSessions';
+import { toRepoRelative } from '../../../shared/sessions/file-activity';
+import { codeGraphHref } from '../session-detail/code-graph-link';
+import type { SessionGraphNodeDTO, TurnPairDTO } from '../../lib/types';
 import styles from './TurnPreviewDrawer.module.css';
 
 interface Props {
   sessionId: string;
-  turns: SessionGraphNode[];
+  turns: SessionGraphNodeDTO[];
   selectedId: string | null;
   open: boolean;
   onSelect: (id: string) => void;
@@ -41,6 +44,13 @@ export function TurnPreviewDrawer({ sessionId, turns, selectedId, open, onSelect
 
   const eventId = turn ? Number(turn.id) : null;
   const { data, isLoading, error } = useTurnContent(sessionId, eventId);
+  const { data: activity } = useSessionCodeActivity(sessionId);
+  /** Where a changed file opens in the code graph; null when the graph cannot show it. */
+  const codeHref = (file: string): string | null => {
+    if (!activity?.indexed) return null;
+    const rel = toRepoRelative(activity.projectPath, file);
+    return rel && codeGraphHref({ project: activity.projectPath, session: sessionId, open: rel });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -97,14 +107,14 @@ export function TurnPreviewDrawer({ sessionId, turns, selectedId, open, onSelect
           description="This turn has no persisted content payload."
         />
       )}
-      {data && <TurnPairContent pair={data} turn={turn} />}
+      {data && <TurnPairContent pair={data} turn={turn} codeHref={codeHref} />}
     </Drawer>
   );
 }
 
 // ─── Hero ────────────────────────────────────────────────────────────
 
-function Hero({ turn, agentRole }: { turn: SessionGraphNode | null; agentRole: string | null }) {
+function Hero({ turn, agentRole }: { turn: SessionGraphNodeDTO | null; agentRole: string | null }) {
   if (!turn) return null;
   return (
     <div className={styles.hero}>
@@ -143,7 +153,7 @@ function fmtDuration(ms: number): string {
 
 // ─── Stats grid ───────────────────────────────────────────────────────
 
-function StatsGrid({ turn }: { turn: SessionGraphNode }) {
+function StatsGrid({ turn }: { turn: SessionGraphNodeDTO }) {
   const cells: Array<{ label: string; value: string; Icon: React.ComponentType<{ size?: number }> }> = [
     { label: 'Input', value: turn.inputTokens.toLocaleString(), Icon: ArrowDown },
     { label: 'Output', value: turn.outputTokens.toLocaleString(), Icon: ArrowUp },
@@ -190,7 +200,7 @@ function MetaChip({ name, value, expandable }: { name: string; value: string; ex
   );
 }
 
-function MetadataBlock({ ae, turn }: { ae: TurnPairDTO['assistantEvent']; turn: SessionGraphNode | null }) {
+function MetadataBlock({ ae, turn }: { ae: TurnPairDTO['assistantEvent']; turn: SessionGraphNodeDTO | null }) {
   const rawEntries: Array<{ name: string; value: string; expandable?: boolean } | null> = [
     ae.slug ? { name: 'slug', value: ae.slug } : null,
     ae.permissionMode ? { name: 'permissionMode', value: ae.permissionMode } : null,
@@ -231,7 +241,11 @@ function MetadataBlock({ ae, turn }: { ae: TurnPairDTO['assistantEvent']; turn: 
 
 // ─── Body ─────────────────────────────────────────────────────────────
 
-function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraphNode | null }) {
+function TurnPairContent({ pair, turn, codeHref }: {
+  pair: TurnPairDTO;
+  turn: SessionGraphNodeDTO | null;
+  codeHref: (file: string) => string | null;
+}) {
   const ae = pair.assistantEvent;
   return (
     <div className={styles.sections}>
@@ -350,11 +364,16 @@ function TurnPairContent({ pair, turn }: { pair: TurnPairDTO; turn: SessionGraph
       {ae.filesChanged && ae.filesChanged.length > 0 && (
         <Section title={`Files changed (${ae.filesChanged.length})`}>
           <div className={styles.filesList}>
-            {ae.filesChanged.map((f) => (
-              <span key={f} className={styles.fileItem}>
-                <CopyableValue value={f} maxChars={60} mono label="file path" />
-              </span>
-            ))}
+            {ae.filesChanged.map((f) => {
+              const href = codeHref(f);
+              return (
+                <span key={f} className={styles.fileItem}>
+                  {href
+                    ? <Link to={href} className={styles.fileLink} title="Open in the code graph">{f}</Link>
+                    : <CopyableValue value={f} maxChars={60} mono label="file path" />}
+                </span>
+              );
+            })}
           </div>
         </Section>
       )}

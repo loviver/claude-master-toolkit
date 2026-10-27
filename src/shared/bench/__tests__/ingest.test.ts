@@ -26,7 +26,7 @@ describe('parseJsonlForBench', () => {
     expect(run.startedAt).toBe(Date.parse('2026-04-17T10:00:00.000Z'));
     expect(run.endedAt).toBe(Date.parse('2026-04-17T10:00:20.000Z'));
     expect(run.wallMs).toBe(20000);
-    expect(JSON.parse(run.toolCallsJson)).toEqual(['Read']);
+    expect(JSON.parse(run.toolCallsJson!)).toEqual(['Read']);
     expect(run.sourceJsonl).toBe(FIXTURE);
     expect(run.provenanceAuthor).toBe('alice@example.com');
     expect(run.provenanceCommit).toBe('deadbeef');

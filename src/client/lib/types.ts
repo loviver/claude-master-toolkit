@@ -14,6 +14,33 @@ export type {
   TurnPairDTO,
   TurnToolCall,
   ToolCallStructuredDTO,
+  SessionCodeActivityDTO,
+  FileActivityDTO,
+  FileTurnActivityDTO,
+  FileOp,
+  CodeGraphLevel,
+  CodeGraphLinkType,
+  CodeGraphDirection,
+  CodeGraphNodeDTO,
+  CodeGraphLinkDTO,
+  CodeGraphStatsDTO,
+  CodeGraphDTO,
+  CodeGraphProjectDTO,
+  CodeGraphRevisionDTO,
+  CodeGraphRiskDTO,
+  CodeGraphChangeDTO,
+  CodeGraphChangedFileDTO,
+  CodeGraphChangeStatus,
+  CodeGraphFileDTO,
+  CodeGraphOutlineDTO,
+  CodeGraphSourceDTO,
+  CodeGraphDiffDTO,
+  CodeGraphDiffLineDTO,
+  CodeGraphProvenanceDTO,
+  CodeGraphSymbolRefDTO,
+  CodeGraphSymbolHitDTO,
+  CodeGraphUsageDTO,
+  CodeGraphSymbolDTO,
 } from '../../shared/api-types';
 import type {
   ModelKey,
@@ -193,9 +220,6 @@ export interface ProjectStats {
   lastActiveAt: number;
   dominantModel: ModelKey;
 }
-
-// Legacy aliases — prefer the DTO names directly.
-export type { SessionGraphNodeDTO as SessionGraphNode, SessionGraphDTO as SessionGraph } from '../../shared/api-types';
 
 export interface Memory {
   id: string;

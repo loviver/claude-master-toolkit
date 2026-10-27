@@ -1,0 +1,260 @@
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--vscode-editor-background);
+  cursor: grab;
+  user-select: none;
+}
+
+.svg:active { cursor: grabbing; }
+
+.scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--vscode-editor-background);
+}
+
+.label {
+  fill: var(--vscode-foreground);
+  font: 11px var(--vscode-font-family, system-ui, sans-serif);
+  pointer-events: none;
+}
+
+.labelDim { fill: var(--vscode-descriptionForeground); }
+
+.hit { cursor: pointer; }
+
+.hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.toolbar {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 2;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.crumbBtn {
+  all: unset;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--vscode-textLink-foreground);
+}
+
+.crumbBtn:hover { background: var(--vscode-toolbar-hoverBackground); }
+
+/* Call hierarchy */
+.tree { position: absolute; inset: 0; overflow: auto; padding: 8px 12px; }
+.treeTools { display: flex; gap: 4px; margin-bottom: 8px; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.row:hover { background: var(--vscode-list-hoverBackground); }
+.twistie {
+  all: unset;
+  width: 16px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--vscode-icon-foreground);
+}
+.sym { all: unset; cursor: pointer; color: var(--vscode-foreground); }
+.sym:hover { text-decoration: underline; }
+.where { color: var(--vscode-descriptionForeground); font-size: 12px; margin-left: 6px; }
+.recursive { color: var(--vscode-editorWarning-foreground); margin-left: 6px; font-size: 12px; }
+
+/* Dependency matrix */
+.matrixRoot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-editor-background);
+}
+
+.matrixBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.barBtn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--vscode-icon-foreground);
+}
+.barBtn:hover { background: var(--vscode-toolbar-hoverBackground); }
+.barBtn:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+
+.popoverHost { position: relative; }
+.popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  min-width: 280px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
+}
+.popoverItem {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+}
+.popoverItem:hover { background: var(--vscode-list-hoverBackground); }
+
+.matrixLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.matrixLegend li { display: inline-flex; align-items: center; gap: 4px; }
+.matrixLegend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+
+.matrixArea { position: relative; flex: 1; min-height: 0; }
+
+.matrixScroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  outline: none;
+}
+.matrixScroll:focus-visible { box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); }
+
+.matrixGrid { display: grid; }
+
+.matrixCorner,
+.colHead,
+.rowHead {
+  position: sticky;
+  background: var(--vscode-editor-background);
+}
+.matrixCorner { top: 0; left: 0; z-index: 3; }
+.colHead { top: 0; z-index: 2; }
+.rowHead { left: 0; z-index: 2; }
+.matrixBody { position: relative; }
+
+/* Folder bars: one gutter per nesting level; click folds the folder. */
+.spanBar {
+  all: unset;
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  line-height: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground);
+  background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+.spanBar:hover { background: color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent); color: var(--vscode-foreground); }
+.spanBarV { padding: 4px 0; writing-mode: vertical-rl; transform: rotate(180deg); }
+
+.colNum {
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  padding: 2px 0;
+  box-sizing: border-box;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+}
+
+.rowLabel {
+  all: unset;
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+}
+.rowLabel:hover { background: var(--vscode-list-hoverBackground); }
+.rowLabel .codicon { font-size: 12px; }
+.rowNum {
+  flex: none;
+  min-width: 22px;
+  text-align: right;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+}
+.rowText { overflow: hidden; text-overflow: ellipsis; }
+.rowStrip { position: absolute; width: 4px; }
+
+.matrixTip {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
+}
+.tipDim { color: var(--vscode-descriptionForeground); }

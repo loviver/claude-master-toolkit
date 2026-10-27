@@ -12,9 +12,11 @@ interface GraphCanvasProps {
   onNodeClick?: (id: string, data: GraphNodeData) => void;
   height?: number;
   focusId?: string | null;
+  /** Frame only these nodes on first paint; fitting a long session whole makes every node unreadable. */
+  initialFitIds?: string[];
 }
 
-export function GraphCanvas({ nodes, edges, onNodeClick, height = 600, focusId }: GraphCanvasProps) {
+export function GraphCanvas({ nodes, edges, onNodeClick, height = 600, focusId, initialFitIds }: GraphCanvasProps) {
   const instanceRef = useRef<ReactFlowInstance | null>(null);
 
   useEffect(() => {
@@ -36,7 +38,11 @@ export function GraphCanvas({ nodes, edges, onNodeClick, height = 600, focusId }
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2, duration: 0 }}
+        fitViewOptions={
+          initialFitIds
+            ? { nodes: initialFitIds.map((id) => ({ id })), padding: 0.15, maxZoom: 1, duration: 0 }
+            : { padding: 0.2, duration: 0 }
+        }
         onlyRenderVisibleElements
         minZoom={0.15}
         proOptions={{ hideAttribution: true }}
@@ -50,6 +56,9 @@ export function GraphCanvas({ nodes, edges, onNodeClick, height = 600, focusId }
             const data = n.data as GraphNodeData;
             return MODEL_COLOR[data?.modelKey ?? 'unknown'];
           }}
+          bgColor="var(--bg-surface)"
+          maskColor="color-mix(in srgb, var(--bg-page) 70%, transparent)"
+          maskStrokeColor="var(--border-strong)"
           pannable
           zoomable
         />

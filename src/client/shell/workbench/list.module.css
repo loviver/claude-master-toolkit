@@ -1,0 +1,127 @@
+/* VSCode list/tree rows: 22px, 8px indent, 16px twistie, hover/selection from the theme. */
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: var(--wb-row);
+  padding: 0 8px 0 var(--row-indent, 8px);
+  font: inherit;
+  line-height: var(--wb-row);
+  text-align: left;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.row:hover {
+  color: var(--vscode-list-hoverForeground);
+  background: var(--vscode-list-hoverBackground);
+}
+
+.row[aria-current='true'],
+.row[aria-current='page'] {
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.row:focus-visible {
+  outline: none;
+  border-color: var(--vscode-list-focusOutline);
+}
+
+.twistie {
+  display: inline-flex;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 16px;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+
+.icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The description yields space first, as in VSCode: the name stays readable. */
+.description {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.9em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.9;
+}
+
+/* Inline actions appear on hover, like VSCode's tree actions. */
+.actions {
+  display: none;
+  flex-shrink: 0;
+  margin-left: auto;
+  align-items: center;
+}
+
+.row:hover .actions,
+.row:focus-within .actions {
+  display: inline-flex;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--vscode-icon-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.decoration,
+.row > vscode-badge {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.decoration {
+  min-width: 12px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.modified {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.empty {
+  padding: 4px 20px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}

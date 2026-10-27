@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import { setJsonMode } from "../shared/output.js";
+import { ensureMigrated } from "../shared/paths/ctk-home.js";
 import { sliceCommand } from "./commands/slice.js";
 import { modelCommand, modelPrefCommand } from "./commands/model.js";
 import { tokensCommand, estimateCommand } from "./commands/tokens.js";
@@ -11,8 +12,8 @@ import { gitLogCommand, gitChangedCommand } from "./commands/git.js";
 import { findCommand } from "./commands/find.js";
 import { testSummaryCommand } from "./commands/test.js";
 import { dashboardCommand } from "./commands/dashboard.js";
-import { installClaudeCommand } from "./commands/install.js";
-import { uninstallClaudeCommand } from "./commands/uninstall.js";
+import { installClaudeCommand, installCodexCommand, installAllCommand } from "./commands/install.js";
+import { uninstallClaudeCommand, uninstallCodexCommand, uninstallAllCommand } from "./commands/uninstall.js";
 import { initCommand } from "./commands/init.js";
 import { skillRegistryCommand } from "./commands/skill-registry.js";
 import { planCommand } from "./commands/plan.js";
@@ -23,6 +24,7 @@ import {
   indexFindCommand,
   indexDepsCommand,
   indexCallersCommand,
+  indexMapCommand,
 } from "./commands/indexer.js";
 import { understandCommand } from "./commands/understand.js";
 import { schemaInspectCommand } from "./commands/schema-inspect.js";
@@ -34,19 +36,10 @@ import {
 } from "./commands/brief.js";
 import { recordCommand, recallCommand } from "./commands/findings.js";
 import {
-  saveCommand as pandoricaSaveCommand,
-  searchCommand as pandoricaSearchCommand,
-  reindexCommand as pandoricaReindexCommand,
-  contextCommand as pandoricaContextCommand,
-  recentCommand as pandoricaRecentCommand,
-  getCommand as pandoricaGetCommand,
-  deleteCommand as pandoricaDeleteCommand,
-  summaryCommand as pandoricaSummaryCommand,
-} from "./commands/pandorica.js";
-import {
   memSaveCommand,
   memRecallCommand,
   memReindexCommand,
+  memSemanticEnableCommand,
   memContextCommand,
   memTraceCommand,
   memGetCommand,
@@ -76,8 +69,8 @@ import {
   planStatusCommand,
   planGenerateCommand,
 } from "./commands/plan-exec.js";
+import { CTK_VERSION } from "../shared/version.js";
 
-const VERSION = "0.1.14";
 const VALID_PANDORICA_TYPES =
   "bugfix|decision|architecture|discovery|pattern|config|preference|session_summary";
 
@@ -86,7 +79,7 @@ const program = new Command()
   .description(
     "Claude Master Toolkit — token-efficient CLI + metrics dashboard",
   )
-  .version(VERSION)
+  .version(CTK_VERSION)
   .option("--json", "Output in JSON format (AI-friendly)")
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -101,7 +94,21 @@ install
   .command("claude")
   .description("Install Claude Code stack into ~/.claude (symlinks + settings)")
   .option("--skip-caveman", "Skip caveman plugin install")
+  .option("--force", "Take over an install a git checkout owns")
   .action(installClaudeCommand);
+
+install
+  .command("codex")
+  .description("Install Codex stack into ~/.codex (MCP block in config.toml + neutral skills)")
+  .option("--force", "Take over an install a git checkout owns")
+  .action(installCodexCommand);
+
+install
+  .command("all")
+  .description("Install every supported agent found on this machine")
+  .option("--skip-caveman", "Skip caveman plugin install")
+  .option("--force", "Take over an install a git checkout owns")
+  .action(installAllCommand);
 
 const uninstall = program
   .command("uninstall")
@@ -109,9 +116,20 @@ const uninstall = program
 
 uninstall
   .command("claude")
-  .description("Uninstall Claude Code stack from ~/.claude (restore backup)")
+  .description("Uninstall Claude Code stack from ~/.claude (only what ctk installed; ~/.ctk untouched)")
   .option("--remove-caveman", "Also uninstall caveman plugin")
   .action(uninstallClaudeCommand);
+
+uninstall
+  .command("codex")
+  .description("Uninstall Codex stack from ~/.codex (only what ctk installed)")
+  .action(uninstallCodexCommand);
+
+uninstall
+  .command("all")
+  .description("Uninstall every agent stack")
+  .option("--remove-caveman", "Also uninstall caveman plugin")
+  .action(uninstallAllCommand);
 
 program
   .command("init")
@@ -154,7 +172,8 @@ program
 
 program
   .command("model <phase>")
-  .description("Print model alias for an SDD phase (respects user preference)")
+  .description("Print the sub-agent model for an SDD phase or tier high|mid|low (respects user preference)")
+  .option("--agent <id>", "target agent (claude-code|codex); default: auto-detect")
   .action(modelCommand);
 
 program
@@ -189,6 +208,17 @@ program
   .command("statusline")
   .description("Emit statusline string from SQLite (reads session JSON on stdin)")
   .action(statuslineCommand);
+
+program
+  .command("hook <event>")
+  .description("Run an agent hook (stdin = hook payload). Used by agent hook configs.")
+  .option("--agent <id>", "agent id (claude-code | codex); default: auto-detect")
+  .action(async (event: string, opts: { agent?: string }) => {
+    const { runHook, parseArgs } = await import("../hooks/entry.js");
+    const { readStdin, writeOutput } = await import("../hooks/runtime/io.js");
+    const args = parseArgs([event, ...(opts.agent ? ["--agent", opts.agent] : [])]);
+    writeOutput(await runHook(args, await readStdin()));
+  });
 
 program
   .command("git-log [count]")
@@ -236,6 +266,7 @@ index
     "Filter by kind: class|function|method|type|interface|const",
   )
   .option("--exported", "Only exported symbols")
+  .option("--file <path>", "Pin to a definition by exact path or path suffix")
   .action(indexFindCommand);
 
 index
@@ -245,14 +276,24 @@ index
 
 index
   .command("callers <symbol>")
-  .description("Who calls this symbol")
+  .description("Who calls / references this symbol")
+  .option("--file <path>", "Pin to a definition by exact path or path suffix")
+  .option("--include <kind>", "calls|refs|all (default all)")
   .action(indexCallersCommand);
+
+index
+  .command("map")
+  .description("Repo map: top symbols by PageRank, cut to a token budget")
+  .option("--focus <items>", "Comma-separated files or symbols to center the map on")
+  .option("--budget <tokens>", "Approximate token budget (default 1024)")
+  .action(indexMapCommand);
 
 program
   .command("understand <symbol>")
   .description(
     "Intent-based: combines find + slice + deps + callers in one JSON",
   )
+  .option("--file <path>", "Pin to a definition by exact path or path suffix")
   .action(understandCommand);
 
 program
@@ -383,74 +424,6 @@ bench
   .description("Import a bench SQL dump into the local DB")
   .action(benchImportCommand);
 
-const pandorica = program
-  .command("pandorica")
-  .description("Persistent memory vault (Dr. Who-themed)");
-
-pandorica
-  .command("save")
-  .description("Save a memory to the Pandorica")
-  .requiredOption("--title <text>", "Short searchable title")
-  .requiredOption("--type <type>", VALID_PANDORICA_TYPES)
-  .option("--content <text>", "Inline content")
-  .option("--file <path>", "Read content from file")
-  .option("--stdin", "Read content from stdin")
-  .option("--scope <scope>", "project|personal", "project")
-  .option("--topic-key <key>", "Stable key for upsert (e.g. architecture/auth)")
-  .option("--project-path <path>", "Override project path (default: cwd)")
-  .option("--session-id <id>", "Attach to a session")
-  .action(pandoricaSaveCommand);
-
-pandorica
-  .command("search <query>")
-  .description("Search memories (hybrid: keyword FTS5 + semantic vectors)")
-  .option("--limit <n>", "Max results (default 20)")
-  .option("--type <type>", "Filter by type")
-  .option("--scope <scope>", "Filter by scope")
-  .option("--project-path <path>", "Filter by project path")
-  .action(pandoricaSearchCommand);
-
-pandorica
-  .command("reindex")
-  .description("(Re)compute semantic embeddings for every memory in the vault")
-  .action(pandoricaReindexCommand);
-
-pandorica
-  .command("context")
-  .description("Recent memories for current project/session")
-  .option("--project-path <path>", "Override project path (default: cwd)")
-  .option("--session-id <id>", "Filter by session")
-  .option("--limit <n>", "Max results (default 10)")
-  .action(pandoricaContextCommand);
-
-pandorica
-  .command("recent")
-  .description("Last N memories by creation date")
-  .option("--limit <n>", "Max results (default 10)")
-  .option("--all", "All projects (default: current cwd only)")
-  .action(pandoricaRecentCommand);
-
-pandorica
-  .command("get <id>")
-  .description("Full untruncated memory by id")
-  .action(pandoricaGetCommand);
-
-pandorica
-  .command("delete <id>")
-  .description("Delete a memory by id")
-  .action(pandoricaDeleteCommand);
-
-pandorica
-  .command("summary")
-  .description("Persist a session summary (markdown)")
-  .option("--content <text>", "Inline content")
-  .option("--file <path>", "Read from file")
-  .option("--stdin", "Read from stdin")
-  .option("--session-id <id>", "Session id (used as topic key)")
-  .option("--project-path <path>", "Override project path")
-  .option("--title <text>", "Override title")
-  .action(pandoricaSummaryCommand);
-
 const mem = program
   .command("mem")
   .description(
@@ -492,6 +465,13 @@ mem
   .command("reindex")
   .description("(Re)compute semantic embeddings for every memory in the vault")
   .action(memReindexCommand);
+
+mem
+  .command("semantic")
+  .description("Opt-in semantic recall (transformers.js, installed into ~/.ctk/ext)")
+  .command("enable")
+  .description("Install transformers.js (CPU only) and embed the whole vault")
+  .action(memSemanticEnableCommand);
 
 mem
   .command("context")
@@ -594,4 +574,5 @@ wf
   .description("Get execution status and timeline")
   .action(planStatusCommand);
 
+ensureMigrated();
 program.parse();

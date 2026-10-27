@@ -1,0 +1,230 @@
+/* Read-only editor: VSCode gutter (line numbers, then the dirty-diff bar), 13px editor font. */
+
+.viewer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.outline {
+  width: 260px;
+}
+
+.loading {
+  position: relative;
+  flex: 1;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  user-select: text;
+}
+
+.code {
+  position: relative;
+  margin: 0;
+  padding: 0 0 50vh;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+  line-height: 19px;
+  background: transparent !important;
+}
+
+.line {
+  display: flex;
+  min-width: max-content;
+}
+
+.lineActive {
+  background: var(--vscode-editor-rangeHighlightBackground);
+  box-shadow: inset 0 1px 0 var(--vscode-editor-lineHighlightBorder), inset 0 -1px 0 var(--vscode-editor-lineHighlightBorder);
+}
+
+.gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 56px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground);
+  user-select: none;
+  background: var(--vscode-editor-background);
+}
+
+.lineActive .gutter {
+  color: var(--vscode-editorLineNumber-activeForeground);
+}
+
+/* Dirty-diff decoration: the 3px bar VSCode draws right of the line numbers. */
+.dirty {
+  position: sticky;
+  left: 56px;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 3px;
+  margin-right: 14px;
+  background: var(--vscode-editor-background);
+}
+
+.dirtyOn {
+  background: var(--vscode-editorGutter-modifiedBackground);
+}
+
+.gutterSymbol {
+  padding: 0;
+  font: inherit;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.gutterSymbol:hover {
+  text-decoration: underline;
+}
+
+.text {
+  padding-right: 16px;
+  white-space: pre;
+}
+
+/* Ctrl/Cmd held: identifiers are links to their declaration. */
+.linking [data-ident]:hover {
+  color: var(--vscode-editorLink-activeForeground, var(--vscode-textLink-activeForeground));
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Review diff: both line numbers, the +/− mark, VSCode's inserted/removed line backgrounds. */
+.diffGutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: 44px 44px;
+  width: 96px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground);
+  user-select: none;
+  background: var(--vscode-editor-background);
+}
+
+.diffMark {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  user-select: none;
+}
+
+.diffAdd {
+  background: var(--vscode-diffEditor-insertedLineBackground, rgba(155, 185, 85, 0.2));
+}
+
+.diffAdd .diffMark {
+  color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.diffDel {
+  background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.2));
+}
+
+.diffDel .diffMark {
+  color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.diffHunk {
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-diffEditor-unchangedRegionBackground, var(--vscode-sideBar-background));
+}
+
+.diffSection {
+  font-style: italic;
+}
+
+.diffMeta {
+  margin-right: 8px;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+/* Word-level marks inside a changed line: VSCode's inserted/removed text backgrounds. */
+.diffWordAdd {
+  background: var(--vscode-diffEditor-insertedTextBackground, rgba(156, 204, 44, 0.35));
+  border-radius: 2px;
+}
+
+.diffWordDel {
+  background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.4));
+  border-radius: 2px;
+}
+
+/* Changed symbols named in a hunk header. */
+.diffSymbol {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  font-style: normal;
+}
+
+.diffSymbolName {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.diffSymbolName:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.diffBreaking {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--vscode-editorWarning-foreground);
+}
+
+/* Lines an agent wrote: a sparkle-coloured edge, and a chip on the block's first line. */
+.diffAiLine {
+  box-shadow: inset 2px 0 0 var(--vscode-charts-purple, #b180d7);
+}
+
+.diffAi {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 16px;
+  padding: 0 6px;
+  border: 1px solid var(--vscode-charts-purple, #b180d7);
+  border-radius: 9px;
+  background: none;
+  color: var(--vscode-charts-purple, #b180d7);
+  font-family: var(--vscode-font-family);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.diffAi:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.diffAiMeta {
+  color: var(--vscode-charts-purple, #b180d7);
+}

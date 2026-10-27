@@ -1,0 +1,571 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`dashboard API contract > GET /api/health keeps its response shape 1`] = `
+{
+  "counts": {
+    "memories": "number",
+    "sessions": "number",
+    "tokenEvents": "number",
+  },
+  "status": "string",
+  "timestamp": "number",
+}
+`;
+
+exports[`dashboard API contract > GET /api/memories keeps its response shape 1`] = `
+[
+  {
+    "accessCount": "number",
+    "accessedAt": "null",
+    "cacheHitPct": "null",
+    "content": "string",
+    "costSavedUsd": "number",
+    "costUsd": "null",
+    "createdAt": "number",
+    "description": "null",
+    "filePath": "null",
+    "id": "string",
+    "learned": "null",
+    "model": "null",
+    "phase": "null",
+    "projectPath": "string",
+    "scope": "string",
+    "sessionId": "null",
+    "title": "string",
+    "tokensInput": "null",
+    "tokensOutput": "null",
+    "topicKey": "string",
+    "type": "string",
+    "updatedAt": "null",
+    "what": "string",
+    "where_": "null",
+    "why": "null",
+  },
+]
+`;
+
+exports[`dashboard API contract > GET /api/memories/mem-contract-1 keeps its response shape 1`] = `
+{
+  "accessCount": "number",
+  "accessedAt": "null",
+  "cacheHitPct": "null",
+  "content": "string",
+  "costSavedUsd": "number",
+  "costUsd": "null",
+  "createdAt": "number",
+  "description": "null",
+  "filePath": "null",
+  "id": "string",
+  "learned": "null",
+  "model": "null",
+  "phase": "null",
+  "projectPath": "string",
+  "scope": "string",
+  "sessionId": "null",
+  "title": "string",
+  "tokensInput": "null",
+  "tokensOutput": "null",
+  "topicKey": "string",
+  "type": "string",
+  "updatedAt": "null",
+  "what": "string",
+  "where_": "null",
+  "why": "null",
+}
+`;
+
+exports[`dashboard API contract > GET /api/memories/stats/anomalies keeps its response shape 1`] = `
+{
+  "count": "number",
+  "rows": [],
+}
+`;
+
+exports[`dashboard API contract > GET /api/memories/stats/cost-per-session keeps its response shape 1`] = `
+{
+  "count": "number",
+  "rows": [
+    {
+      "memories_created": "number",
+      "memories_searched": "number",
+      "session_id": "string",
+      "total_cost": "number",
+    },
+  ],
+}
+`;
+
+exports[`dashboard API contract > GET /api/memories/stats/roi keeps its response shape 1`] = `
+{
+  "count": "number",
+  "rows": [
+    {
+      "access_count": "number",
+      "avg_saving_per_hit": "number",
+      "cost_saved_usd": "number",
+      "id": "string",
+      "title": "string",
+      "topic_key": "string",
+    },
+  ],
+}
+`;
+
+exports[`dashboard API contract > GET /api/sessions keeps its response shape 1`] = `
+[
+  {
+    "apiErrorTurns": "number",
+    "cacheHitPct": "number",
+    "costUsd": "number",
+    "dominantPhase": "string",
+    "durationMs": "number",
+    "gitBranch": "string",
+    "id": "string",
+    "isEmpty": "boolean",
+    "lastActiveAt": "number",
+    "models": [
+      {
+        "costUsd": "number",
+        "model": "string",
+        "modelKey": "string",
+        "turns": "number",
+      },
+    ],
+    "primaryModel": "string",
+    "primaryModelKey": "string",
+    "projectPath": "string",
+    "sidechainTurns": "number",
+    "startedAt": "number",
+    "thinkingTurns": "number",
+    "tokens": {
+      "cacheCreationTokens": "number",
+      "cacheReadTokens": "number",
+      "inputTokens": "number",
+      "outputTokens": "number",
+    },
+    "toolCount": "number",
+    "toolErrorCount": "number",
+    "turnCount": "number",
+  },
+]
+`;
+
+exports[`dashboard API contract > GET /api/sessions/:id/turns/:eventId/content keeps its response shape 1`] = `
+{
+  "assistantEvent": {
+    "agentRole": "null",
+    "apiErrorStatus": "null",
+    "assistantText": "string",
+    "byteSize": "number",
+    "cwd": "null",
+    "eventId": "number",
+    "gitBranch": "null",
+    "isApiError": "boolean",
+    "isCompactSummary": "boolean",
+    "isMeta": "boolean",
+    "parentEventId": "null",
+    "permissionMode": "null",
+    "promptId": "null",
+    "requestId": "null",
+    "role": "string",
+    "slug": "null",
+    "thinkingText": "null",
+    "toolCalls": [
+      {
+        "inputPreview": "string",
+        "resultPreview": "null",
+        "tool": "string",
+        "toolUseId": "string",
+      },
+    ],
+    "toolCallsStructured": [
+      {
+        "inputJson": "string",
+        "orderIdx": "number",
+        "resultContent": "string",
+        "resultExitCode": "null",
+        "resultIsError": "null",
+        "resultStderr": "null",
+        "resultStdout": "null",
+        "toolName": "string",
+        "toolUseId": "string",
+      },
+    ],
+  },
+  "userEvent": "null",
+}
+`;
+
+exports[`dashboard API contract > GET /api/sessions/sess-contract-1 keeps its response shape 1`] = `
+{
+  "costUsd": "number",
+  "customTitle": "string",
+  "dominantPhase": "string",
+  "entrypoint": "null",
+  "events": [
+    {
+      "cacheCreationTokens": "number",
+      "cacheReadTokens": "number",
+      "costUsd": "number",
+      "id": "number",
+      "inputTokens": "number",
+      "isSidechain": "boolean",
+      "model": "string",
+      "modelKey": "string",
+      "outputTokens": "number",
+      "parentUuid": "null",
+      "semanticPhase": "string",
+      "sessionId": "string",
+      "stopReason": "string",
+      "timestamp": "number",
+      "toolsUsed": [
+        "string",
+      ],
+    },
+  ],
+  "gitBranch": "string",
+  "id": "string",
+  "lastActiveAt": "number",
+  "lastPrompt": "null",
+  "modelBreakdown": {
+    "claude-opus-4-1": {
+      "cacheCreationTokens": "number",
+      "cacheReadTokens": "number",
+      "costUsd": "number",
+      "inputTokens": "number",
+      "outputTokens": "number",
+      "turns": "number",
+    },
+  },
+  "models": [
+    {
+      "costUsd": "number",
+      "model": "string",
+      "modelKey": "string",
+      "turns": "number",
+    },
+  ],
+  "primaryModel": "string",
+  "primaryModelKey": "string",
+  "projectPath": "string",
+  "sidechainTurns": "number",
+  "startedAt": "number",
+  "tokens": {
+    "cacheCreationTokens": "number",
+    "cacheReadTokens": "number",
+    "inputTokens": "number",
+    "outputTokens": "number",
+  },
+  "toolCount": "number",
+  "turnCount": "number",
+  "version": "null",
+}
+`;
+
+exports[`dashboard API contract > GET /api/sessions/sess-contract-1/graph keeps its response shape 1`] = `
+{
+  "edges": [
+    {
+      "from": "string",
+      "kind": "string",
+      "to": "string",
+    },
+  ],
+  "nodes": [
+    {
+      "agentRole": "null",
+      "apiErrorStatus": "null",
+      "cache1h": "number",
+      "cache5m": "number",
+      "cacheCreationTokens": "number",
+      "cacheHitPct": "number",
+      "cacheReadTokens": "number",
+      "costUsd": "number",
+      "cwd": "null",
+      "durationMs": "null",
+      "filesChangedCount": "number",
+      "gitBranch": "null",
+      "hasThinking": "boolean",
+      "hooksCount": "number",
+      "id": "string",
+      "inputTokens": "number",
+      "isApiError": "boolean",
+      "isCompactSummary": "boolean",
+      "isMeta": "boolean",
+      "isSidechain": "boolean",
+      "iterationsCount": "number",
+      "messageId": "null",
+      "model": "string",
+      "modelKey": "string",
+      "outputTokens": "number",
+      "parentId": "null",
+      "permissionMode": "null",
+      "phase": "string",
+      "requestId": "null",
+      "serviceTier": "null",
+      "slug": "null",
+      "speed": "null",
+      "stopReason": "string",
+      "timestamp": "number",
+      "tokens": "number",
+      "tools": [
+        "string",
+      ],
+      "toolsErrorCount": "number",
+      "turnIdx": "number",
+      "webFetchCount": "number",
+      "webSearchCount": "number",
+    },
+  ],
+}
+`;
+
+exports[`dashboard API contract > GET /api/settings keeps its response shape 1`] = `{}`;
+
+exports[`dashboard API contract > GET /api/stats/activity keeps its response shape 1`] = `
+[
+  {
+    "costUsd": "number",
+    "dow": "number",
+    "hour": "number",
+    "turns": "number",
+  },
+]
+`;
+
+exports[`dashboard API contract > GET /api/stats/current keeps its response shape 1`] = `
+{
+  "activeProjects": "number",
+  "avgCostPerSession": "number",
+  "latestSession": {
+    "costUsd": "number",
+    "id": "string",
+    "lastActiveAt": "number",
+    "primaryModel": "string",
+    "primaryModelKey": "string",
+    "projectPath": "string",
+    "turnCount": "number",
+  },
+  "totalCostUsd": "number",
+  "totalSessions": "number",
+  "totalTurns": "number",
+}
+`;
+
+exports[`dashboard API contract > GET /api/stats/dashboard keeps its response shape 1`] = `
+{
+  "current": {
+    "activeProjects": "number",
+    "avgCostPerSession": "number",
+    "latestSession": {
+      "costUsd": "number",
+      "id": "string",
+      "lastActiveAt": "number",
+      "primaryModel": "string",
+      "primaryModelKey": "string",
+      "projectPath": "string",
+      "turnCount": "number",
+    },
+    "totalCostUsd": "number",
+    "totalSessions": "number",
+    "totalTurns": "number",
+  },
+  "efficiency": {
+    "breakdown": {
+      "cacheHitRatio": "number",
+      "errorRecovery": "number",
+      "phaseBalance": "number",
+      "tokensPerTurn": "number",
+    },
+    "score": "number",
+    "sessionId": "string",
+  },
+  "models": [
+    {
+      "costUsd": "number",
+      "model": "string",
+      "modelKey": "string",
+      "percentage": "number",
+      "sessionCount": "number",
+      "tokens": {
+        "cacheCreation": "number",
+        "cacheRead": "number",
+        "input": "number",
+        "output": "number",
+      },
+      "totalTokens": "number",
+      "turns": "number",
+    },
+  ],
+  "phases": {
+    "exploration": {
+      "pct": "number",
+      "tokens": "number",
+      "turns": "number",
+    },
+    "implementation": {
+      "pct": "number",
+      "tokens": "number",
+      "turns": "number",
+    },
+  },
+  "projects": [
+    {
+      "costUsd": "number",
+      "dominantModel": "string",
+      "lastActiveAt": "number",
+      "projectName": "string",
+      "projectPath": "string",
+      "sessionCount": "number",
+      "turnCount": "number",
+    },
+  ],
+  "timeline": [
+    {
+      "cacheReadTokens": "number",
+      "costUsd": "number",
+      "date": "string",
+      "inputTokens": "number",
+      "outputTokens": "number",
+      "sessions": "number",
+    },
+  ],
+  "tools": {
+    "combos": [
+      {
+        "count": "number",
+        "tools": [
+          "string",
+        ],
+      },
+    ],
+    "frequency": {
+      "Edit": "number",
+      "Grep": "number",
+      "Read": "number",
+    },
+  },
+}
+`;
+
+exports[`dashboard API contract > GET /api/stats/efficiency keeps its response shape 1`] = `
+{
+  "overall": {
+    "avgCostPerTurn": "number",
+    "avgTokensPerTurn": "number",
+  },
+  "perTool": {
+    "Edit": {
+      "avgCostUsd": "number",
+      "avgInputTokens": "number",
+      "avgOutputTokens": "number",
+      "count": "number",
+    },
+    "Grep": {
+      "avgCostUsd": "number",
+      "avgInputTokens": "number",
+      "avgOutputTokens": "number",
+      "count": "number",
+    },
+    "Read": {
+      "avgCostUsd": "number",
+      "avgInputTokens": "number",
+      "avgOutputTokens": "number",
+      "count": "number",
+    },
+  },
+}
+`;
+
+exports[`dashboard API contract > GET /api/stats/models keeps its response shape 1`] = `
+[
+  {
+    "costUsd": "number",
+    "model": "string",
+    "modelKey": "string",
+    "percentage": "number",
+    "sessionCount": "number",
+    "tokens": {
+      "cacheCreation": "number",
+      "cacheRead": "number",
+      "input": "number",
+      "output": "number",
+    },
+    "totalTokens": "number",
+    "turns": "number",
+  },
+]
+`;
+
+exports[`dashboard API contract > GET /api/stats/phases keeps its response shape 1`] = `
+{
+  "exploration": {
+    "pct": "number",
+    "tokens": "number",
+    "turns": "number",
+  },
+  "implementation": {
+    "pct": "number",
+    "tokens": "number",
+    "turns": "number",
+  },
+}
+`;
+
+exports[`dashboard API contract > GET /api/stats/projects keeps its response shape 1`] = `
+[
+  {
+    "costUsd": "number",
+    "dominantModel": "string",
+    "lastActiveAt": "number",
+    "projectName": "string",
+    "projectPath": "string",
+    "sessionCount": "number",
+    "turnCount": "number",
+  },
+]
+`;
+
+exports[`dashboard API contract > GET /api/stats/score keeps its response shape 1`] = `
+{
+  "breakdown": {
+    "cacheHitRatio": "number",
+    "errorRecovery": "number",
+    "phaseBalance": "number",
+    "tokensPerTurn": "number",
+  },
+  "score": "number",
+  "sessionId": "string",
+}
+`;
+
+exports[`dashboard API contract > GET /api/stats/timeline keeps its response shape 1`] = `
+[
+  {
+    "cacheReadTokens": "number",
+    "costUsd": "number",
+    "date": "string",
+    "inputTokens": "number",
+    "outputTokens": "number",
+    "sessions": "number",
+  },
+]
+`;
+
+exports[`dashboard API contract > GET /api/stats/tools keeps its response shape 1`] = `
+{
+  "combos": [
+    {
+      "count": "number",
+      "tools": [
+        "string",
+      ],
+    },
+  ],
+  "frequency": {
+    "Edit": "number",
+    "Grep": "number",
+    "Read": "number",
+  },
+}
+`;

@@ -13,10 +13,11 @@ interface BadgeProps {
   children: ReactNode;
   variant?: BadgeVariant;
   size?: 'sm' | 'md';
+  title?: string;
 }
 
-export function Badge({ children, variant = 'default', size = 'sm' }: BadgeProps) {
-  return <span className={`${styles.badge} ${styles[variant]} ${styles[size]}`}>{children}</span>;
+export function Badge({ children, variant = 'default', size = 'sm', title }: BadgeProps) {
+  return <span title={title} className={`${styles.badge} ${styles[variant]} ${styles[size]}`}>{children}</span>;
 }
 
 export function modelBadgeVariant(model: string): BadgeVariant {

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # claude-master-toolkit: PreCompact hook
 # Fires before context compaction. Injects a reminder so the assistant calls
-# pandorica_session_summary BEFORE the conversation is truncated — otherwise
+# mem_session({ action: "summary" }) BEFORE the conversation is truncated — otherwise
 # mid-session discoveries evaporate.
 #
 # Never blocks compaction (exit 0). Uses systemMessage for a visible note.
 
 set -euo pipefail
+
+# shellcheck source=./ts-shim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ts-shim.sh"
 
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -14,6 +17,6 @@ INPUT="$(cat 2>/dev/null || echo '{}')"
 REASON="$(echo "$INPUT" | jq -r '.compaction_reason // "unknown"')"
 
 jq -n --arg reason "$REASON" '{
-  systemMessage: ("⏳ Compaction (" + $reason + ") imminent. Call mem_session({ action: \"summary\", content }) NOW (or legacy pandorica_session_summary) to persist this session before the window is compressed.")
+  systemMessage: ("⏳ Compaction (" + $reason + ") imminent. Call mem_session({ action: \"summary\", content }) NOW to persist this session before the window is compressed.")
 }'
 exit 0

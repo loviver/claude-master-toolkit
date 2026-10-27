@@ -1,11 +1,11 @@
 ---
 name: plan-designer
-description: Genera workflows visuales (xyflow) usando wf_create o wf_generate según complejidad. Soporta DAGs, subagentes y subflows. Intercepta peticiones ES/EN.
+description: Genera workflows ejecutables (grafo de nodos) usando wf_create o wf_generate según complejidad. Soporta DAGs, subagentes y subflows. Intercepta peticiones ES/EN.
 ---
 
 # /plan-designer
 
-Genera un plan ejecutable como grafo de nodos (xyflow en `/workflows`), usando:
+Genera un plan ejecutable como grafo de nodos (inspeccionable con `wf_get` / `wf_status`), usando:
 
 - `wf_create` → workflows complejos (multi-agente, DAG, subflows)
 - `wf_generate` → fallback simple (pipeline lineal)
@@ -110,7 +110,7 @@ Plan creado: <name>
 ID: <id>
 Nodos: <count>
 
-→ Ver en: /workflows → "<name>"
+→ Inspeccionar: wf_get(plan_id="<id>")
 Step 6: Resumen visual
 
 Construir tabla basada en nodos reales:
@@ -122,7 +122,7 @@ frontend	agent	coder	UI
 review	agent	critic	Validación
 Step 7: Siguiente paso
 Ejecutar: wf_execute(plan_id="<id>")
-O editar en /workflows
+O ajustar con wf_update / wf_mutate
 Reglas importantes
 Preferir wf_create por defecto
 Usar DAG, no pipelines lineales en casos complejos

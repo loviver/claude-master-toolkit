@@ -25,6 +25,15 @@ export interface FileHistorySnapshot {
   timestamp?: string;
 }
 
+// ── User-side content, already bound to the assistant turn it belongs to ──
+
+export interface UserContentEntry {
+  assistantUuid: string;
+  role: 'user' | 'tool_result';
+  /** JSON-stringified message content. */
+  raw: string;
+}
+
 // ── Dashboard: session summary view ──
 
 export interface SessionSummary {

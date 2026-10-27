@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # claude-master-toolkit: system installer (dev bootstrap)
 # Installs ONLY the toolkit itself (deps, build, DB, ctk on PATH).
-# Does NOT install the Claude integration layer — for that run:
-#     ctk install claude
+# Does NOT touch any agent config — for that run:
+#     ctk install all        (Claude Code and/or Codex, whichever is present)
 #
 # - Checks Node.js 18+
 # - Ensures pnpm is available (via corepack if needed)
@@ -95,6 +95,18 @@ if ! echo ":$PATH:" | grep -q ":$LOCAL_BIN:"; then
   say "⚠  new PATH not active in your current shell — run: source ~/.bashrc"
 fi
 
+head "5. Refresh agent stacks already installed"
+# Agent configs (~/.claude, ~/.codex) point INTO the package. Replacing or moving the package
+# (e.g. the global copy removed above) leaves them dangling, so every hook would fail silently.
+# Re-running the idempotent installer repoints them. Fresh machines are left untouched.
+CTK_STATE="${CTK_HOME:-$HOME/.ctk}"
+if compgen -G "$CTK_STATE/installs/*.json" >/dev/null \
+  || find "$HOME/.claude" "$HOME/.codex" -maxdepth 3 -type l -lname '*claude-master-toolkit*' 2>/dev/null | grep -q .; then
+  node "$REPO_DIR/bin/ctk.js" install all --skip-caveman || say "⚠ could not refresh agent stacks: run 'ctk install all' manually"
+else
+  say "no agent stack installed yet (next step installs them)"
+fi
+
 head "✓ System installed"
 cat <<EOF
 
@@ -104,8 +116,9 @@ claude-master-toolkit is built and ctk is on your PATH.
 
 Next steps:
   1. Verify CLI:             ctk --help
-  2. Install Claude stack:   ctk install claude
-  3. Open dashboard:         ctk dashboard
+  2. Install agent stacks:   ctk install all     (or: ctk install claude | ctk install codex)
+  3. Codex only:             open /hooks inside Codex and trust the ctk hooks
+  4. Open dashboard:         ctk dashboard
 
 To uninstall everything:
   $REPO_DIR/uninstall.sh

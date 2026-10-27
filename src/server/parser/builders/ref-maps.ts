@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type { AppDb } from '../../../shared/db/db.js';
 import { tokenEvents, sessions } from '../../../shared/db/schema.js';
 import type { RefMaps } from '../types.js';
 
-export function loadRefMaps(db: BetterSQLite3Database, sessionId: string): RefMaps {
+export function loadRefMaps(db: AppDb, sessionId: string): RefMaps {
   const priorUuids = new Set<string>();
   const uuidToEventId = new Map<string, number>();
   const messageIdToEventId = new Map<string, number>();

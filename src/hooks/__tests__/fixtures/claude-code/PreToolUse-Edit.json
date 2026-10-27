@@ -1,0 +1,1 @@
+{"session_id":"s-1","transcript_path":"/t.jsonl","cwd":"/home/user/proj","hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/home/user/proj/src/a.ts","old_string":"a","new_string":"b"},"tool_use_id":"toolu_2"}

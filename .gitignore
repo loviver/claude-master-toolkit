@@ -11,6 +11,7 @@ dist/
 .claude/
 
 # CTK debug/inspect output (transient analysis artifacts)
+.ctk/bench/
 .ctk/debug/
 .ctk/schemas/inferred/
 

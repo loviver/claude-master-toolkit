@@ -1,0 +1,227 @@
+/* Side bar views (explorer, changes, details). Rows come from shell/workbench/list.module.css. */
+
+.filter {
+  flex-shrink: 0;
+  padding: 0 12px 8px 20px;
+}
+
+.filter vscode-textfield {
+  width: 100%;
+}
+
+.filterIcon {
+  padding-left: 4px;
+  opacity: 0.7;
+}
+
+.fileIcon {
+  color: var(--vscode-textLink-foreground);
+}
+
+.symbolIcon {
+  color: #b180d7; /* VSCode symbolIcon.methodForeground */
+}
+
+.added {
+  color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.removed {
+  color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.outside {
+  font-style: italic;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ── Changes ── */
+
+.summary {
+  margin: 0;
+  padding: 0 12px 8px 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--vscode-descriptionForeground);
+}
+
+.summary code,
+.inspectorHeader code {
+  font-family: var(--vscode-editor-font-family);
+  color: var(--vscode-textPreformat-foreground);
+}
+
+.tierDIRECT { color: var(--vscode-gitDecoration-addedResourceForeground); font-weight: 600; }
+.tierGUARDED { color: var(--vscode-gitDecoration-modifiedResourceForeground); font-weight: 600; }
+.tierDELEGATE { color: var(--vscode-errorForeground); font-weight: 600; }
+
+/* ── Details ── */
+
+/* In the bottom panel: the header, then one scrolling column per list. */
+.inspector {
+  display: grid;
+  flex: 1;
+  grid-auto-columns: minmax(220px, 1fr);
+  grid-auto-flow: column;
+  grid-template-columns: minmax(280px, 360px);
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.inspector > * {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.inspector > * + * {
+  border-left: 1px solid var(--vscode-panel-border);
+}
+
+.inspectorHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 12px 20px;
+  user-select: text;
+}
+
+.inspectorTitle {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
+  color: var(--vscode-tab-activeForeground);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.touched,
+.blast {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.touched { color: var(--vscode-gitDecoration-modifiedResourceForeground); }
+.blast { color: var(--vscode-errorForeground); }
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.location span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.signature {
+  flex-shrink: 0; /* in the header's flex column it was squeezed to a sliver */
+  max-height: calc(6 * 1.5em + 12px);
+  margin: 0;
+  padding: 6px 8px;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--vscode-textPreformat-foreground);
+  background: var(--vscode-textCodeBlock-background);
+  border-radius: 3px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.facts dt {
+  color: var(--vscode-descriptionForeground);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Neighbour rows: edge-kind bars, then icon, name, diff mark, "calls — file:line", weight. */
+.neighbour {
+  border: 0;
+  text-align: left;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.edgeMarks {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 1px;
+  width: 7px;
+  height: 14px;
+}
+
+.edgeMarks i {
+  flex: 1;
+  border-radius: 1px;
+}
+
+.weight {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+}
+
+.groupHeader {
+  cursor: default;
+  font-weight: 600;
+}
+
+.groupHeader:hover {
+  background: none;
+}
+
+.meter {
+  display: inline-block;
+  width: 60px;
+  height: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+  background: var(--vscode-progressBar-background, #0e70c0);
+  background: color-mix(in srgb, var(--vscode-progressBar-background, #0e70c0) 20%, transparent);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  background: var(--vscode-progressBar-background, #0e70c0);
+}

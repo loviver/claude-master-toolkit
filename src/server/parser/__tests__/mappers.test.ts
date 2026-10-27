@@ -23,12 +23,17 @@ const cost = 0.001;
 
 describe('metaToSessionInsert', () => {
   it('maps meta + totals to insert row', () => {
-    const row = metaToSessionInsert(meta, totals, cost, '/path/to/file.jsonl', '/home/user/project');
+    const row = metaToSessionInsert(meta, totals, cost, '/path/to/file.jsonl', '/home/user/project', 'claude-code');
     expect(row.id).toBe('sess-1');
     expect(row.primaryModel).toBe('claude-3-5-haiku-20241022');
     expect(row.totalInputTokens).toBe(100);
     expect(row.totalCostUsd).toBe(0.001);
     expect(row.jsonlFile).toBe('/path/to/file.jsonl');
+  });
+
+  it('records which agent produced the session', () => {
+    const row = metaToSessionInsert(meta, totals, cost, '/path/to/file.jsonl', '/home/user/project', 'codex');
+    expect(row.agent).toBe('codex');
   });
 });
 

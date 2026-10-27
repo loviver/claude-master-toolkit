@@ -102,6 +102,8 @@ export interface AssessRiskOpts {
   base?: string;
   cwd?: string;
   config?: RiskConfig;
+  /** Include uncommitted edits (see `getTouchedRanges`). */
+  worktree?: boolean;
 }
 
 export interface RiskAssessment {
@@ -109,6 +111,8 @@ export interface RiskAssessment {
   signals: RiskSignals;
   score: RiskScore;
   touched: TouchedSymbol[];
+  /** The raw diff hunks (new-side lines) the assessment was computed from. */
+  ranges: TouchedRange[];
 }
 
 /**
@@ -121,7 +125,7 @@ export function assessRisk(opts: AssessRiskOpts = {}): RiskAssessment {
   const base = opts.base ?? resolveBaseBranch(cwd);
   const config = opts.config ?? loadRiskConfig(cwd);
 
-  const ranges = getTouchedRanges({ base, cwd });
+  const ranges = getTouchedRanges({ base, cwd, worktree: opts.worktree });
 
   const db = openDb();
   let touched: TouchedSymbol[];
@@ -137,5 +141,5 @@ export function assessRisk(opts: AssessRiskOpts = {}): RiskAssessment {
   const signals = buildSignals(touched, ranges, priorBugs);
   const score = scoreRisk(signals, config);
 
-  return { base, signals, score, touched };
+  return { base, signals, score, touched, ranges };
 }

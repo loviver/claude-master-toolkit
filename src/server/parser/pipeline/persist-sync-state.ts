@@ -1,8 +1,8 @@
 import type { Stats } from 'fs';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type { AppDb } from '../../../shared/db/db.js';
 import { syncState } from '../../../shared/db/schema.js';
 
-export function persistSyncState(db: BetterSQLite3Database, filePath: string, stat: Stats): void {
+export function persistSyncState(db: AppDb, filePath: string, stat: Stats): void {
   db.insert(syncState)
     .values({ filePath, lastByteOffset: stat.size, lastModified: stat.mtimeMs })
     .onConflictDoUpdate({

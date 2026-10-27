@@ -1,18 +1,15 @@
 import { watch } from 'chokidar';
-import { join } from 'path';
-import { homedir } from 'os';
 import { syncFile } from './index.js';
-
-const CLAUDE_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
+import { sessionSources } from './sources/registry.js';
 
 type WatcherCallback = (event: 'synced', filePath: string) => void;
 
 /**
- * Watch ~/.claude/projects/ **\/*.jsonl for changes.
+ * Watch every registered session source's globs for changes.
  * On change, incrementally sync the file into SQLite.
  */
 export function startWatcher(callback?: WatcherCallback) {
-  const watcher = watch(join(CLAUDE_PROJECTS_DIR, '**', '*.jsonl'), {
+  const watcher = watch(sessionSources.flatMap((s) => s.watchGlobs()), {
     persistent: true,
     ignoreInitial: true,
     usePolling: false,

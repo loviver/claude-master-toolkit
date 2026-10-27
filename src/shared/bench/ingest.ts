@@ -5,7 +5,7 @@ import {
   extractEnrichedTokenEvents,
   extractSessionMeta,
 } from '../jsonl-parser/index.js';
-import { computeCost, resolveModelKey } from '../pricing.js';
+import { computeCost } from '../pricing.js';
 import type { BenchRun, BenchTurn, IngestOptions } from './types.js';
 
 export async function parseJsonlForBench(
@@ -22,7 +22,7 @@ export async function parseJsonlForBench(
   const model = opts.model ?? meta.primaryModel;
 
   const turns: BenchTurn[] = enriched.map((e, idx) => {
-    const turnCost = computeCost(resolveModelKey(e.model), e.usage);
+    const turnCost = computeCost(e.model, e.usage);
     return {
       turnIdx: idx,
       role: 'assistant',

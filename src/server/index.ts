@@ -1,10 +1,11 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { migrate } from "../shared/db/migrate.js";
+import { ensureMigrated } from "../shared/paths/ctk-home.js";
 import { syncAll } from "./parser/index.js";
 import { refreshPricingFromLiteLLM } from "../shared/pricing.js";
 import { startWatcher } from "./parser/watcher.js";
@@ -13,24 +14,24 @@ import { statsRoutes } from "./routes/stats.js";
 import { memoriesRoutes } from "./routes/memories.js";
 import { healthRoutes } from "./routes/health.js";
 import { settingsRoutes } from "./routes/settings.js";
-import { plansRoutes } from "./routes/plans.js";
+import { codeGraphRoutes } from "./routes/code-graph.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export async function startServer(port: number = 3200): Promise<void> {
-  // Run migrations
-  migrate();
-
-  // Fire-and-forget — falls back to hardcoded if fetch fails
-  refreshPricingFromLiteLLM().catch(() => undefined);
-
+/**
+ * Assemble the Fastify app (plugins + routes) without side effects:
+ * no migrations, watcher, sync or listen. Lets tests drive it via `inject`.
+ */
+export async function buildApp(
+  options: { serveStatic?: boolean } = {},
+): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
   await app.register(cors, { origin: true });
 
   // Serve static React build if available
   const publicDir = join(__dirname, "public");
-  if (existsSync(publicDir)) {
+  if (options.serveStatic !== false && existsSync(publicDir)) {
     await app.register(fastifyStatic, {
       root: publicDir,
       prefix: "/",
@@ -44,7 +45,7 @@ export async function startServer(port: number = 3200): Promise<void> {
   await app.register(memoriesRoutes, { prefix: "/api" });
   await app.register(healthRoutes, { prefix: "/api" });
   await app.register(settingsRoutes, { prefix: "/api" });
-  await app.register(plansRoutes, { prefix: "/api" });
+  await app.register(codeGraphRoutes, { prefix: "/api" });
 
   // SPA fallback: serve index.html for non-API routes
   app.setNotFoundHandler((_req, reply) => {
@@ -54,6 +55,19 @@ export async function startServer(port: number = 3200): Promise<void> {
     }
     return reply.status(404).send({ error: "Not found" });
   });
+
+  return app;
+}
+
+export async function startServer(port: number = 3200): Promise<void> {
+  ensureMigrated();
+  // Run migrations
+  migrate();
+
+  // Fire-and-forget — falls back to hardcoded if fetch fails
+  refreshPricingFromLiteLLM().catch(() => undefined);
+
+  const app = await buildApp();
 
   // Start JSONL watcher
   startWatcher((event, filePath) => {

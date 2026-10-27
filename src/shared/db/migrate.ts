@@ -1,14 +1,9 @@
-import Database from 'better-sqlite3';
-import { join } from 'path';
-import { homedir } from 'os';
-import { mkdirSync } from 'fs';
+import { openSqlite } from './open.js';
+import { ctkPaths } from '../paths/ctk-home.js';
 import { BENCH_SCHEMA_SQL } from '../../shared/bench/schema-sql.js';
 
-const DEFAULT_DB_DIR = join(homedir(), '.claude', 'state', 'claude-master-toolkit');
-const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'ctk.sqlite');
-
 function resolveDbPath(): string {
-  return process.env['CTK_DB_PATH'] ?? DEFAULT_DB_PATH;
+  return ctkPaths.db();
 }
 
 /**
@@ -17,11 +12,7 @@ function resolveDbPath(): string {
  */
 export function migrate(): void {
   const dbPath = resolveDbPath();
-  mkdirSync(join(dbPath, '..'), { recursive: true });
-
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = openSqlite(dbPath);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -178,6 +169,15 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_indexed_files_project ON indexed_files(project_path);
   `);
 
+  // Indexer schema v3: non-call refs, their reverse edges, and per-file imports
+  addColumnSafe('symbols', 'refs', 'TEXT');
+  addColumnSafe('symbols', 'referrers', 'TEXT');
+  // Indexer schema v4: call-site lines per dep, `{ "file::symbol": [line…] }`
+  addColumnSafe('symbols', 'dep_sites', 'TEXT');
+  addColumnSafe('indexed_files', 'imports', 'TEXT');
+  // Indexer schema v6: in-project types a class/interface extends or implements, `["file::symbol"…]`
+  addColumnSafe('symbols', 'heritage', 'TEXT');
+
   // v6: Benchmarks — ctk A/B data with export/import provenance
   db.exec(BENCH_SCHEMA_SQL);
 
@@ -250,6 +250,10 @@ export function migrate(): void {
   addColumnSafe('sessions', 'custom_title', 'TEXT');
   addColumnSafe('sessions', 'last_prompt', 'TEXT');
   addColumnSafe('sessions', 'entrypoint', 'TEXT');
+
+  // v12: which agent produced the session; rows synced before multi-agent ingestion are Claude Code
+  addColumnSafe('sessions', 'agent', "TEXT NOT NULL DEFAULT 'claude-code'");
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_agent ON sessions(agent)`);
 
   // v10: event-level JSONL extras (per turn)
   addColumnSafe('token_events', 'event_subtype', 'TEXT');
@@ -354,7 +358,7 @@ export function migrate(): void {
   `);
 
   // v11: Pandorica hybrid recall — dense embeddings sidecar (brute-force JS cosine).
-  // One vector per memory; populated on write + `ctk pandorica reindex`. FK cascade keeps it
+  // One vector per memory; populated on write + `ctk mem reindex`. FK cascade keeps it
   // in lockstep with memories_v2 deletions. `vector` is a raw Float32 little-endian BLOB.
   db.exec(`
     CREATE TABLE IF NOT EXISTS memory_embeddings (

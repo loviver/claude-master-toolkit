@@ -4,19 +4,7 @@ import { homedir } from "os";
 import type { CliOutput } from "./types/index.js";
 import { c, formatCostColored, formatTokensColored } from "./terminal.js";
 
-const SETTINGS_FILE = join(homedir(), ".claude", "settings.json");
-
-export function readMainModel(): string {
-  try {
-    if (existsSync(SETTINGS_FILE)) {
-      const settings = JSON.parse(readFileSync(SETTINGS_FILE, "utf-8"));
-      return settings.model ?? "sonnet";
-    }
-  } catch {
-    // Fall through
-  }
-  return "sonnet";
-}
+export { readMainModel } from "./agents/resolve.js";
 
 let jsonMode = false;
 

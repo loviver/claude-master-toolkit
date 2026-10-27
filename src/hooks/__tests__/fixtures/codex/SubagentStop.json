@@ -1,0 +1,14 @@
+{
+  "session_id": "01a1796b-7cae-71f2-a370-cb648f67eb0a",
+  "turn_id": "01a1796c-0470-7080-9f48-89c9ba789da9",
+  "transcript_path": "/home/user/.codex/sessions/2026/10/26/rollout-2026-10-26T12-14-09-01a1796b-7cae-71f2-a370-cb648f67eb0a.jsonl",
+  "agent_transcript_path": "/home/user/.codex/sessions/2026/10/26/rollout-2026-10-26T12-14-44-01a1796c-0462-7d81-84bc-5b0156279f4e.jsonl",
+  "cwd": "/tmp/ctk-scratch",
+  "hook_event_name": "SubagentStop",
+  "model": "gpt-6-luna",
+  "permission_mode": "default",
+  "stop_hook_active": false,
+  "agent_id": "01a1796c-0462-7d81-84bc-5b0156279f4e",
+  "agent_type": "default",
+  "last_assistant_message": "El directorio actual contiene `a.txt`."
+}

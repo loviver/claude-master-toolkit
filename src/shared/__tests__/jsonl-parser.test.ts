@@ -87,8 +87,10 @@ describe('inferSemanticPhase', () => {
 
 // ── extractEnrichedTokenEvents ──
 
+type ChatEvent = Extract<SessionEvent, { message: unknown }>;
+
 describe('extractEnrichedTokenEvents', () => {
-  const makeAssistantEvent = (overrides: Partial<SessionEvent> = {}): SessionEvent => ({
+  const makeAssistantEvent = (overrides: Partial<ChatEvent> = {}): ChatEvent => ({
     type: 'assistant',
     uuid: 'uuid-1',
     sessionId: 'sess-1',
@@ -139,7 +141,7 @@ describe('extractEnrichedTokenEvents', () => {
 
   it('skips non-assistant events', () => {
     const events: SessionEvent[] = [
-      { type: 'user', uuid: 'u1', sessionId: 's1', timestamp: '2026-04-12T10:00:00Z' },
+      { type: 'user', uuid: 'u1', sessionId: 's1', timestamp: '2026-04-12T10:00:00Z' } as SessionEvent,
       makeAssistantEvent(),
       { type: 'system', uuid: 'u2', sessionId: 's1', timestamp: '2026-04-12T10:01:00Z' },
     ];

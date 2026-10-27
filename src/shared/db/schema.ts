@@ -46,6 +46,7 @@ export const sessions = sqliteTable('sessions', {
   customTitle: text('custom_title'),
   lastPrompt: text('last_prompt'),
   entrypoint: text('entrypoint'),
+  agent: text('agent').notNull().default('claude-code'), // AgentId of the source that synced it
 });
 
 // ── Token Events (per assistant turn) ──
@@ -237,6 +238,9 @@ export const symbols = sqliteTable('symbols', {
   exported: integer('exported', { mode: 'boolean' }).notNull().default(false),
   deps: text('deps'),                        // JSON array of identifier names referenced
   callers: text('callers'),                  // JSON array of caller symbol names
+  refs: text('refs'),                        // JSON array of qualified non-call refs (types, consts)
+  depSites: text('dep_sites'),               // JSON { 'file::symbol': number[] } call lines inside this symbol
+  referrers: text('referrers'),              // JSON array of qualified symbols that ref this one
   tokensEstimate: integer('tokens_estimate').notNull().default(0),
   contentHash: text('content_hash').notNull(),
   updatedAt: integer('updated_at').notNull(),
@@ -249,6 +253,7 @@ export const indexedFiles = sqliteTable('indexed_files', {
   file: text('file').notNull(),
   hash: text('hash').notNull(),
   indexedAt: integer('indexed_at').notNull(),
+  imports: text('imports'),                  // JSON array of {module, names, external}
 }, (t) => ({
   pk: primaryKey({ columns: [t.projectPath, t.file] }),
 }));

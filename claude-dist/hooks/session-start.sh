@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+# shellcheck source=./ts-shim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ts-shim.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "$SCRIPT_DIR/lib.sh"
@@ -49,20 +52,30 @@ context_guardian() {
 
 ctk_reminder() {
   command -v ctk >/dev/null 2>&1 || return 0
-  echo "ctk MCP active — tools: ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read. Use /delegate for Agent calls."
+  echo "ctk MCP active — tools: ctk_map (start here), ctk_understand, ctk_find, ctk_deps, ctk_callers, ctk_slice, ctk_recall, ctk_record, ctk_brief_read, ctk_brief_validate. Prefer over Read. Use /delegate for Agent calls."
 }
 
 pandorica_reminder() {
   command -v ctk >/dev/null 2>&1 || return 0
   local recent
-  recent="$(ctk --json mem trace --limit 3 2>/dev/null || ctk --json pandorica recent --limit 3 2>/dev/null || true)"
-  echo "Pandorica v2 active — mem_* tools (FTS5 + cost correlation): mem_save / mem_recall / mem_context / mem_trace / mem_session / mem_stats. Legacy aliases: pandorica_save/_search/_context/_session_summary/_recent. SAVE PROACTIVELY after decisions, bugfixes, non-obvious discoveries."
+  recent="$(ctk --json mem trace --limit 3 2>/dev/null || true)"
+  echo "Pandorica v2 active — mem_* tools: mem_save / mem_recall / mem_context / mem_get / mem_trace / mem_session. SAVE PROACTIVELY after decisions, bugfixes, non-obvious discoveries."
   if [[ -n "$recent" ]]; then
     printf '   Recent memories (this project): %s\n' "$(echo "$recent" | head -c 300)"
   fi
 }
 
+# Heal a wiped (schema bump) or outdated index before the agent queries it.
+index_refresh() {
+  [[ "${CTK_HOOK_REINDEX:-1}" == "0" ]] && return 0
+  command -v ctk >/dev/null 2>&1 || return 0
+  local cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+  ctk_lib_init_done "$cwd" || return 0
+  ctk_lib_reindex "$cwd"
+}
+
 ctk_lib_purge_stale_state 7
+index_refresh
 context_guardian
 ctk_reminder
 pandorica_reminder

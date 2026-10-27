@@ -44,4 +44,18 @@ describe('computeSessionStats', () => {
     );
     expect(s.cacheHitPct).toBe(0);
   });
+
+  it('contextTokens sums uncached input, cache read and cache write', () => {
+    const s = computeSessionStats(
+      makeSession({ tokens: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 300, cacheCreationTokens: 600 } }),
+    );
+    expect(s.contextTokens).toBe(1000);
+  });
+
+  it('cacheHit counts cache writes as misses', () => {
+    const s = computeSessionStats(
+      makeSession({ tokens: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 300, cacheCreationTokens: 600 } }),
+    );
+    expect(s.cacheHitPct).toBeCloseTo(30, 2);
+  });
 });

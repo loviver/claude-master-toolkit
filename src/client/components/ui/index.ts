@@ -4,7 +4,6 @@ export { Badge, modelBadgeVariant, phaseBadgeVariant, modelKeyBadgeVariant } fro
 export type { BadgeVariant } from './Badge/Badge';
 export { DataTable } from './DataTable/DataTable';
 export type { Column as DataTableColumn } from './DataTable/DataTable';
-export { Sidebar } from './Sidebar/Sidebar';
 export { Tabs } from './Tabs/Tabs';
 export { Progress } from './Progress/Progress';
 export { Button } from './Button/Button';

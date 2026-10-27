@@ -24,7 +24,7 @@ metadata:
 
 ### Pattern 0: Skill Resolution (BEFORE instantiating)
 
-1. Check skill registry (`pandorica_search(query: "skill-registry", project: "{project}")`)
+1. Check skill registry (`mem_recall(query: "skill-registry", project_path: "{project}")`)
 2. Match by language/framework:
    - TypeScript / Node.js → class-based repositories with singleton export
    - Go → struct + interface + constructor pattern

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, type ExecSyncOptions } from 'child_process';
 
 export interface Provenance {
   author: string | null;
@@ -6,7 +6,7 @@ export interface Provenance {
 }
 
 export function readGitProvenance(cwd?: string): Provenance {
-  const opts = { cwd, stdio: ['ignore', 'pipe', 'ignore'] as const };
+  const opts: ExecSyncOptions = { cwd, stdio: ['ignore', 'pipe', 'ignore'] };
   let author: string | null = null;
   let commit: string | null = null;
   try {

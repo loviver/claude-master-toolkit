@@ -1,23 +1,12 @@
 .hero {
   position: relative;
-  background: color-mix(in oklab, var(--bg-surface) 92%, var(--accent-amber) 8%);
-  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
-  box-shadow: var(--shadow-sm);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.accent {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent-claude), var(--accent-amber));
 }
 
 .head {
@@ -61,8 +50,7 @@
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  background: var(--bg-muted);
   border-radius: var(--radius-md);
 }
 
@@ -72,4 +60,11 @@
   letter-spacing: 0.08em;
   color: var(--text-muted);
   font-weight: var(--weight-medium);
+}
+
+.promptBody {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

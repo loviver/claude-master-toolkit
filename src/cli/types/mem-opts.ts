@@ -1,5 +1,5 @@
 /**
- * CLI command option shapes for `ctk mem` (and legacy `ctk pandorica`).
+ * CLI command option shapes for `ctk mem`.
  *
  * Derived from domain types in src/shared/memories/types.ts via Pick/Omit.
  * CLI-only concerns (content sources, string-encoded limits from Commander)

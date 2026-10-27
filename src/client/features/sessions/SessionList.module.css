@@ -1,162 +1,315 @@
+/* Flat VSCode-style list: dense rows, no cards; the preview sticks to the right. */
+
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-.toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.toolbar > :global(.FilterBar),
-.toolbar > div:first-child {
-  margin-bottom: 0 !important;
-}
-
-.toolbarRow {
+.head {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  flex-wrap: wrap;
 }
 
-.searchBox {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 280px;
-  max-width: 420px;
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-muted);
-  border-radius: var(--radius-sm);
-}
-
-.searchInput {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  outline: none;
-  padding: var(--space-1) 0;
-}
-
-.searchInput::placeholder {
-  color: var(--text-muted);
-}
-
-.emptyToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  cursor: pointer;
-  user-select: none;
-}
-
-.colPickerWrap {
-  position: relative;
-}
-
-.colPickerBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  background: var(--bg-muted);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.colPickerBtn:hover { color: var(--text-primary); }
-
-.colPickerMenu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 160px;
-  padding: var(--space-2);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-}
-
-.colPickerItem {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  cursor: pointer;
-  padding: var(--space-1);
-}
-
-.colPickerItem:hover { background: var(--bg-muted); border-radius: var(--radius-sm); }
-
-.count {
-  margin-left: auto;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.errCell {
-  color: var(--accent-red, #d48a8a);
+.title {
+  font-size: var(--text-lg);
   font-weight: var(--weight-semi);
 }
 
-.rowEmpty {
-  opacity: 0.55;
-  font-style: italic;
+.count {
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  border-radius: var(--radius-full);
 }
 
-.project {
-  font-family: var(--font-mono);
+.search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  max-width: 360px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--vscode-input-placeholderForeground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: var(--radius-sm);
+}
+
+.search:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--vscode-input-foreground);
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--text-sm);
-  color: var(--text-primary);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
-.branch {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-4);
+  align-items: start;
 }
 
-.modelCell {
+@media (max-width: 1100px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .preview { display: none; }
+}
+
+.list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) 104px 104px 44px 44px 120px 72px;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.row:hover {
+  text-decoration: none;
+  background: var(--vscode-list-hoverBackground);
+}
+
+.row[aria-current='true'] {
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.row:focus-visible {
+  outline: 0;
+  border-color: var(--vscode-list-focusOutline);
+}
+
+.rowEmpty {
+  opacity: 0.5;
+}
+
+.dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.project {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.branch {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 2px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  color: var(--vscode-descriptionForeground);
 }
 
-.mix {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
+.phase {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.metric {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+.metric :global(.codicon) {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.metric :global(.codicon):not(:first-child) {
+  margin-left: 6px;
+}
+
+.errors {
+  color: var(--vscode-errorForeground);
+}
+
+.faint {
+  color: var(--text-tertiary);
+}
+
+/* Cost against the priciest listed session: a bar behind the figure. */
 .cost {
-  color: var(--accent-amber);
-  font-weight: var(--weight-med);
+  position: relative;
+  height: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.costBar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--accent-claude) 28%, transparent);
+}
+
+.costValue {
+  position: relative;
+  padding-right: 4px;
+  line-height: 16px;
 }
 
 .time {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
+  font-size: 12px;
+  text-align: right;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+/* ── Preview ── */
+
+.preview {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+}
+
+.previewHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.previewTitle {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semi);
+}
+
+.previewSub {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.previewBlock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.previewLabel {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.phaseStrip,
+.mixBar {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+}
+
+.phaseStrip > span,
+.mixBar > span {
+  flex: 1;
+  min-width: 1px;
+}
+
+.mixLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  list-style: none;
+}
+
+.mixLegend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.stats dt {
+  color: var(--vscode-descriptionForeground);
+}
+
+.stats dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 26px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border-radius: var(--radius-sm);
+}
+
+.open:hover {
+  text-decoration: none;
+  background: var(--vscode-button-hoverBackground);
 }

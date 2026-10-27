@@ -1,36 +1,17 @@
-import { resolve, relative, join } from 'path';
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { resolve, relative } from 'path';
+import { existsSync, readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { output, outputError } from '../../shared/output.js';
-import { openTsProject, type IndexedSymbol } from '../../shared/indexer/ts-indexer.js';
+import type { IndexedSymbol } from '../../shared/indexer/ts-indexer.js';
+import { openTsWorkspace } from '../../shared/indexer/ts-workspace.js';
+import { walkDir } from '../../shared/indexer/source-walk.js';
+import { IndexErrors } from '../../shared/indexer/index-errors.js';
+import type { FileImport } from '../../shared/indexer/types.js';
 import { TreeSitterIndexer } from '../../shared/indexer/tree-sitter-indexer.js';
-import { openDb } from '../../shared/indexer/db-raw.js';
+import { assertIndexWritable, openDb } from '../../shared/indexer/db-raw.js';
 import { findSymbol, getDeps, getCallers } from '../../shared/indexer/queries.js';
 import { qualifyId, parseQualifiedId } from '../../shared/indexer/ids.js';
-
-const IGNORE_DIRS = new Set([
-  'node_modules', 'dist', '.git', 'target', '__pycache__',
-  '.venv', 'venv', 'build', '.next', '.cache', 'vendor',
-]);
-
-function walkDir(root: string, match: (file: string) => boolean, out: string[] = []): string[] {
-  let entries: import('fs').Dirent[];
-  try {
-    entries = readdirSync(root, { withFileTypes: true });
-  } catch {
-    return out;
-  }
-  for (const e of entries) {
-    const full = join(root, e.name);
-    if (e.isDirectory()) {
-      if (IGNORE_DIRS.has(e.name) || e.name.startsWith('.')) continue;
-      walkDir(full, match, out);
-    } else if (e.isFile() && match(full)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
+import { repoMap } from '../../shared/indexer/repo-map.js';
 
 function hashFile(path: string): string {
   return createHash('sha1').update(readFileSync(path)).digest('hex').slice(0, 16);
@@ -45,8 +26,8 @@ export async function indexBuildCommand(
   }
 
   const start = Date.now();
-  const hasTsConfig = existsSync(`${projectPath}/tsconfig.json`);
-  const ts = hasTsConfig ? openTsProject(projectPath) : { files: [] as string[], extract: (_: string) => [] as IndexedSymbol[] };
+  // Discovers every tsconfig (monorepo packages, references) — never assume one at the root.
+  const ts = openTsWorkspace(projectPath);
   const treeSitter = new TreeSitterIndexer();
   const nonTsFiles = walkDir(projectPath, (f) => treeSitter.canHandle(f));
   const files: string[] = [...ts.files, ...nonTsFiles];
@@ -58,8 +39,11 @@ export async function indexBuildCommand(
     }
     return ts.extract(absFile);
   };
+  const extractImports = (absFile: string): FileImport[] =>
+    treeSitter.canHandle(absFile) ? [] : ts.imports(absFile);
 
   const db = openDb();
+  assertIndexWritable(db);
 
   if (opts.force) {
     db.prepare('DELETE FROM symbols WHERE project_path = ?').run(projectPath);
@@ -73,9 +57,9 @@ export async function indexBuildCommand(
     'DELETE FROM symbols WHERE project_path = ? AND file = ?',
   );
   const upsertFile = db.prepare(`
-    INSERT INTO indexed_files (project_path, file, hash, indexed_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(project_path, file) DO UPDATE SET hash = excluded.hash, indexed_at = excluded.indexed_at
+    INSERT INTO indexed_files (project_path, file, hash, indexed_at, imports)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(project_path, file) DO UPDATE SET hash = excluded.hash, indexed_at = excluded.indexed_at, imports = excluded.imports
   `);
   const deleteFileEntry = db.prepare(
     'DELETE FROM indexed_files WHERE project_path = ? AND file = ?',
@@ -83,15 +67,15 @@ export async function indexBuildCommand(
   const insertSymbol = db.prepare(`
     INSERT OR IGNORE INTO symbols
       (project_path, file, symbol, kind, signature, summary, start_line, end_line,
-       exported, deps, callers, tokens_estimate, content_hash, updated_at)
+       exported, deps, callers, refs, dep_sites, heritage, tokens_estimate, content_hash, updated_at)
     VALUES
       (@projectPath, @file, @symbol, @kind, @signature, NULL, @startLine, @endLine,
-       @exported, @deps, NULL, @tokensEstimate, @contentHash, @updatedAt)
+       @exported, @deps, NULL, @refs, @depSites, @heritage, @tokensEstimate, @contentHash, @updatedAt)
   `);
 
   let reindexed = 0;
   let skipped = 0;
-  let errored = 0;
+  const errors = new IndexErrors(projectPath);
   let dirty = false;
   const now = Date.now();
 
@@ -108,8 +92,8 @@ export async function indexBuildCommand(
     let syms: IndexedSymbol[];
     try {
       syms = extract(absFile);
-    } catch {
-      errored++;
+    } catch (err) {
+      errors.add(absFile, err);
       return;
     }
 
@@ -125,12 +109,21 @@ export async function indexBuildCommand(
         endLine: s.endLine,
         exported: s.exported ? 1 : 0,
         deps: JSON.stringify(s.deps),
+        refs: JSON.stringify(s.refs ?? []),
+        depSites: s.depSites ? JSON.stringify(s.depSites) : null,
+        heritage: s.heritage?.length ? JSON.stringify(s.heritage) : null,
         tokensEstimate: s.tokensEstimate,
         contentHash: s.contentHash,
         updatedAt: now,
       });
     }
-    upsertFile.run(projectPath, relFile, fileHash, now);
+    let imports: FileImport[] = [];
+    try {
+      imports = extractImports(absFile);
+    } catch {
+      // imports are best-effort; symbols are already extracted
+    }
+    upsertFile.run(projectPath, relFile, fileHash, now, JSON.stringify(imports));
     reindexed++;
     dirty = true;
   });
@@ -155,24 +148,29 @@ export async function indexBuildCommand(
   });
   deleteStaleTx();
 
-  // Recompute callers only when dirty. Edges are file-qualified (`file::symbol`)
+  // Recompute callers/referrers only when dirty. Edges are file-qualified (`file::symbol`)
   // so same-named symbols in different files don't collide.
   if (dirty) {
     const recomputeTx = db.transaction(() => {
       const allRows = db
-        .prepare('SELECT symbol, file, deps FROM symbols WHERE project_path = ?')
-        .all(projectPath) as { symbol: string; file: string; deps: string | null }[];
+        .prepare('SELECT symbol, file, deps, refs FROM symbols WHERE project_path = ?')
+        .all(projectPath) as { symbol: string; file: string; deps: string | null; refs: string | null }[];
 
       // key = dep id (qualified `tfile::tname`, or bare for an unresolved call);
       // value = set of qualified caller ids that reference it.
       const callerMap = new Map<string, Set<string>>();
+      // Same shape for non-call refs: target id → qualified ids that reference it.
+      const referrerMap = new Map<string, Set<string>>();
+      const addEdge = (map: Map<string, Set<string>>, target: string, from: string) => {
+        if (!map.has(target)) map.set(target, new Set());
+        map.get(target)!.add(from);
+      };
       for (const r of allRows) {
         const callerId = qualifyId(r.file, r.symbol);
         const deps: string[] = r.deps ? JSON.parse(r.deps) : [];
-        for (const d of deps) {
-          if (!callerMap.has(d)) callerMap.set(d, new Set());
-          callerMap.get(d)!.add(callerId);
-        }
+        for (const d of deps) addEdge(callerMap, d, callerId);
+        const refs: string[] = r.refs ? JSON.parse(r.refs) : [];
+        for (const t of refs) addEdge(referrerMap, t, callerId);
       }
 
       db.prepare('UPDATE symbols SET callers = NULL WHERE project_path = ?').run(projectPath);
@@ -192,6 +190,15 @@ export async function indexBuildCommand(
           updateByName.run(payload, projectPath, dep);
         }
       }
+
+      db.prepare('UPDATE symbols SET referrers = NULL WHERE project_path = ?').run(projectPath);
+      const updateReferrers = db.prepare(
+        'UPDATE symbols SET referrers = ? WHERE project_path = ? AND file = ? AND symbol = ?',
+      );
+      for (const [target, from] of referrerMap.entries()) {
+        const parsed = parseQualifiedId(target);
+        if (parsed) updateReferrers.run(JSON.stringify(Array.from(from)), projectPath, parsed.file, parsed.symbol);
+      }
     });
     recomputeTx();
   }
@@ -199,17 +206,28 @@ export async function indexBuildCommand(
   db.pragma('wal_checkpoint(TRUNCATE)');
   db.close();
 
+  // An empty index makes every ctk_* query answer "nothing here": say so instead of exiting quietly.
+  const warnings = [...ts.warnings];
+  if (files.length === 0) {
+    warnings.push(`no indexable source files under ${projectPath} (TS/JS, Python, Go, Rust)`);
+    process.stderr.write(`ctk index build: ${warnings[warnings.length - 1]}\n`);
+  }
+
   output({
     files: files.length,
     reindexed,
     skipped,
-    errored,
+    errored: errors.count,
+    tsconfigs: ts.tsconfigs.map((c) => relative(projectPath, c)),
+    ...(warnings.length > 0 ? { warnings } : {}),
+    // A failed file is absent from the index (callers/deps silently shrink): say which and why.
+    ...(errors.count > 0 ? { errors: errors.report(), errorCauses: errors.byMessage() } : {}),
     elapsedMs: Date.now() - start,
   });
   process.exit(0);
 }
 
-export function indexFindCommand(name: string, opts: { kind?: string; exported?: boolean }): void {
+export function indexFindCommand(name: string, opts: { kind?: string; exported?: boolean; file?: string }): void {
   const db = openDb();
   try {
     const matches = findSymbol(db, process.cwd(), name, opts);
@@ -231,10 +249,24 @@ export function indexDepsCommand(file: string): void {
   }
 }
 
-export function indexCallersCommand(name: string): void {
+export function indexMapCommand(opts: { focus?: string; budget?: string } = {}): void {
   const db = openDb();
   try {
-    const result = getCallers(db, process.cwd(), name);
+    const focus = opts.focus?.split(',').map((f) => f.trim()).filter(Boolean);
+    output(repoMap(db, process.cwd(), { focus, budget: opts.budget ? Number(opts.budget) : undefined }));
+  } finally {
+    db.close();
+    process.exit(0);
+  }
+}
+
+export function indexCallersCommand(
+  name: string,
+  opts: { file?: string; include?: 'calls' | 'refs' | 'all' } = {},
+): void {
+  const db = openDb();
+  try {
+    const result = getCallers(db, process.cwd(), name, { file: opts.file, include: opts.include });
     output(result);
   } finally {
     db.close();

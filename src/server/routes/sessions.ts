@@ -1,15 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { desc, eq, sql } from 'drizzle-orm';
-import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { resolve, join } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
 import { syncFile, syncSession } from '../parser/index.js';
-import { getDb } from '../../shared/db/db.js';
+import { getGitStats } from '../lib/git-stats.js';
+import { getDb, getSqlite } from '../../shared/db/db.js';
+import { projectIndexed } from '../../shared/indexer/queries.js';
+import { aggregateActivity, touchesFromSnapshots, touchesFromToolCall, type TurnMeta } from '../../shared/sessions/file-activity.js';
 import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../../shared/db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
 import { sessionBus, type SessionBusEvent } from '../events/bus.js';
 import type {
+  SessionCodeActivityDTO,
   SessionGraphDTO,
   SessionGraphNodeDTO,
   TurnContentDTO,
@@ -556,61 +559,51 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // ── Git stats (cached w/ 60s TTL) ──
-  const gitStatsCache = new Map<string, { at: number; data: any }>();
+  // ── Git stats (cached w/ 60s TTL in getGitStats) ──
   app.get<{ Params: { id: string } }>('/sessions/:id/git-stats', async (req, reply) => {
-    const cached = gitStatsCache.get(req.params.id);
-    if (cached && Date.now() - cached.at < 60_000) return reply.send(cached.data);
-
     const db = getDb();
     const session = db.select().from(sessions).where(eq(sessions.id, req.params.id)).get();
     if (!session) return reply.status(404).send({ error: 'Session not found' });
 
-    const projectPath = resolve(session.projectPath);
-    const empty = { insertions: 0, deletions: 0, filesChanged: 0, available: false };
-    if (!existsSync(projectPath)) return reply.send(empty);
+    return reply.send(getGitStats(session.id, session.projectPath, session.startedAt, session.lastActiveAt));
+  });
 
-    try {
-      execSync(`git -C "${projectPath}" rev-parse --git-dir`, { stdio: 'pipe', timeout: 2000 });
+  // ── Code activity: project files the session read or changed, for the code graph review ──
+  app.get<{ Params: { id: string } }>('/sessions/:id/code-activity', async (req, reply) => {
+    const db = getDb();
+    const session = db.select().from(sessions).where(eq(sessions.id, req.params.id)).get();
+    if (!session) return reply.status(404).send({ error: 'Session not found' });
 
-      const startISO = new Date(session.startedAt - 2 * 60_000).toISOString();
-      const endISO = new Date(session.lastActiveAt + 30 * 60_000).toISOString();
-
-      let insertions = 0, deletions = 0;
-      const filesChanged = new Set<string>();
-
-      const absorb = (output: string) => {
-        for (const line of output.split('\n')) {
-          const parts = line.trim().split('\t');
-          if (parts.length >= 3) {
-            const ins = parseInt(parts[0], 10);
-            const dels = parseInt(parts[1], 10);
-            if (!isNaN(ins) && !isNaN(dels)) {
-              insertions += ins; deletions += dels;
-              if (parts[2]) filesChanged.add(parts[2]);
-            }
-          }
-        }
-      };
-
-      absorb(execSync(
-        `git -C "${projectPath}" log --numstat --format="" --after="${startISO}" --before="${endISO}"`,
-        { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
-      ));
-
-      try {
-        absorb(execSync(
-          `git -C "${projectPath}" diff --numstat HEAD`,
-          { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
-        ));
-      } catch { /* HEAD may not exist on empty repo */ }
-
-      const data = { insertions, deletions, filesChanged: filesChanged.size, available: true };
-      gitStatsCache.set(req.params.id, { at: Date.now(), data });
-      return reply.send(data);
-    } catch {
-      return reply.send(empty);
+    const meta = new Map<number, TurnMeta>();
+    for (const row of db.all<{ id: number; timestamp: number; cost_usd: number | null; errors: number }>(sql`
+      SELECT te.id, te.timestamp, te.cost_usd,
+        (SELECT COUNT(*) FROM turn_tool_calls tt WHERE tt.event_id = te.id AND tt.result_is_error = 1) AS errors
+      FROM token_events te
+      WHERE te.session_id = ${session.id}
+    `)) {
+      meta.set(row.id, { timestamp: row.timestamp, costUsd: row.cost_usd ?? 0, toolErrors: row.errors });
     }
+
+    const touches = [
+      ...db.all<{ event_id: number; tool_name: string; input_json: string | null }>(sql`
+        SELECT tt.event_id, tt.tool_name, tt.input_json
+        FROM turn_tool_calls tt
+        JOIN token_events te ON te.id = tt.event_id
+        WHERE te.session_id = ${session.id}
+      `).flatMap((r) => touchesFromToolCall(r.event_id, r.tool_name, r.input_json)),
+      ...touchesFromSnapshots(db.all<{ eventId: number | null; filePath: string }>(sql`
+        SELECT event_id AS eventId, file_path AS filePath FROM turn_file_changes
+        WHERE session_id = ${session.id}
+      `)),
+    ];
+
+    const body: SessionCodeActivityDTO = {
+      sessionId: session.id,
+      projectPath: session.projectPath,
+      indexed: projectIndexed(getSqlite(), session.projectPath),
+      files: aggregateActivity(session.projectPath, touches, meta),
+    };
+    return reply.send(body);
   });
 
   // ── Manual sync trigger (called from hooks after each turn) ──

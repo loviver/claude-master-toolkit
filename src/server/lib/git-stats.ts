@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 
@@ -21,7 +21,9 @@ export function getGitStats(sessionId: string, projectPath: string, startedAt: n
   if (!existsSync(absPath)) return EMPTY;
 
   try {
-    execSync(`git -C "${absPath}" rev-parse --git-dir`, { stdio: 'pipe', timeout: 2000 });
+    // argv form, no shell: project_path comes from parsed JSONL and must
+    // never be interpreted as shell syntax.
+    execFileSync('git', ['-C', absPath, 'rev-parse', '--git-dir'], { stdio: 'pipe', timeout: 2000 });
 
     const startISO = new Date(startedAt - 2 * 60_000).toISOString();
     const endISO   = new Date(lastActiveAt + 30 * 60_000).toISOString();
@@ -45,14 +47,16 @@ export function getGitStats(sessionId: string, projectPath: string, startedAt: n
       }
     }
 
-    absorb(execSync(
-      `git -C "${absPath}" log --numstat --format="" --after="${startISO}" --before="${endISO}"`,
+    absorb(execFileSync(
+      'git',
+      ['-C', absPath, 'log', '--numstat', '--format=', `--after=${startISO}`, `--before=${endISO}`],
       { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
     ));
 
     try {
-      absorb(execSync(
-        `git -C "${absPath}" diff --numstat HEAD`,
+      absorb(execFileSync(
+        'git',
+        ['-C', absPath, 'diff', '--numstat', 'HEAD'],
         { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 },
       ));
     } catch { /* HEAD may not exist on empty repo */ }

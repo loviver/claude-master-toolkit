@@ -1,7 +1,8 @@
 import type Database from 'better-sqlite3';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, join } from 'path';
-import { homedir } from 'os';
+import { ctkPaths } from '../paths/ctk-home.js';
+import { currentSessionId as agentSessionId } from '../agents/resolve.js';
 import { randomUUID } from 'crypto';
 import type {
   SymbolMatch,
@@ -9,14 +10,16 @@ import type {
   DepsResult,
   CallersResult,
   CallerInfo,
+  CallerDefinition,
   Finding,
   RecordFindingInput,
   RecallOpts,
   BriefData,
   BriefStatus,
   BriefValidation,
+  FileImport,
 } from './types.js';
-import { parseQualifiedId } from './ids.js';
+import { parseQualifiedId, qualifyId } from './ids.js';
 
 // ─── Symbol lookups ───────────────────────────────────────────
 
@@ -30,6 +33,7 @@ interface SymbolRow {
   exported: number;
   deps: string | null;
   callers: string | null;
+  referrers: string | null;
   tokens_estimate: number;
 }
 
@@ -39,25 +43,57 @@ function rowToMatch(r: SymbolRow): SymbolMatch {
     symbol: r.symbol,
     kind: r.kind,
     signature: r.signature,
+    // The indexer caps long signatures with a trailing ellipsis (ts-indexer SIGNATURE_MAX).
+    ...(r.signature?.endsWith('…') ? { signatureTruncated: true } : {}),
     range: [r.start_line, r.end_line],
     exported: !!r.exported,
     tokens: r.tokens_estimate,
-    deps: r.deps ? JSON.parse(r.deps) : [],
-    callers: r.callers ? JSON.parse(r.callers) : [],
+    depsCount: parseList(r.deps).length,
+    callersCount: parseList(r.callers).length,
   };
 }
+
+const parseList = (json: string | null): string[] => (json ? JSON.parse(json) : []);
 
 export interface FindOpts {
   kind?: string;
   exported?: boolean;
+  /** Exact project-relative path, or a path suffix (`utils/formatters.ts`). */
+  file?: string;
 }
 
-export function findSymbol(
+const RANK_KINDS = new Set(['function', 'class', 'interface', 'type']);
+
+/**
+ * Deterministic order for same-named definitions: exact name before a
+ * `Class.name` suffix match, exported first, declaration-like kinds before
+ * const/method, most callers, then file path. Replaces the old rowid-order `LIMIT 1`.
+ */
+function rankRows(rows: SymbolRow[], name: string): SymbolRow[] {
+  const score = (r: SymbolRow) =>
+    (r.symbol === name ? 0 : 4) + (r.exported ? 0 : 2) + (RANK_KINDS.has(r.kind) ? 0 : 1);
+  // Popularity (caller count) breaks rank ties before path order: the most-used
+  // definition is the likeliest target of a bare-name query.
+  const popularity = (r: SymbolRow) => (r.callers ? (JSON.parse(r.callers) as unknown[]).length : 0);
+  return [...rows].sort(
+    (a, b) =>
+      score(a) - score(b) ||
+      popularity(b) - popularity(a) ||
+      a.file.localeCompare(b.file) ||
+      a.start_line - b.start_line,
+  );
+}
+
+function fileMatches(rowFile: string, filter: string): boolean {
+  return rowFile === filter || rowFile.endsWith(`/${filter}`);
+}
+
+function resolveCandidates(
   db: Database.Database,
   projectPath: string,
   name: string,
   opts: FindOpts = {},
-): SymbolMatch[] {
+): SymbolRow[] {
   let sql = `SELECT * FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?)`;
   const args: any[] = [projectPath, name, `%.${name}`];
   if (opts.kind) {
@@ -66,86 +102,182 @@ export function findSymbol(
   }
   if (opts.exported) sql += ` AND exported = 1`;
 
-  const rows = db.prepare(sql).all(...args) as SymbolRow[];
-  return rows.map(rowToMatch);
+  let rows = db.prepare(sql).all(...args) as SymbolRow[];
+  const f = opts.file;
+  if (f) rows = rows.filter((r) => fileMatches(r.file, f));
+  return rankRows(rows, name);
+}
+
+/** True once `ctk index build` has recorded at least one file for the project. */
+export function projectIndexed(db: Database.Database, projectPath: string): boolean {
+  return !!db.prepare(`SELECT 1 FROM indexed_files WHERE project_path = ? LIMIT 1`).get(projectPath);
+}
+
+export function findSymbol(
+  db: Database.Database,
+  projectPath: string,
+  name: string,
+  opts: FindOpts = {},
+): SymbolMatch[] {
+  return resolveCandidates(db, projectPath, name, opts).map(rowToMatch);
+}
+
+const EXPORTS_CAP = 50;
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Source text of one symbol, or null when the file cannot be read. */
+function symbolBody(projectPath: string, file: string, start: number, end: number): string | null {
+  const abs = resolve(projectPath, file);
+  if (!existsSync(abs)) return null;
+  return readFileSync(abs, 'utf-8').split('\n').slice(start - 1, end).join('\n');
 }
 
 export function getDeps(
   db: Database.Database,
   projectPath: string,
   file: string,
+  opts: { symbol?: string } = {},
 ): DepsResult {
-  const rows = db.prepare(
-    `SELECT symbol, exported, deps FROM symbols WHERE project_path = ? AND file = ?`,
-  ).all(projectPath, file) as Array<{ symbol: string; exported: number; deps: string | null }>;
+  let rows = db.prepare(
+    `SELECT symbol, exported, deps, refs, start_line, end_line FROM symbols WHERE project_path = ? AND file = ?`,
+  ).all(projectPath, file) as Array<{
+    symbol: string;
+    exported: number;
+    deps: string | null;
+    refs: string | null;
+    start_line: number;
+    end_line: number;
+  }>;
+  if (opts.symbol) {
+    const target = opts.symbol;
+    rows = rows.filter((r) => r.symbol === target || r.symbol.endsWith(`.${target}`));
+  }
 
   const exports: string[] = [];
   const allDeps = new Set<string>();
+  const allRefs = new Set<string>();
   for (const r of rows) {
     if (r.exported) exports.push(r.symbol);
     const d: string[] = r.deps ? JSON.parse(r.deps) : [];
     d.forEach((x) => allDeps.add(x));
+    const f: string[] = r.refs ? JSON.parse(r.refs) : [];
+    f.forEach((x) => allRefs.add(x));
   }
-  return { file, exports, deps: Array.from(allDeps) };
+
+  const imp = db.prepare(
+    `SELECT imports FROM indexed_files WHERE project_path = ? AND file = ?`,
+  ).get(projectPath, file) as { imports: string | null } | undefined;
+  let imports: FileImport[] = imp?.imports ? JSON.parse(imp.imports) : [];
+
+  if (opts.symbol) {
+    // File-level imports → keep those the symbol body actually names. Unreadable file: keep all.
+    const bodies = rows.map((r) => symbolBody(projectPath, file, r.start_line, r.end_line));
+    if (rows.length === 0) imports = [];
+    else if (bodies.every((b) => b !== null)) {
+      const text = bodies.join('\n');
+      imports = imports.filter((i) => i.names.some((n) => new RegExp(`\\b${escapeRe(n)}\\b`).test(text)));
+    }
+  }
+
+  return {
+    file,
+    exports: opts.symbol ? exports : exports.slice(0, EXPORTS_CAP),
+    exportsCount: exports.length,
+    deps: Array.from(allDeps),
+    refs: Array.from(allRefs),
+    imports,
+  };
 }
 
 export function getCallers(
   db: Database.Database,
   projectPath: string,
   name: string,
+  opts: { file?: string; include?: 'calls' | 'refs' | 'all' } = {},
 ): CallersResult {
-  // Union callers across EVERY definition of the bare name (a bare query for a
-  // name that exists in several files legitimately wants all their callers).
-  const rows = db.prepare(
-    `SELECT callers FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?)`,
-  ).all(projectPath, name, `%.${name}`) as Array<{ callers: string | null }>;
-
-  const callerIds = new Set<string>();
-  for (const r of rows) {
-    const ids: string[] = r.callers ? JSON.parse(r.callers) : [];
-    for (const id of ids) callerIds.add(id);
-  }
-  if (callerIds.size === 0) return { symbol: name, callers: [] };
+  const include = opts.include ?? 'all';
+  // Each matched definition keeps its own callers; the flat list is their union
+  // (a bare query for a name defined in several files wants all of them).
+  const defs = resolveCandidates(db, projectPath, name, { file: opts.file });
 
   // Qualified id → exact (file, symbol) lookup: no cross-file bleed. A bare id
   // (unresolved caller) falls back to every same-named symbol — best-effort.
   const lineStmt = db.prepare(
-    `SELECT start_line FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
+    `SELECT start_line, dep_sites FROM symbols WHERE project_path = ? AND file = ? AND symbol = ? LIMIT 1`,
   );
   const bareStmt = db.prepare(
     `SELECT file, symbol, start_line FROM symbols WHERE project_path = ? AND symbol = ?`,
   );
 
-  const callers: CallerInfo[] = [];
-  for (const id of callerIds) {
-    const parsed = parseQualifiedId(id);
-    if (parsed) {
-      const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
-        | { start_line: number }
-        | undefined;
-      callers.push({ file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 });
-    } else {
-      const brows = bareStmt.all(projectPath, id) as Array<{
-        file: string;
-        symbol: string;
-        start_line: number;
-      }>;
-      for (const b of brows) callers.push({ file: b.file, symbol: b.symbol, line: b.start_line });
+  const resolveIds = (ids: string[], target?: string): CallerInfo[] => {
+    const out: CallerInfo[] = [];
+    for (const id of ids) {
+      const parsed = parseQualifiedId(id);
+      if (parsed) {
+        const row = lineStmt.get(projectPath, parsed.file, parsed.symbol) as
+          | { start_line: number; dep_sites: string | null }
+          | undefined;
+        const info: CallerInfo = { file: parsed.file, symbol: parsed.symbol, line: row?.start_line ?? 0 };
+        if (target && row?.dep_sites) {
+          const sites = (JSON.parse(row.dep_sites) as Record<string, number[]>)[target];
+          if (sites?.length) info.callSites = sites;
+        }
+        out.push(info);
+      } else {
+        const brows = bareStmt.all(projectPath, id) as Array<{
+          file: string;
+          symbol: string;
+          start_line: number;
+        }>;
+        for (const b of brows) out.push({ file: b.file, symbol: b.symbol, line: b.start_line });
+      }
     }
+    return out;
+  };
+
+  const definitions: CallerDefinition[] = [];
+  const seenCallers = new Set<string>();
+  const seenReferrers = new Set<string>();
+  const callers: CallerInfo[] = [];
+  const referrers: CallerInfo[] = [];
+  const union = (into: CallerInfo[], seen: Set<string>, from: CallerInfo[]) => {
+    for (const c of from) {
+      const key = `${c.file}::${c.symbol}::${c.line}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        into.push(c);
+      }
+    }
+  };
+
+  for (const d of defs) {
+    const callIds: string[] = include !== 'refs' && d.callers ? JSON.parse(d.callers) : [];
+    const refIds: string[] = include !== 'calls' && d.referrers ? JSON.parse(d.referrers) : [];
+    const resolvedCalls = resolveIds(callIds, qualifyId(d.file, d.symbol));
+    const resolvedRefs = resolveIds(refIds);
+    definitions.push({ file: d.file, callers: resolvedCalls, referrers: resolvedRefs });
+    union(callers, seenCallers, resolvedCalls);
+    union(referrers, seenReferrers, resolvedRefs);
   }
 
-  return { symbol: name, callers };
+  // A single definition's grouping would repeat the flat lists verbatim.
+  return definitions.length > 1
+    ? { symbol: name, callers, referrers, definitions }
+    : { symbol: name, callers, referrers };
 }
+
+const UNDERSTAND_LIST_CAP = 15;
+const ALTERNATIVES_CAP = 10;
 
 export function understand(
   db: Database.Database,
   projectPath: string,
   name: string,
+  opts: { file?: string } = {},
 ): UnderstandResult | null {
-  const row = db.prepare(
-    `SELECT * FROM symbols WHERE project_path = ? AND (symbol = ? OR symbol LIKE ?) LIMIT 1`,
-  ).get(projectPath, name, `%.${name}`) as SymbolRow | undefined;
-
+  const candidates = resolveCandidates(db, projectPath, name, { file: opts.file });
+  const row = candidates[0];
   if (!row) return null;
 
   const absFile = resolve(projectPath, row.file);
@@ -155,7 +287,22 @@ export function understand(
     body = lines.slice(row.start_line - 1, row.end_line).join('\n');
   }
 
-  return { ...rowToMatch(row), body };
+  const match = rowToMatch(row);
+  const alternatives = candidates.slice(1, 1 + ALTERNATIVES_CAP).map((r) => ({
+    file: r.file,
+    symbol: r.symbol,
+    kind: r.kind,
+    range: [r.start_line, r.end_line] as [number, number],
+  }));
+
+  return {
+    ...match,
+    deps: parseList(row.deps).slice(0, UNDERSTAND_LIST_CAP),
+    callers: parseList(row.callers).slice(0, UNDERSTAND_LIST_CAP),
+    body,
+    ambiguous: candidates.length > 1,
+    alternatives,
+  };
 }
 
 export function rawSlice(file: string, symbol: string): string | null {
@@ -201,7 +348,7 @@ export function rawSlice(file: string, symbol: string): string | null {
 // ─── Findings pool ────────────────────────────────────────────
 
 function currentSessionId(): string {
-  return process.env['CLAUDE_SESSION_ID'] ?? process.env['CTK_SESSION_ID'] ?? 'default';
+  return agentSessionId() ?? 'default';
 }
 
 export function recordFinding(
@@ -261,10 +408,10 @@ export function recallFindings(
 
 // ─── Brief protocol ───────────────────────────────────────────
 
-const BRIEFS_DIR = join(homedir(), '.claude', 'ctk', 'briefs');
+const briefsDir = (): string => ctkPaths.briefsDir();
 
 function briefPath(id: string): string {
-  return join(BRIEFS_DIR, `${id}.md`);
+  return join(briefsDir(), `${id}.md`);
 }
 
 const BRIEF_TEMPLATE = (id: string, task: string, createdAt: number) => `---
@@ -299,7 +446,7 @@ export function briefCreate(
   id: string,
   task: string,
 ): BriefData {
-  mkdirSync(BRIEFS_DIR, { recursive: true });
+  mkdirSync(briefsDir(), { recursive: true });
   const now = Date.now();
   const file = briefPath(id);
 

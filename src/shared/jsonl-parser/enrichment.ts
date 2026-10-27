@@ -1,11 +1,11 @@
 import { createHash } from 'crypto';
 import type { SessionEvent, SemanticPhase, EnrichedTokenEventData, ToolCallData } from '../types/index.js';
 
-const MAX_TOOL_INPUT_BYTES = 16 * 1024;
-const MAX_TOOL_RESULT_BYTES = 4 * 1024;
+export const MAX_TOOL_INPUT_BYTES = 16 * 1024;
+export const MAX_TOOL_RESULT_BYTES = 4 * 1024;
 const MAX_THINKING_BYTES = 8 * 1024;
 
-function truncate(s: string | undefined | null, max: number): string | null {
+export function truncate(s: string | undefined | null, max: number): string | null {
   if (!s) return null;
   return s.length > max ? s.slice(0, max) + '…[truncated]' : s;
 }

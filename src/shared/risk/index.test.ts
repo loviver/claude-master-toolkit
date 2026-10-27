@@ -8,11 +8,12 @@ const sym = (over: Partial<TouchedSymbol> = {}): TouchedSymbol => ({
   symbol: 'foo',
   exported: false,
   callers: [],
+  deps: [],
   range: [1, 10],
   ...over,
 });
 
-const range = (file: string, added: number): TouchedRange => ({ file, start: 1, end: added, added });
+const range = (file: string, added: number): TouchedRange => ({ file, start: 1, end: added, added, removed: 0 });
 
 describe('buildSignals — aggregate touched symbols + ranges into RiskSignals', () => {
   it('no change → all signals zero', () => {

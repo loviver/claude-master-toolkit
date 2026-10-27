@@ -14,4 +14,9 @@ export {
 export { extractToolNames, inferSemanticPhase, extractEnrichedTokenEvents } from './enrichment.js';
 
 // ── Metadata extraction ──
-export { extractTurnDurations, extractHookAttachments, extractFileHistorySnapshots } from './metadata.js';
+export {
+  extractTurnDurations,
+  extractHookAttachments,
+  extractFileHistorySnapshots,
+  extractUserContent,
+} from './metadata.js';

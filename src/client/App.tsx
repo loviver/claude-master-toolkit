@@ -1,6 +1,8 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
-import { Layout } from './components/Layout';
+import { AppShell } from './shell/AppShell';
+import { PageFrame } from './shell/PageFrame';
 import { Overview } from './features/overview/Overview';
 import { SessionList } from './features/sessions/SessionList';
 import { SessionDetail } from './features/session-detail/SessionDetail/SessionDetail';
@@ -12,26 +14,33 @@ import { Memories } from './features/memories/Memories';
 import { Projects } from './features/projects/Projects';
 import { GraphExplorer } from './features/graph/GraphExplorer';
 import { Settings } from './features/settings/Settings';
-import { Workflows } from './features/workflows/Workflows';
+
+// three.js is heavy: the code graph ships as its own chunk, loaded only when visited.
+const CodeGraphPage = lazy(() =>
+  import('./features/code-graph/CodeGraphPage').then((m) => ({ default: m.CodeGraphPage })),
+);
 
 export function App() {
   return (
     <QueryProvider>
       <BrowserRouter>
         <Routes>
-          <Route element={<Layout />}>
-            <Route path="/"              element={<Overview />} />
-            <Route path="/sessions"      element={<SessionList />} />
-            <Route path="/sessions/:id"  element={<SessionDetail />} />
-            <Route path="/graph"         element={<GraphExplorer />} />
-            <Route path="/projects"      element={<Projects />} />
-            <Route path="/models"        element={<Models />} />
-            <Route path="/tools"         element={<Tools />} />
-            <Route path="/phases"        element={<Phases />} />
-            <Route path="/efficiency"    element={<Efficiency />} />
-            <Route path="/memories"      element={<Memories />} />
-            <Route path="/workflows"     element={<Workflows />} />
-            <Route path="/settings"      element={<Settings />} />
+          <Route element={<AppShell />}>
+            <Route element={<PageFrame />}>
+              <Route path="/"              element={<Overview />} />
+              <Route path="/sessions"      element={<SessionList />} />
+              <Route path="/sessions/:id"  element={<SessionDetail />} />
+              <Route path="/graph"         element={<GraphExplorer />} />
+              <Route path="/projects"      element={<Projects />} />
+              <Route path="/models"        element={<Models />} />
+              <Route path="/tools"         element={<Tools />} />
+              <Route path="/phases"        element={<Phases />} />
+              <Route path="/efficiency"    element={<Efficiency />} />
+              <Route path="/memories"      element={<Memories />} />
+              <Route path="/settings"      element={<Settings />} />
+            </Route>
+            {/* Full-bleed: the code graph fills the editor and the other workbench parts itself. */}
+            <Route path="/code-graph" element={<CodeGraphPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

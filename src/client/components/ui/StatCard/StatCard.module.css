@@ -1,6 +1,5 @@
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   text-align: left;
@@ -11,28 +10,6 @@
   position: relative;
   overflow: hidden;
 }
-
-.card::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--accent-blue);
-}
-
-.card:hover {
-  box-shadow: var(--shadow-sm);
-  border-color: var(--border-strong);
-}
-
-.claude::before { background: var(--accent-claude); }
-.blue::before   { background: var(--accent-blue); }
-.orange::before { background: var(--accent-orange); }
-.green::before  { background: var(--accent-green); }
-.purple::before { background: var(--accent-purple); }
-.cyan::before   { background: var(--accent-cyan); }
-.red::before    { background: var(--accent-red); }
-.amber::before  { background: var(--accent-amber); }
 
 .label {
   font-size: var(--text-xs);

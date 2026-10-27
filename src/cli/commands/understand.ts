@@ -7,10 +7,10 @@ import { understand } from '../../shared/indexer/queries.js';
  *   ctk index find + ctk slice + ctk index deps + ctk index callers
  * Returns signature + body + deps + callers in one JSON payload.
  */
-export function understandCommand(name: string): void {
+export function understandCommand(name: string, opts: { file?: string } = {}): void {
   const db = openDb();
   try {
-    const result = understand(db, process.cwd(), name);
+    const result = understand(db, process.cwd(), name, { file: opts.file });
     if (!result) {
       outputError(`understand: symbol '${name}' not found. Run 'ctk index build' first.`);
     }
