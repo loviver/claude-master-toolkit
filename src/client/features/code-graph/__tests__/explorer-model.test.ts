@@ -7,6 +7,8 @@ import {
   fileNodeIds,
   nodeIdForFile,
   seedPosition,
+  sessionNodeIds,
+  activityOf,
 } from '../explorer-model';
 
 const f = (file: string, symbols = 1) => ({ file, symbols, indexedAt: 0 });
@@ -87,6 +89,20 @@ describe('fileNodeIds', () => {
   });
 });
 
+describe('sessionNodeIds', () => {
+  const nodes = [
+    { id: 'src/a/b.ts::f', file: 'src/a/b.ts', rank: 1 },
+    { id: 'src/a/c.ts::g', file: 'src/a/c.ts', rank: 1 },
+    { id: 'src/a', rank: 1 },
+  ];
+
+  it('collects the nodes drawing any of the session\'s changed files, once each', () => {
+    expect(sessionNodeIds('symbol', ['src/a/b.ts', 'src/a/c.ts', 'gone.ts'], nodes))
+      .toEqual(new Set(['src/a/b.ts::f', 'src/a/c.ts::g']));
+    expect(sessionNodeIds('module', ['src/a/b.ts', 'src/a/c.ts'], nodes)).toEqual(new Set(['src/a']));
+  });
+});
+
 describe('lineChanged', () => {
   it('checks inclusive spans', () => {
     expect(lineChanged(3, [[1, 3]])).toBe(true);
@@ -102,5 +118,19 @@ describe('seedPosition', () => {
     const west = seedPosition('x', 1, 2);
     expect(east.x).toBeGreaterThan(0);
     expect(west.x).toBeLessThan(0);
+  });
+});
+
+describe('activityOf', () => {
+  const act = (file: string) => ({ file, reads: 1, edits: 0, turns: [] });
+  const files = [act('src/a/b.ts'), act('src/a/c.ts'), act('src/a/deep/d.ts'), act('top.ts')];
+
+  it('is the file\'s own activity for a file or symbol node', () => {
+    expect(activityOf(files, { id: 'src/a/b.ts::f', file: 'src/a/b.ts' }).map((f) => f.file)).toEqual(['src/a/b.ts']);
+  });
+
+  it('is the activity of the files directly in a module, like the heatmap', () => {
+    expect(activityOf(files, { id: 'src/a', file: null }).map((f) => f.file)).toEqual(['src/a/b.ts', 'src/a/c.ts']);
+    expect(activityOf(files, { id: '.', file: null }).map((f) => f.file)).toEqual(['top.ts']);
   });
 });

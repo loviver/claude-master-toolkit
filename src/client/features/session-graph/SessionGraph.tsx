@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { Node, Edge } from '@xyflow/react';
 import { Network } from 'lucide-react';
 import { useSessionGraphLive } from '../../hooks/queries/useSessions';
@@ -10,6 +11,7 @@ import { TurnPreviewDrawer } from './TurnPreviewDrawer';
 import { GraphLegend } from './GraphLegend';
 import { GraphFilterBar, matchesFilter, type GraphFilterState } from './GraphFilterBar';
 import { computeNodeWeights, weightToWidth, MAX_NODE_W } from './node-weight';
+import { layoutTree } from './layout';
 import type { ModelKey } from '../../../shared/api-types';
 import styles from './SessionGraph.module.css';
 
@@ -21,6 +23,8 @@ const NODE_W = MAX_NODE_W;
 const NODE_H = 140;
 const X_GAP = 40;
 const Y_GAP = 56;
+/** Nodes framed on first paint: enough to read the session's opening. */
+const INITIAL_FIT = 4;
 
 function turnToData(n: SessionGraphNodeDTO, importance: number): TurnNodeData {
   const toolsErr = n.toolsErrorCount ?? 0;
@@ -146,22 +150,7 @@ function buildLayout(
     }
   }
 
-  const positions = new Map<string, { x: number; y: number }>();
-  let cursorY = 0;
-  const walk = (id: string, depth: number): void => {
-    const children = childrenByParent.get(id) ?? [];
-    if (children.length === 0) {
-      positions.set(id, { x: depth * (NODE_W + X_GAP), y: cursorY * (NODE_H + Y_GAP) });
-      cursorY += 1;
-      return;
-    }
-    const startY = cursorY;
-    for (const c of children) walk(c, depth + 1);
-    const endY = cursorY - 1;
-    const midY = Math.floor((startY + endY) / 2);
-    positions.set(id, { x: depth * (NODE_W + X_GAP), y: midY * (NODE_H + Y_GAP) });
-  };
-  for (const r of roots) walk(r, 0);
+  const positions = layoutTree(roots, childrenByParent, { colW: NODE_W + X_GAP, rowH: NODE_H + Y_GAP });
 
   const nodes: Node[] = layoutItems.map((it) => {
     const w = it.kind === 'turn' ? weightToWidth((it.data as TurnNodeData).importance ?? 0.5) : NODE_W;
@@ -247,6 +236,15 @@ export function SessionGraph({ sessionId }: Props) {
   const [clusteringOn, setClusteringOn] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // `?turn=<eventId>` (a link from the code graph) opens that turn once it is loaded, then leaves the URL.
+  const [params, setParams] = useSearchParams();
+  const linkedTurn = params.get('turn');
+  useEffect(() => {
+    if (!linkedTurn || !data?.nodes.some((n) => n.id === linkedTurn)) return;
+    setSelectedId(linkedTurn);
+    setDrawerOpen(true);
+    setParams((prev) => { const next = new URLSearchParams(prev); next.delete('turn'); return next; }, { replace: true });
+  }, [linkedTurn, data, setParams]);
   const [filter, setFilter] = useState<GraphFilterState>(() => ({ models: new Set(), roles: new Set() }));
 
   const { availableModels, availableRoles } = useMemo(() => {
@@ -267,6 +265,11 @@ export function SessionGraph({ sessionId }: Props) {
   const positioned = useMemo(
     () => (data ? buildLayout(items, data) : { nodes: [], edges: [], containerOf: new Map<string, string>() }),
     [items, data],
+  );
+
+  const initialFitIds = useMemo(
+    () => items.slice(0, INITIAL_FIT).map((it) => (it.kind === 'turn' ? it.node.id : it.id)),
+    [items],
   );
 
   const focusId = selectedId ? positioned.containerOf.get(selectedId) ?? selectedId : null;
@@ -354,9 +357,10 @@ export function SessionGraph({ sessionId }: Props) {
         <GraphCanvas
           nodes={nodesWithSelection}
           edges={positioned.edges}
-          height={640}
+          height={720}
           onNodeClick={handleNodeClick}
           focusId={focusId}
+          initialFitIds={initialFitIds}
         />
         <GraphLegend />
       </div>

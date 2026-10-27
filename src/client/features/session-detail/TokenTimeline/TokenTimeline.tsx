@@ -1,5 +1,5 @@
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import type { TokenEvent } from '../../../lib/types';
 import { formatTokens, formatCost } from '../../../lib/format';
@@ -13,11 +13,11 @@ interface TokenTimelineProps {
   events: TokenEvent[];
 }
 
-const SERIES = [
-  { key: 'input',  name: 'Input',       color: 'var(--chart-1)' },
-  { key: 'output', name: 'Output',      color: 'var(--chart-2)' },
-  { key: 'cacheR', name: 'Cache Read',  color: 'var(--chart-3)' },
-  { key: 'cacheW', name: 'Cache Write', color: 'var(--chart-4)' },
+/** Stacked parts of the context window billed each turn. */
+const CONTEXT_SERIES = [
+  { key: 'cacheR', name: 'Cache read',  color: 'var(--chart-3)' },
+  { key: 'cacheW', name: 'Cache write', color: 'var(--chart-5)' },
+  { key: 'input',  name: 'Uncached',    color: 'var(--chart-1)' },
 ] as const;
 
 export function TokenTimeline({ events }: TokenTimelineProps) {
@@ -26,40 +26,67 @@ export function TokenTimeline({ events }: TokenTimelineProps) {
 
   return (
     <div className={styles.timeline}>
-      <TimelineLegend models={uniqueModels} />
-      <TimelineStrip segments={segments} />
+      {uniqueModels.length > 1 && (
+        <>
+          <TimelineLegend models={uniqueModels} />
+          <TimelineStrip segments={segments} />
+        </>
+      )}
+
+      <h3 className={styles.chartTitle}>Context per turn</h3>
       <div className={styles.chartWrap}>
         <ResponsiveContainer>
           <AreaChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
             <defs>
-              {SERIES.map((s) => (
+              {CONTEXT_SERIES.map((s) => (
                 <linearGradient key={s.key} id={gradientId('sd', s.key)} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={s.color} stopOpacity={0.3} />
-                  <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+                  <stop offset="0%" stopColor={s.color} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={s.color} stopOpacity={0.05} />
                 </linearGradient>
               ))}
             </defs>
             <CartesianGrid {...chartGridStyle} />
-            <XAxis dataKey="turn" {...chartAxisStyle} label={{ value: 'Turn', position: 'insideBottom', offset: -2, fill: 'var(--text-muted)', fontSize: 11 }} />
+            <XAxis dataKey="turn" {...chartAxisStyle} />
             <YAxis {...chartAxisStyle} tickFormatter={(v) => formatTokens(v)} />
             <Tooltip
               contentStyle={chartTooltipStyle}
-              formatter={(value: number, name) => (name === 'Cost' ? formatCost(value, 4) : formatTokens(value))}
+              formatter={(value: number) => formatTokens(value)}
               labelFormatter={(label) => `Turn ${label}`}
             />
             <Legend wrapperStyle={{ fontSize: 'var(--text-xs)', paddingTop: 8 }} />
-            {SERIES.map((s) => (
+            {CONTEXT_SERIES.map((s) => (
               <Area
                 key={s.key}
                 type="monotone"
                 dataKey={s.key}
                 name={s.name}
+                stackId="context"
                 stroke={s.color}
                 fill={`url(#${gradientId('sd', s.key)})`}
                 strokeWidth={1.5}
               />
             ))}
           </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <h3 className={styles.chartTitle}>Cost &amp; output per turn</h3>
+      <div className={styles.chartWrapShort}>
+        <ResponsiveContainer>
+          <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+            <CartesianGrid {...chartGridStyle} />
+            <XAxis dataKey="turn" {...chartAxisStyle} />
+            <YAxis yAxisId="cost" {...chartAxisStyle} tickFormatter={(v) => formatCost(v)} />
+            <YAxis yAxisId="out" orientation="right" {...chartAxisStyle} tickFormatter={(v) => formatTokens(v)} />
+            <Tooltip
+              contentStyle={chartTooltipStyle}
+              formatter={(value: number, name) => (name === 'Cost' ? formatCost(value, 4) : formatTokens(value))}
+              labelFormatter={(label) => `Turn ${label}`}
+            />
+            <Legend wrapperStyle={{ fontSize: 'var(--text-xs)', paddingTop: 8 }} />
+            <Bar yAxisId="cost" dataKey="cost" name="Cost" fill="var(--chart-4)" />
+            <Line yAxisId="out" type="monotone" dataKey="output" name="Output" stroke="var(--chart-2)" dot={false} strokeWidth={1.5} />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>

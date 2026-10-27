@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import VscodeSingleSelect from '@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js';
 import VscodeOption from '@vscode-elements/react-elements/dist/components/VscodeOption.js';
 import VscodeToolbarButton from '@vscode-elements/react-elements/dist/components/VscodeToolbarButton.js';
@@ -14,6 +14,8 @@ import {
   useCodeGraphSource,
   useCodeGraphSymbolSearch,
 } from '../../hooks/queries/useCodeGraph';
+import { useSessionCodeActivity } from '../../hooks/queries/useSessions';
+import { aiHeat } from '../../../shared/sessions/file-activity';
 import { parseQualifiedId } from '../../../shared/indexer/ids';
 import { DIFF_FOCUS } from '../../../shared/api-types';
 import { ApiError } from '../../hooks/queries/api';
@@ -25,7 +27,7 @@ import {
   HEAT_COLORS,
   METRIC_LABELS,
   SIZE_METRICS,
-  COLOR_MODES,
+  colorModes,
   STATE_COLORS,
   ZONE_OTHER,
   buildAdjacency,
@@ -71,7 +73,8 @@ import {
   symbolIcon,
   type NavLocation,
 } from './nav-model';
-import { fileNodeIds, nodeIdForFile } from './explorer-model';
+import { activityOf, fileNodeIds, nodeIdForFile, sessionNodeIds } from './explorer-model';
+import { AiActivity } from './AiActivity';
 import {
   GRAPH_TAB,
   activateTab,
@@ -84,20 +87,17 @@ import {
   type EditorState,
 } from './workbench-model';
 import {
-  ActivityBar,
-  ActivityLink,
+  ActivityItems,
   Breadcrumbs,
   Pane,
   Placeholder,
   ProgressLine,
-  StatusBar,
   StatusItem,
-  TitleBar,
   Sash,
-  Workbench,
   useSash,
   type ActivityItem,
 } from '../../shell/workbench/Workbench';
+import { WorkbenchSlot } from '../../shell/slots';
 import { EditorTabs } from './EditorTabs';
 import { Codicon } from '../../shell/workbench/codicons';
 import list from '../../shell/workbench/list.module.css';
@@ -144,7 +144,7 @@ const DEFAULT_GRAPH_LIMIT = 2000;
 const HOT_MS = 60_000;
 const HOT_TICK_MS = 5_000;
 
-type UrlPatch = Partial<Record<'project' | 'level' | 'scope' | 'focus' | 'depth' | 'direction' | 'view' | 'split' | 'size' | 'color' | 'hide' | 'exp' | 'review' | 'sel' | 'limit', string | undefined>>;
+type UrlPatch = Partial<Record<'project' | 'level' | 'scope' | 'focus' | 'depth' | 'direction' | 'view' | 'split' | 'size' | 'color' | 'hide' | 'exp' | 'review' | 'sel' | 'limit' | 'session' | 'open', string | undefined>>;
 type SideView = 'files' | 'structure' | 'changes';
 /** Symbol hits listed under the graph's own matches. */
 const SYMBOL_HITS_MAX = 30;
@@ -186,27 +186,15 @@ function legendToggleClass(off: boolean): string {
   return off ? `${canvas.legendToggle} ${canvas.legendOff}` : canvas.legendToggle;
 }
 
-const APP_TITLE = 'ctk code graph';
-const HOME_LINK = <ActivityLink to="/" icon="home" label="Back to the dashboard" />;
-
 const valueOf = (e: Event) => (e.target as HTMLInputElement).value;
 
-/** The frame shown before there is a project to explore. */
-function EmptyWorkbench({ loading }: { loading: boolean }) {
-  return (
-    <Workbench
-      titleBar={<TitleBar title={APP_TITLE} start={null} center={null} end={null} />}
-      activityBar={<ActivityBar items={[]} active={null} onSelect={() => {}} footer={HOME_LINK} />}
-      sideBar={null}
-      editor={loading ? <div className={wb.editorContent}><ProgressLine /></div> : (
-        <Placeholder icon="type-hierarchy-sub" title="No indexed projects yet">
-          Run <code>ctk index build</code> inside a repository, then come back: its modules, files and symbols
-          appear here and update as the index changes.
-        </Placeholder>
-      )}
-      auxBar={null}
-      statusBar={<StatusBar start={null} end={null} />}
-    />
+/** The editor shown before there is a project to explore. */
+function EmptyEditor({ loading }: { loading: boolean }) {
+  return loading ? <div className={wb.editorContent}><ProgressLine /></div> : (
+    <Placeholder icon="type-hierarchy-sub" title="No indexed projects yet">
+      Run <code>ctk index build</code> inside a repository, then come back: its modules, files and symbols
+      appear here and update as the index changes.
+    </Placeholder>
   );
 }
 
@@ -235,6 +223,16 @@ export function CodeGraphPage() {
   const exportedOnly = params.get('exp') === '1';
   /** Review mode: spotlight the diff and its blast radius, dim the rest. */
   const reviewMode = params.get('review') === '1';
+  /** A session linked from its detail page: review and color by what that agent touched. */
+  const sessionParam = params.get('session') ?? undefined;
+  const sessionActivity = useSessionCodeActivity(sessionParam);
+  const session = sessionActivity.data?.projectPath === projectPath ? sessionActivity.data : undefined;
+  const sessionChanged = useMemo(
+    () => (session ? session.files.filter((f) => f.edits > 0).map((f) => f.file) : null),
+    [session],
+  );
+  const sessionChangedSet = useMemo(() => (sessionChanged ? new Set(sessionChanged) : null), [sessionChanged]);
+  const aiFileHeat = useMemo(() => aiHeat(session?.files ?? []), [session]);
   const limitRaw = Number(params.get('limit'));
   const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_GRAPH_LIMIT) : undefined;
   const renderer = viewId === '3d' ? '3d' : '2d';
@@ -335,8 +333,10 @@ export function CodeGraphPage() {
     if (ids.length && !ids.includes(selectedIdRef.current ?? '')) setFlyTo({ id: ids[0], nonce: Date.now() });
   }, [viewingFile]);
   const overlay = useMemo<CodeGraphOverlay>(() => {
-    const touched = new Set(wantRisk ? risk.data?.touched : []);
-    const blast = new Set(wantRisk ? risk.data?.blast : []);
+    // A loaded session seeds the review with its own changed files, not the whole branch diff.
+    const sessionSeeds = wantRisk && sessionChanged ? sessionNodeIds(level, sessionChanged, graph?.nodes ?? []) : null;
+    const touched = sessionSeeds ?? new Set(wantRisk ? risk.data?.touched : []);
+    const blast = new Set(wantRisk && !sessionSeeds ? risk.data?.blast : []);
     // A traced A→B path wins over the review spotlight: it is the more specific question.
     const impact = reviewMode && !path.length
       ? impactDistance(adjacency, touched, focus === DIFF_FOCUS ? depth : undefined)
@@ -345,14 +345,14 @@ export function CodeGraphPage() {
     return {
       touched,
       blast,
-      status: new Map(Object.entries(wantRisk ? risk.data?.status ?? {} : {})),
+      status: new Map(Object.entries(wantRisk ? risk.data?.status ?? {} : {}).filter(([id]) => !sessionSeeds || touched.has(id))),
       impact,
       hot: new Set(hotSince.keys()),
       viewing: new Set(viewingIds),
       path: spot ? spot.nodes : new Set(path),
       pathLinks: spot ? spot.links : pathLinkKeys(path),
     };
-  }, [wantRisk, risk.data, hotSince, path, reviewMode, graph, adjacency, focus, depth, viewingIds]);
+  }, [wantRisk, risk.data, hotSince, path, reviewMode, graph, adjacency, focus, depth, viewingIds, sessionChanged, level]);
   /** Impact view: hops from the focus, so the canvases lay the walk out as one ring per hop. */
   const rings = useMemo(() => {
     if (!focus || !graph) return null;
@@ -372,9 +372,9 @@ export function CodeGraphPage() {
   // Review paints git status + impact: a metric ramp on top would be a second, competing code.
   const reviewPaint = overlay.impact !== null;
   const heat = useMemo(() => {
-    const scale = !reviewPaint && graph && colorScale(graph.nodes, colorBy);
+    const scale = !reviewPaint && graph && colorScale(graph.nodes, colorBy, aiFileHeat);
     return scale ? new Map(graph.nodes.map((n) => [n.id, scale(n)])) : null;
-  }, [graph, colorBy, reviewPaint]);
+  }, [graph, colorBy, reviewPaint, aiFileHeat]);
   const zoneLegend = useMemo(
     () => (zoneColors ? [...zoneColors].filter(([, c]) => c !== ZONE_OTHER) : []),
     [zoneColors],
@@ -506,6 +506,14 @@ export function CodeGraphPage() {
     setEditor((s) => openFileTab(s, { file, range, nonce: Date.now() }, { preview }));
     reveal(level === 'symbol' ? symbolId : nodeIdForFile(level, file));
   };
+  // `?open=<file>` (a turn's changed file, linked from the session) opens it pinned, then leaves the URL.
+  const openParam = params.get('open');
+  useEffect(() => {
+    if (!openParam) return;
+    setDiffView(true);
+    openFile(openParam, null, null, false);
+    update({ open: undefined }, { replace: true });
+  }, [openParam]);
   const { history, inspectedId, choices, setChoices, here, dismissQuickOpen, goToSymbol, goToUsage, travel, goToDeclaration, resolveDeclaration, selectInFile } = useCodeNavigation({
     projectPath, rev, activeTab, activeOutline, openFile, setAuxOpen, setQuery, searchRef, splitRef, errorMessage,
   });
@@ -515,7 +523,7 @@ export function CodeGraphPage() {
   /** Impact of a whole folder: every node under it seeds the walk, at the current level. */
   const folderImpact = (dir: string) => updateView({ focus: dir, depth: String(depth ?? 2), scope: undefined });
 
-  if (projects.isLoading || !project) return <EmptyWorkbench loading={projects.isLoading} />;
+  if (projects.isLoading || !project) return <EmptyEditor loading={projects.isLoading} />;
 
   const scopeParts = scope ? scope.split('/') : [];
   const Renderer = renderer === '3d' ? CodeGraph3D : CodeGraph2D;
@@ -552,50 +560,45 @@ export function CodeGraphPage() {
       },
     ];
 
-  const titleBar = (
-    <TitleBar
-      title={APP_TITLE}
-      start={(
-        <VscodeSingleSelect
-          className={wb.projectSelect}
-          aria-label="Project"
-          value={project.projectPath}
-          onChange={(e) => update({ project: valueOf(e), level: undefined, scope: undefined, focus: undefined, depth: undefined, direction: undefined })}
-        >
-          {byRecency.map((p) => (
-            <VscodeOption key={p.projectPath} value={p.projectPath} description={`${p.symbols.toLocaleString()} symbols`}>
-              {formatProjectName(p.projectPath)}
-            </VscodeOption>
-          ))}
-        </VscodeSingleSelect>
-      )}
-      center={(
-        <QuickOpen
-          ref={searchRef}
-          placeholder={`Go to node or symbol in ${projectName} (Shift Shift)`}
-          ariaLabel="Go to a graph node or a symbol"
-          query={query}
-          onQuery={(q) => { setQuery(q); setChoices(null); }}
-          sections={quickSections}
-          forceOpen={!!choices}
-          onDismiss={dismissQuickOpen}
-        />
-      )}
-      end={(
-        <>
-          <VscodeToolbarButton
-            icon={sideView ? 'layout-sidebar-left' : 'layout-sidebar-left-off'}
-            label="Toggle primary side bar"
-            onClick={() => setSideView((v) => (v ? null : 'files'))}
-          />
-          <VscodeToolbarButton
-            icon={auxOpen ? 'layout-panel' : 'layout-panel-off'}
-            label="Toggle details panel"
-            onClick={() => setAuxOpen((v) => !v)}
-          />
-        </>
-      )}
+  const titleStart = (
+    <VscodeSingleSelect
+      className={wb.projectSelect}
+      aria-label="Project"
+      value={project.projectPath}
+      onChange={(e) => update({ project: valueOf(e), level: undefined, scope: undefined, focus: undefined, depth: undefined, direction: undefined })}
+    >
+      {byRecency.map((p) => (
+        <VscodeOption key={p.projectPath} value={p.projectPath} description={`${p.symbols.toLocaleString()} symbols`}>
+          {formatProjectName(p.projectPath)}
+        </VscodeOption>
+      ))}
+    </VscodeSingleSelect>
+  );
+  const titleCenter = (
+    <QuickOpen
+      ref={searchRef}
+      placeholder={`Go to node or symbol in ${projectName} (Shift Shift)`}
+      ariaLabel="Go to a graph node or a symbol"
+      query={query}
+      onQuery={(q) => { setQuery(q); setChoices(null); }}
+      sections={quickSections}
+      forceOpen={!!choices}
+      onDismiss={dismissQuickOpen}
     />
+  );
+  const titleEnd = (
+    <>
+      <VscodeToolbarButton
+        icon={sideView ? 'layout-sidebar-left' : 'layout-sidebar-left-off'}
+        label="Toggle primary side bar"
+        onClick={() => setSideView((v) => (v ? null : 'files'))}
+      />
+      <VscodeToolbarButton
+        icon={auxOpen ? 'layout-panel' : 'layout-panel-off'}
+        label="Toggle details panel"
+        onClick={() => setAuxOpen((v) => !v)}
+      />
+    </>
   );
 
   const sideBar = sideView === 'files' ? (
@@ -652,6 +655,7 @@ export function CodeGraphPage() {
         onImpact={impactOf}
         activeFile={activeTab?.file ?? null}
         activeSymbol={inspectedId ?? (level === 'symbol' ? selectedId : null)}
+        only={sessionChangedSet}
       />
     </Pane>
   ) : null;
@@ -667,6 +671,13 @@ export function CodeGraphPage() {
   const graphEditor = (
     <>
       <Breadcrumbs crumbs={graphCrumbs}>
+        {session && (
+          <span className={wb.crumb} title={`Reviewing what session ${session.sessionId} touched: ${sessionChanged?.length ?? 0} changed, ${session.files.length} touched`}>
+            <Codicon name="sparkle" /> <Link to={`/sessions/${encodeURIComponent(session.sessionId)}`}>Session</Link>
+            {' '}<b>{sessionChanged?.length ?? 0} changed</b>
+            <VscodeToolbarButton icon="close" label="Stop reviewing the session" onClick={() => update({ session: undefined, color: colorBy === 'ai' ? undefined : colorBy })} />
+          </span>
+        )}
         {focus && (
           <>
             <span className={wb.crumb}><Codicon name="target" /> Impact of <b>{focus === DIFF_FOCUS ? `the diff · ${stats?.focusMatches ?? 0} changed` : nodesById.get(focus)?.label ?? focus}</b></span>
@@ -882,6 +893,13 @@ export function CodeGraphPage() {
                 worktree={worktree}
                 revision={rev}
                 target={activeTab}
+                changes={risk.data?.changes ?? []}
+                onInspect={(c) => goToSymbol(
+                  { ...c, kind: activeOutline?.find((o) => o.id === c.id)?.kind ?? 'function' },
+                  here(),
+                  activeTab.preview,
+                )}
+                onImpact={impactOf}
                 errorMessage={errorMessage}
                 onScope={scopeTo}
                 onOpenSource={() => setDiffView(false)}
@@ -924,6 +942,15 @@ export function CodeGraphPage() {
   // While a file is open the pane follows code navigation; on the graph tab, the graph selection.
   const showSymbol = !!inspectedId && editor.active !== GRAPH_TAB;
   const hideAux = <VscodeToolbarButton icon="close" label="Hide details" onClick={() => setAuxOpen(false)} />;
+  /** The loaded session's turns behind what the details pane shows: the open file, or the selected node. */
+  const aiTarget = showSymbol ? (activeTab ? { id: activeTab.file, file: activeTab.file } : null) : selected;
+  const aiActivity = session && aiTarget ? (
+    <AiActivity
+      sessionId={session.sessionId}
+      files={activityOf(session.files, aiTarget)}
+      onOpen={(f) => openFile(f, null, null, false)}
+    />
+  ) : null;
 
   const auxBar = !auxOpen ? null : showSymbol ? (
     <Pane title="Symbol" actions={hideAux}>
@@ -936,6 +963,7 @@ export function CodeGraphPage() {
         onInspect={(s) => goToSymbol(s)}
         onImpact={impactOf}
       />
+      {aiActivity}
     </Pane>
   ) : (
     <Pane title={selected ? 'Details' : 'Details: select a node, or Ctrl+click a name in code'} actions={hideAux}>
@@ -973,113 +1001,119 @@ export function CodeGraphPage() {
       ) : (
         null
       )}
+      {aiActivity}
     </Pane>
   );
 
-  const statusBar = (
-    <StatusBar
-      start={(
-        <>
-          <StatusItem variant="remote" icon="repo" title={project.projectPath}>{projectName}</StatusItem>
-          {wantRisk && risk.data ? (
-            <StatusItem icon="git-branch" title="Open the changes view" onClick={() => setSideView('changes')}>
-              {risk.data.worktree ? 'worktree' : 'branch'} vs {risk.data.base} · {risk.data.tier} {risk.data.score.toFixed(2)}
-            </StatusItem>
-          ) : wantRisk && risk.isError ? (
-            <StatusItem icon="error" variant="warn" title={errorMessage(risk.error)}>Branch risk unavailable</StatusItem>
-          ) : null}
-          {graph && stats && (
-            <StatusItem icon="type-hierarchy-sub" title="Nodes drawn of the nodes in scope · links drawn">
-              {graph.nodes.length.toLocaleString()}/{stats.totalNodes.toLocaleString()} · {graph.links.length.toLocaleString()} links
-            </StatusItem>
-          )}
-          {stats && stats.unresolved > 0 && (
-            <StatusItem icon="warning" title="Call sites the indexer could not attribute to a symbol (dynamic dispatch, external code). Not drawn.">
-              {stats.unresolved.toLocaleString()} unresolved
-            </StatusItem>
-          )}
-          {stats?.truncated && (
-            <StatusItem
-              icon="filter"
-              variant="warn"
-              title={(limit ?? DEFAULT_GRAPH_LIMIT) < MAX_GRAPH_LIMIT
-                ? `Showing the top ${(limit ?? DEFAULT_GRAPH_LIMIT).toLocaleString()} of ${stats.totalNodes.toLocaleString()} by rank. Click to double the cap (slower), or drill in.`
-                : 'At the hard cap: drill in or use the impact view'}
-              onClick={(limit ?? DEFAULT_GRAPH_LIMIT) < MAX_GRAPH_LIMIT
-                ? () => update({ limit: String(Math.min(MAX_GRAPH_LIMIT, (limit ?? DEFAULT_GRAPH_LIMIT) * 2)) })
-                : undefined}
-            >
-              top {(limit ?? DEFAULT_GRAPH_LIMIT).toLocaleString()} of {stats.totalNodes.toLocaleString()}
-            </StatusItem>
-          )}
-          {pathFrom && (
-            <StatusItem
-              icon="git-compare"
-              title="Tracing from the marked node to the selection. Esc or click to stop."
-              onClick={() => setPathFrom(null)}
-            >
-              {path.length > 1 ? `Path: ${path.length - 1} hops` : selectedId === pathFrom ? 'Path: select the end' : 'Path: not connected'}
-            </StatusItem>
-          )}
-        </>
+  const statusStart = (
+    <>
+      <StatusItem variant="remote" icon="repo" title={project.projectPath}>{projectName}</StatusItem>
+      {wantRisk && risk.data ? (
+        <StatusItem icon="git-branch" title="Open the changes view" onClick={() => setSideView('changes')}>
+          {risk.data.worktree ? 'worktree' : 'branch'} vs {risk.data.base} · {risk.data.tier} {risk.data.score.toFixed(2)}
+        </StatusItem>
+      ) : wantRisk && risk.isError ? (
+        <StatusItem icon="error" variant="warn" title={errorMessage(risk.error)}>Branch risk unavailable</StatusItem>
+      ) : null}
+      {graph && stats && (
+        <StatusItem icon="type-hierarchy-sub" title="Nodes drawn of the nodes in scope · links drawn">
+          {graph.nodes.length.toLocaleString()}/{stats.totalNodes.toLocaleString()} · {graph.links.length.toLocaleString()} links
+        </StatusItem>
       )}
-      end={(
-        <>
-          {LEVELS.map((l) => (
-            <StatusItem
-              key={l.value}
-              variant={level === l.value ? 'active' : undefined}
-              title={`Level of detail: ${l.label.toLowerCase()}`}
-              onClick={() => updateView({ level: l.value, focus: undefined, depth: undefined, direction: undefined })}
-            >
-              {l.label}
-            </StatusItem>
-          ))}
-          <StatusItem
-            icon="symbol-ruler"
-            title="Node size encodes this metric (click to cycle)"
-            onClick={() => update({ size: cycle(SIZE_METRICS, sizeBy) === 'rank' ? undefined : cycle(SIZE_METRICS, sizeBy) })}
-          >
-            Size: {METRIC_LABELS[sizeBy]}
-          </StatusItem>
-          <StatusItem
-            icon="symbol-color"
-            title="Node color encodes this metric (click to cycle)"
-            onClick={() => update({ color: cycle(COLOR_MODES, colorBy) === 'kind' ? undefined : cycle(COLOR_MODES, colorBy) })}
-          >
-            Color: {METRIC_LABELS[colorBy]}
-          </StatusItem>
-          <StatusItem
-            icon="symbol-interface"
-            pressed={exportedOnly}
-            title="Show exported (public) nodes only"
-            onClick={() => update({ exp: exportedOnly ? undefined : '1' })}
-          >
-            Public
-          </StatusItem>
-          <StatusItem icon="diff" pressed={showRisk} title="Paint the branch diff and its blast radius on the graph" onClick={() => setShowRisk((v) => !v)}>
-            Overlay
-          </StatusItem>
-          <StatusItem icon="eye" pressed={reviewMode} title="Review mode: spotlight the diff and its blast radius, dim everything else" onClick={toggleReview}>
-            Review
-          </StatusItem>
-          <StatusItem icon="broadcast" pressed={live} title="Follow the index as it changes" onClick={() => setLive((v) => !v)}>
-            {live ? `Live${revision.dataUpdatedAt > 0 ? ` · ${formatRelativeTime(revision.dataUpdatedAt)}` : ''}` : 'Paused'}
-          </StatusItem>
-        </>
+      {stats && stats.unresolved > 0 && (
+        <StatusItem icon="warning" title="Call sites the indexer could not attribute to a symbol (dynamic dispatch, external code). Not drawn.">
+          {stats.unresolved.toLocaleString()} unresolved
+        </StatusItem>
       )}
-    />
+      {stats?.truncated && (
+        <StatusItem
+          icon="filter"
+          variant="warn"
+          title={(limit ?? DEFAULT_GRAPH_LIMIT) < MAX_GRAPH_LIMIT
+            ? `Showing the top ${(limit ?? DEFAULT_GRAPH_LIMIT).toLocaleString()} of ${stats.totalNodes.toLocaleString()} by rank. Click to double the cap (slower), or drill in.`
+            : 'At the hard cap: drill in or use the impact view'}
+          onClick={(limit ?? DEFAULT_GRAPH_LIMIT) < MAX_GRAPH_LIMIT
+            ? () => update({ limit: String(Math.min(MAX_GRAPH_LIMIT, (limit ?? DEFAULT_GRAPH_LIMIT) * 2)) })
+            : undefined}
+        >
+          top {(limit ?? DEFAULT_GRAPH_LIMIT).toLocaleString()} of {stats.totalNodes.toLocaleString()}
+        </StatusItem>
+      )}
+      {pathFrom && (
+        <StatusItem
+          icon="git-compare"
+          title="Tracing from the marked node to the selection. Esc or click to stop."
+          onClick={() => setPathFrom(null)}
+        >
+          {path.length > 1 ? `Path: ${path.length - 1} hops` : selectedId === pathFrom ? 'Path: select the end' : 'Path: not connected'}
+        </StatusItem>
+      )}
+    </>
+  );
+  const statusEnd = (
+    <>
+      {LEVELS.map((l) => (
+        <StatusItem
+          key={l.value}
+          variant={level === l.value ? 'active' : undefined}
+          title={`Level of detail: ${l.label.toLowerCase()}`}
+          onClick={() => updateView({ level: l.value, focus: undefined, depth: undefined, direction: undefined })}
+        >
+          {l.label}
+        </StatusItem>
+      ))}
+      <StatusItem
+        icon="symbol-ruler"
+        title="Node size encodes this metric (click to cycle)"
+        onClick={() => update({ size: cycle(SIZE_METRICS, sizeBy) === 'rank' ? undefined : cycle(SIZE_METRICS, sizeBy) })}
+      >
+        Size: {METRIC_LABELS[sizeBy]}
+      </StatusItem>
+      <StatusItem
+        icon="symbol-color"
+        title="Node color encodes this metric (click to cycle)"
+        onClick={() => {
+          const next = cycle(colorModes(!!session), colorBy);
+          update({ color: next === 'kind' ? undefined : next });
+        }}
+      >
+        Color: {METRIC_LABELS[colorBy]}
+      </StatusItem>
+      <StatusItem
+        icon="symbol-interface"
+        pressed={exportedOnly}
+        title="Show exported (public) nodes only"
+        onClick={() => update({ exp: exportedOnly ? undefined : '1' })}
+      >
+        Public
+      </StatusItem>
+      <StatusItem icon="diff" pressed={showRisk} title="Paint the branch diff and its blast radius on the graph" onClick={() => setShowRisk((v) => !v)}>
+        Overlay
+      </StatusItem>
+      <StatusItem icon="eye" pressed={reviewMode} title="Review mode: spotlight the diff and its blast radius, dim everything else" onClick={toggleReview}>
+        Review
+      </StatusItem>
+      <StatusItem icon="broadcast" pressed={live} title="Follow the index as it changes" onClick={() => setLive((v) => !v)}>
+        {live ? `Live${revision.dataUpdatedAt > 0 ? ` · ${formatRelativeTime(revision.dataUpdatedAt)}` : ''}` : 'Paused'}
+      </StatusItem>
+    </>
   );
 
+  // The shell owns every part but the editor: the rest is portaled into it, so the
+  // editor (and its WebGL canvas) stays put while side bars and panels come and go.
   return (
-    <Workbench
-      titleBar={titleBar}
-      activityBar={<ActivityBar items={activities} active={sideView} onSelect={(id) => setSideView(id as SideView | null)} footer={HOME_LINK} />}
-      sideBar={sideBar}
-      editor={editorGroup}
-      panel={auxBar}
-      panelCollapsed={!showSymbol && !selected}
-      statusBar={statusBar}
-    />
+    <>
+      <WorkbenchSlot name="titleStart">{titleStart}</WorkbenchSlot>
+      <WorkbenchSlot name="titleCenter">{titleCenter}</WorkbenchSlot>
+      <WorkbenchSlot name="titleEnd">{titleEnd}</WorkbenchSlot>
+      <WorkbenchSlot name="activity">
+        <ActivityItems items={activities} active={sideView} onSelect={(id) => setSideView(id as SideView | null)} />
+      </WorkbenchSlot>
+      {sideBar && <WorkbenchSlot name="sideBar">{sideBar}</WorkbenchSlot>}
+      {editorGroup}
+      {auxBar && <WorkbenchSlot name="panel" collapsed={!showSymbol && !selected}>{auxBar}</WorkbenchSlot>}
+      <WorkbenchSlot name="statusStart">{statusStart}</WorkbenchSlot>
+      <WorkbenchSlot name="statusEnd">{statusEnd}</WorkbenchSlot>
+    </>
   );
 }

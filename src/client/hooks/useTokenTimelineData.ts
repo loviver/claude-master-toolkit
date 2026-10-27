@@ -9,6 +9,8 @@ export interface TimelinePoint {
   output: number;
   cacheR: number;
   cacheW: number;
+  /** Context window size the turn was billed for. */
+  context: number;
   cost: number;
 }
 
@@ -33,6 +35,7 @@ export function buildTokenTimelineData(events: TokenEvent[]): TokenTimelineData 
     output: e.outputTokens,
     cacheR: e.cacheReadTokens,
     cacheW: e.cacheCreationTokens,
+    context: e.inputTokens + e.cacheReadTokens + e.cacheCreationTokens,
     cost: Number(e.costUsd.toFixed(6)),
   }));
 

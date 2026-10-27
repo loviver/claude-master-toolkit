@@ -17,8 +17,7 @@
 .iconWrap {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-md);
-  background: rgba(218, 119, 86, 0.1);
+  color: var(--vscode-icon-foreground);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -32,6 +32,16 @@ export function changesTree(changes: CodeGraphChangeDTO[], files: CodeGraphChang
     .sort((a, b) => b.callers - a.callers || a.file.localeCompare(b.file));
 }
 
+/** The diff narrowed to `only` (a session's files); null keeps all of it. */
+export function restrictToFiles(
+  changes: CodeGraphChangeDTO[],
+  files: CodeGraphChangedFileDTO[],
+  only: ReadonlySet<string> | null,
+): { changes: CodeGraphChangeDTO[]; files: CodeGraphChangedFileDTO[] } {
+  if (!only) return { changes, files };
+  return { changes: changes.filter((c) => only.has(c.file)), files: files.filter((f) => only.has(f.file)) };
+}
+
 /**
  * The review row matching what is being viewed: the changed symbol if it is one,
  * else the open file's row, else nothing (the viewed code is outside the diff).

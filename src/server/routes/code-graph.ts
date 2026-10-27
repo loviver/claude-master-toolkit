@@ -22,8 +22,10 @@ import { loadSymbolGraph, type SymbolGraph } from '../../shared/indexer/symbol-g
 import { assessRisk } from '../../shared/risk/index.js';
 import { getChangedFiles, getFileDiff, getFileStatuses, resolveBaseBranch } from '../../shared/risk/diff.js';
 import { fileChurn } from '../../shared/indexer/churn.js';
+import { addedBlocks, attributeBlocks, loadAgentEdits } from '../../shared/sessions/line-provenance.js';
 import type {
   CodeGraphDiffDTO,
+  CodeGraphProvenanceDTO,
   CodeGraphDirection,
   CodeGraphDTO,
   CodeGraphLevel,
@@ -104,6 +106,17 @@ function requireProject(reply: FastifyReply, project: string | undefined): proje
     return false;
   }
   return true;
+}
+
+/** Which agent turn wrote each block of `+` lines; an annotation, so it never fails the diff. */
+function diffProvenance(project: string, file: string, hunks: CodeGraphDiffDTO['hunks']): CodeGraphProvenanceDTO[] {
+  const blocks = addedBlocks(hunks);
+  if (blocks.length === 0) return [];
+  try {
+    return attributeBlocks(blocks, loadAgentEdits(getSqlite(), project, file));
+  } catch {
+    return [];
+  }
 }
 
 export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
@@ -216,7 +229,8 @@ export async function codeGraphRoutes(app: FastifyInstance): Promise<void> {
       if (!getChangedFiles({ cwd: project, base, worktree }).includes(file)) {
         return reply.status(404).send({ error: `file not in the diff vs ${base}: ${file}` });
       }
-      body = { file, base, worktree, language: sourceLanguage(file), ...getFileDiff(file, { cwd: project, base, worktree }) };
+      const diff = getFileDiff(file, { cwd: project, base, worktree });
+      body = { file, base, worktree, language: sourceLanguage(file), ...diff, provenance: diffProvenance(project, file, diff.hunks) };
     } catch (err) {
       // No git checkout or unknown base: nothing to review, not a server fault.
       return reply.status(422).send({ error: `diff unavailable: ${(err as Error).message}` });

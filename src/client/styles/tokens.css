@@ -1,49 +1,38 @@
 /**
  * Design tokens — ctk analytics
  *
- * Palette: warm off-white (Claude-ish) with a tighter, more muted scale.
- * Semantic colors map to raw colors so the UI can re-skin without touching components.
+ * Dark-only: every surface, border and text color aliases the VSCode "Dark Modern"
+ * theme (shell/workbench/vscode-dark-modern.css), so dashboard pages and the
+ * workbench chrome share one palette. Components keep using these semantic names.
  */
 
 :root {
-  /* ── Raw palette ── */
-  --gray-50:  #fafaf7;
-  --gray-100: #f4f2ed;
-  --gray-150: #ece8e0;
-  --gray-200: #e3ddd2;
-  --gray-300: #cbc5b8;
-  --gray-400: #a39e93;
-  --gray-500: #78736a;
-  --gray-600: #555049;
-  --gray-700: #3a3731;
-  --gray-800: #27251f;
-  --gray-900: #16140f;
-
+  /* ── Accent palette (VSCode dark `charts.*` hues; brand coral kept) ── */
   --claude-500: #da7756;   /* brand coral */
   --claude-600: #b95c3e;
   --claude-200: #f3c5b3;
 
-  --blue-500:   #6b6af5;
-  --blue-300:   #a7a6fa;
-  --green-500:  #1f9d55;
-  --green-300:  #6dd3a5;
-  --red-500:    #c43a3a;
-  --red-300:    #e99393;
-  --amber-500:  #d49133;
-  --amber-300:  #eec18a;
-  --cyan-500:   #0f8fa6;
-  --cyan-300:   #6dc4d3;
-  --purple-500: #7d3bc4;
-  --purple-300: #c69be8;
+  --blue-500:   #3794ff;
+  --blue-300:   #75beff;
+  --green-500:  #89d185;
+  --green-300:  #b5e3b2;
+  --red-500:    #f14c4c;
+  --red-300:    #f48771;
+  --amber-500:  #cca700;
+  --amber-300:  #e2c08d;
+  --cyan-500:   #4ec9b0;
+  --cyan-300:   #9cdcfe;
+  --purple-500: #b180d7;
+  --purple-300: #d7b6ef;
 
   /* ── Surfaces ── */
-  --bg-page:      var(--gray-50);
-  --bg-surface:   #ffffff;
-  --bg-elevated:  #ffffff;
-  --bg-muted:     var(--gray-100);
-  --bg-subtle:    var(--gray-150);
-  --bg-hover:     var(--gray-200);
-  --bg-overlay:   rgba(22, 20, 15, 0.45);
+  --bg-page:      var(--vscode-editor-background);
+  --bg-surface:   var(--vscode-sideBar-background);
+  --bg-elevated:  var(--vscode-quickInput-background);
+  --bg-muted:     var(--vscode-textCodeBlock-background);
+  --bg-subtle:    var(--vscode-button-secondaryBackground);
+  --bg-hover:     var(--vscode-list-hoverBackground);
+  --bg-overlay:   rgba(0, 0, 0, 0.6);
 
   /* Legacy aliases kept so existing CSS imports don't break mid-refactor */
   --bg-primary:   var(--bg-page);
@@ -51,18 +40,18 @@
   --bg-card:      var(--bg-surface);
 
   /* ── Borders ── */
-  --border:        var(--gray-200);
-  --border-strong: var(--gray-300);
-  --border-subtle: var(--gray-150);
-  --border-focus:  var(--claude-500);
+  --border:        var(--vscode-widget-border);
+  --border-strong: var(--vscode-editorWidget-border);
+  --border-subtle: var(--vscode-panel-border);
+  --border-focus:  var(--vscode-focusBorder);
 
   /* ── Text ── */
-  --text-primary:   var(--gray-900);
-  --text-secondary: var(--gray-600);
-  --text-muted:     var(--gray-500);
-  --text-tertiary:  var(--gray-400);
-  --text-disabled:  var(--gray-400);
-  --text-inverse:   var(--gray-50);
+  --text-primary:   var(--vscode-foreground);
+  --text-secondary: var(--vscode-descriptionForeground);
+  --text-muted:     var(--vscode-descriptionForeground);
+  --text-tertiary:  var(--vscode-editorLineNumber-foreground);
+  --text-disabled:  var(--vscode-editorLineNumber-foreground);
+  --text-inverse:   var(--vscode-editor-background);
 
   /* ── Accents ── */
   --accent-claude: var(--claude-500);
@@ -74,16 +63,22 @@
   --accent-cyan:   var(--cyan-500);
   --accent-purple: var(--purple-500);
 
+  /* Generic aliases some feature CSS reads (with hardcoded light fallbacks). */
+  --color-info:    var(--blue-500);
+  --color-success: var(--green-500);
+  --color-danger:  var(--red-500);
+  --color-accent:  var(--vscode-focusBorder);
+
   /* ── Semantic model/phase colors (source of truth) ── */
   --model-opus:    var(--purple-500);
   --model-sonnet:  var(--blue-500);
   --model-haiku:   var(--cyan-500);
-  --model-unknown: var(--gray-500);
+  --model-unknown: var(--text-muted);
 
   --phase-exploration:    var(--cyan-500);
   --phase-implementation: var(--blue-500);
   --phase-testing:        var(--green-500);
-  --phase-unknown:        var(--gray-500);
+  --phase-unknown:        var(--text-muted);
 
   --status-success: var(--green-500);
   --status-warning: var(--amber-500);
@@ -111,16 +106,17 @@
   --space-xl: var(--space-8);
 
   /* ── Radii ── */
-  --radius-xs:   3px;
-  --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
-  --radius-xl:   20px;
+  /* VSCode is flat: 2px on inputs and buttons, nothing rounder. */
+  --radius-xs:   2px;
+  --radius-sm:   2px;
+  --radius-md:   2px;
+  --radius-lg:   2px;
+  --radius-xl:   2px;
   --radius-full: 9999px;
 
   /* ── Typography ── */
-  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --font-sans: var(--vscode-font-family);
+  --font-mono: var(--vscode-editor-font-family);
 
   --text-xs:   0.7rem;    /* 11.2 */
   --text-sm:   0.8rem;    /* 12.8 */
@@ -142,11 +138,11 @@
   --weight-bold:    700;
 
   /* ── Elevation ── */
-  --shadow-xs: 0 1px 1px rgba(22, 20, 15, 0.04);
-  --shadow-sm: 0 1px 3px rgba(22, 20, 15, 0.06), 0 1px 2px rgba(22, 20, 15, 0.04);
-  --shadow-md: 0 4px 8px rgba(22, 20, 15, 0.06), 0 2px 4px rgba(22, 20, 15, 0.04);
-  --shadow-lg: 0 10px 24px rgba(22, 20, 15, 0.08), 0 4px 8px rgba(22, 20, 15, 0.04);
-  --shadow-focus: 0 0 0 3px rgba(218, 119, 86, 0.20);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: 0 2px 8px var(--vscode-widget-shadow);
+  --shadow-lg: 0 0 8px 2px var(--vscode-widget-shadow);
+  --shadow-focus: 0 0 0 1px var(--vscode-focusBorder);
 
   /* ── Transitions ── */
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -163,7 +159,6 @@
   --chart-7: var(--red-500);
 
   /* ── Layout ── */
-  --sidebar-width: 232px;
   --content-max:   1280px;
   --header-height: 56px;
 }

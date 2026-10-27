@@ -38,4 +38,9 @@ describe('buildTokenTimelineData', () => {
     expect(r.data.length).toBe(3);
     expect(r.data[0].turn).toBe(1);
   });
+
+  it('derives per-turn context size from input + cache read + cache write', () => {
+    const r = buildTokenTimelineData([ev(1, 'opus')]);
+    expect(r.data[0].context).toBe(13);
+  });
 });

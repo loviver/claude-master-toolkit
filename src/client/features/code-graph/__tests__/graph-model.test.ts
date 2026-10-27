@@ -21,6 +21,7 @@ import {
   serializeHidden,
   shortestPath,
   colorScale,
+  colorModes,
   HEAT_COLORS,
   heatColor,
   metricScale,
@@ -391,6 +392,31 @@ describe('colorScale', () => {
     const nodes = [node('a', { callers: 4 })];
     expect(colorScale(nodes, 'kind')).toBeNull();
     expect(colorScale(nodes, 'callers')!(nodes[0])).toBe(1);
+  });
+
+  it('colors by the session\'s AI activity on a node\'s file, modules summing their files', () => {
+    const heat = new Map([['src/a.ts', 4], ['src/b.ts', 12], ['lib/c.ts', 1]]);
+    const files = [node('src/a.ts', { kind: 'file', file: 'src/a.ts' }), node('src/z.ts', { kind: 'file', file: 'src/z.ts' })];
+    const scale = colorScale(files, 'ai', heat)!;
+    expect(scale(files[0])).toBe(1);
+    expect(scale(files[1])).toBe(0);
+
+    const mods = [node('src', { kind: 'module', file: null }), node('lib', { kind: 'module', file: null })];
+    const modScale = colorScale(mods, 'ai', heat)!;
+    expect(modScale(mods[0])).toBe(1);
+    expect(modScale(mods[1])).toBeCloseTo(0.25);
+  });
+
+  it('paints nothing in AI mode without activity', () => {
+    expect(colorScale([node('a')], 'ai')!(node('a'))).toBe(0);
+  });
+});
+
+describe('colorModes', () => {
+  it('offers AI activity only when a session is loaded', () => {
+    expect(colorModes(false)).not.toContain('ai');
+    expect(colorModes(true)).toEqual([...colorModes(false), 'ai']);
+    expect(parseColorMode('ai')).toBe('ai');
   });
 });
 

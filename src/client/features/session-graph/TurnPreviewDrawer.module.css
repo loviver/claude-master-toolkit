@@ -350,9 +350,9 @@
 }
 
 .toolBadgeWarn {
-  color: #b45309;
-  border-color: #b45309;
-  background: color-mix(in srgb, #b45309 10%, var(--bg-muted));
+  color: var(--accent-amber);
+  border-color: var(--accent-amber);
+  background: color-mix(in srgb, var(--accent-amber) 10%, var(--bg-muted));
 }
 
 .thinkingDetails {
@@ -407,6 +407,15 @@
   background: var(--bg-muted);
   border-radius: var(--radius-xs);
   word-break: break-all;
+}
+
+.fileLink {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.fileLink:hover {
+  text-decoration: underline;
 }
 
 .hooksList {

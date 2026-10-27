@@ -3,10 +3,10 @@
  * Source: microsoft/vscode extensions/theme-defaults/themes/dark_modern.json
  * (keys `a.b` become `--vscode-a-b`). Custom properties inherit into shadow DOM,
  * so this one rule themes the @vscode-elements components and our own chrome.
- * Scoped to the workbench root: the dashboard keeps its own tokens.
+ * Global (dark-only app): styles/tokens.css aliases its semantic tokens to these.
  */
 
-.vsc-dark-modern {
+:root {
   /* ── Base ── */
   --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
   --vscode-font-size: 13px;
@@ -166,14 +166,18 @@
   --wb-statusbar: 22px;
 
   color-scheme: dark;
+}
+
+/* Workbench typography stays on its root: on :root, font-size would rescale every rem. */
+.vsc-dark-modern {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);
 }
 
 /* VSCode scrollbars: square, translucent, no arrows. */
-.vsc-dark-modern ::-webkit-scrollbar { width: 10px; height: 10px; }
-.vsc-dark-modern ::-webkit-scrollbar-corner { background: transparent; }
-.vsc-dark-modern ::-webkit-scrollbar-thumb { background: rgba(121, 121, 121, 0.4); }
-.vsc-dark-modern ::-webkit-scrollbar-thumb:hover { background: rgba(100, 100, 100, 0.7); }
-.vsc-dark-modern * { scrollbar-color: rgba(121, 121, 121, 0.4) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(121, 121, 121, 0.4); }
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 100, 100, 0.7); }
+* { scrollbar-color: rgba(121, 121, 121, 0.4) transparent; }

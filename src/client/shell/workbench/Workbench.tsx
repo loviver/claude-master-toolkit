@@ -1,8 +1,7 @@
 import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { NavLink, useMatch } from 'react-router-dom';
 import VscodeProgressBar from '@vscode-elements/react-elements/dist/components/VscodeProgressBar.js';
 import { Codicon } from './codicons';
-import './vscode-dark-modern.css';
 import styles from './Workbench.module.css';
 
 /**
@@ -108,16 +107,25 @@ export interface ActivityItem {
   badge?: number;
 }
 
-/** Clicking the active item collapses the side bar, as in VSCode. */
-export function ActivityBar({ items, active, onSelect, footer = null }: {
+/** The activity bar: navigation and view switchers on top, `footer` pinned to the bottom. */
+export function ActivityBar({ children, footer = null }: { children: ReactNode; footer?: ReactNode }) {
+  return (
+    <nav className={styles.activityBar} aria-label="Views">
+      {children}
+      <span className={styles.activitySpacer} />
+      {footer}
+    </nav>
+  );
+}
+
+/** View switchers. Clicking the active item collapses the side bar, as in VSCode. */
+export function ActivityItems({ items, active, onSelect }: {
   items: ActivityItem[];
   active: string | null;
   onSelect: (id: string | null) => void;
-  /** Pinned to the bottom of the bar (VSCode's accounts/manage slot). */
-  footer?: ReactNode;
 }) {
   return (
-    <nav className={styles.activityBar} aria-label="Views">
+    <>
       {items.map((item) => (
         <button
           key={item.id}
@@ -132,19 +140,43 @@ export function ActivityBar({ items, active, onSelect, footer = null }: {
           {!!item.badge && <span className={styles.activityBadge}>{item.badge}</span>}
         </button>
       ))}
-      <span className={styles.activitySpacer} />
-      {footer}
-    </nav>
+    </>
   );
 }
 
-/** An activity bar entry that navigates instead of toggling a side bar view. */
-export function ActivityLink({ to, icon, label }: { to: string; icon: string; label: string }) {
+/**
+ * An activity bar entry that navigates. `onPick` learns whether it was already the
+ * current route: clicking the active entry toggles the side bar instead, as in VSCode.
+ */
+export function ActivityLink({ to, icon, label, end, onPick }: {
+  to: string;
+  icon: string;
+  label: string;
+  end?: boolean;
+  onPick?: (wasActive: boolean) => void;
+}) {
+  // Exact match only: from /sessions/:id the Sessions entry navigates back to the list.
+  const active = useMatch({ path: to, end: true }) !== null;
   return (
-    <Link to={to} className={styles.activityItem} title={label} aria-label={label}>
+    <NavLink
+      to={to}
+      end={end}
+      className={styles.activityItem}
+      title={label}
+      aria-label={label}
+      onClick={(e) => {
+        if (active) e.preventDefault();
+        onPick?.(active);
+      }}
+    >
       <Codicon name={icon} />
-    </Link>
+    </NavLink>
   );
+}
+
+/** A thin rule between groups of activity bar entries. */
+export function ActivitySeparator() {
+  return <hr className={styles.activitySeparator} />;
 }
 
 /** A side bar view: uppercase 35px title with actions, then the scrollable body. */

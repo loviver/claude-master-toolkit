@@ -1,6 +1,7 @@
 .content {
-  background: var(--gray-800);
-  color: var(--text-inverse);
+  background: var(--vscode-editorWidget-background);
+  color: var(--text-primary);
+  border: 1px solid var(--vscode-editorWidget-border);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
@@ -11,7 +12,7 @@
 }
 
 .arrow {
-  fill: var(--gray-800);
+  fill: var(--vscode-editorWidget-border);
 }
 
 @keyframes fadeIn {

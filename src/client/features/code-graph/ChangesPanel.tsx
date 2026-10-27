@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import VscodeCheckbox from '@vscode-elements/react-elements/dist/components/VscodeCheckbox.js';
 import VscodeBadge from '@vscode-elements/react-elements/dist/components/VscodeBadge.js';
 import type { CodeGraphChangeDTO, CodeGraphRiskDTO } from '../../lib/types';
-import { activeChange, changesTree, formatSpans, impactBadge, type ChangedFileNode } from './changes-model';
+import { activeChange, changesTree, formatSpans, impactBadge, restrictToFiles, type ChangedFileNode } from './changes-model';
 import { parseQualifiedId } from '../../../shared/indexer/ids';
 import { Codicon } from '../../shell/workbench/codicons';
 import { Placeholder } from '../../shell/workbench/Workbench';
@@ -22,6 +22,8 @@ interface ChangesPanelProps {
   /** What is being viewed (open tab, selected node): its row is highlighted and scrolled into view. */
   activeFile: string | null;
   activeSymbol: string | null;
+  /** A session's changed files: the panel lists only their part of the diff. */
+  only?: ReadonlySet<string> | null;
 }
 
 const LINKS_MAX = 20;
@@ -195,9 +197,10 @@ function FileRow({ node, active, onOpen, onImpact }: { node: ChangedFileNode; ac
 }
 
 /** Source-control-like view of the diff: file → changed symbol → its lines, ↑ callers and ↓ deps. */
-export function ChangesPanel({ risk, error, worktree, onWorktree, onOpen, onImpact, activeFile, activeSymbol }: ChangesPanelProps) {
-  const callersAtRisk = risk ? new Set(risk.changes.flatMap((c) => c.callers)).size : 0;
-  const tree = useMemo(() => (risk ? changesTree(risk.changes, risk.files) : []), [risk]);
+export function ChangesPanel({ risk, error, worktree, onWorktree, onOpen, onImpact, activeFile, activeSymbol, only = null }: ChangesPanelProps) {
+  const diff = useMemo(() => (risk ? restrictToFiles(risk.changes, risk.files, only) : null), [risk, only]);
+  const callersAtRisk = diff ? new Set(diff.changes.flatMap((c) => c.callers)).size : 0;
+  const tree = useMemo(() => (diff ? changesTree(diff.changes, diff.files) : []), [diff]);
   const active = activeChange(tree, activeFile, activeSymbol);
   return (
     <>
@@ -211,9 +214,11 @@ export function ChangesPanel({ risk, error, worktree, onWorktree, onOpen, onImpa
 
       {error ? (
         <Placeholder icon="error" title="Changes unavailable">{error}</Placeholder>
-      ) : !risk ? null : risk.files.length === 0 ? (
+      ) : !risk || !diff ? null : diff.files.length === 0 ? (
         <Placeholder icon="check" title="No changes">
-          Nothing differs from <code>{risk.base}</code>{worktree ? ' (working tree included)' : ''}.
+          {only
+            ? <>None of this session's files differ from <code>{risk.base}</code>: they are committed into it, or reverted.</>
+            : <>Nothing differs from <code>{risk.base}</code>{worktree ? ' (working tree included)' : ''}.</>}
         </Placeholder>
       ) : (
         <>
@@ -221,8 +226,9 @@ export function ChangesPanel({ risk, error, worktree, onWorktree, onOpen, onImpa
             <span className={styles[`tier${risk.tier}`]}>{risk.tier}</span>
             {' '}vs <code>{risk.base}</code> · score {risk.score.toFixed(2)}
             <br />
-            {risk.files.length} file{risk.files.length === 1 ? '' : 's'} · {risk.changes.length} symbol
-            {risk.changes.length === 1 ? '' : 's'} · {callersAtRisk} callers at risk
+            {diff.files.length} file{diff.files.length === 1 ? '' : 's'} · {diff.changes.length} symbol
+            {diff.changes.length === 1 ? '' : 's'} · {callersAtRisk} callers at risk
+            {only && <><br />This session's part of the diff ({diff.files.length} of {risk.files.length} changed files)</>}
           </p>
 
           <ul className={list.list} role="tree" aria-label="Changes">

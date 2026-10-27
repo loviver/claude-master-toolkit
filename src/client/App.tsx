@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react';
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
-import { Layout } from './components/Layout';
+import { AppShell } from './shell/AppShell';
+import { PageFrame } from './shell/PageFrame';
 import { Overview } from './features/overview/Overview';
 import { SessionList } from './features/sessions/SessionList';
 import { SessionDetail } from './features/session-detail/SessionDetail/SessionDetail';
@@ -24,24 +25,23 @@ export function App() {
     <QueryProvider>
       <BrowserRouter>
         <Routes>
-          <Route element={<Layout />}>
-            <Route path="/"              element={<Overview />} />
-            <Route path="/sessions"      element={<SessionList />} />
-            <Route path="/sessions/:id"  element={<SessionDetail />} />
-            <Route path="/graph"         element={<GraphExplorer />} />
-            <Route path="/projects"      element={<Projects />} />
-            <Route path="/models"        element={<Models />} />
-            <Route path="/tools"         element={<Tools />} />
-            <Route path="/phases"        element={<Phases />} />
-            <Route path="/efficiency"    element={<Efficiency />} />
-            <Route path="/memories"      element={<Memories />} />
-            <Route path="/settings"      element={<Settings />} />
+          <Route element={<AppShell />}>
+            <Route element={<PageFrame />}>
+              <Route path="/"              element={<Overview />} />
+              <Route path="/sessions"      element={<SessionList />} />
+              <Route path="/sessions/:id"  element={<SessionDetail />} />
+              <Route path="/graph"         element={<GraphExplorer />} />
+              <Route path="/projects"      element={<Projects />} />
+              <Route path="/models"        element={<Models />} />
+              <Route path="/tools"         element={<Tools />} />
+              <Route path="/phases"        element={<Phases />} />
+              <Route path="/efficiency"    element={<Efficiency />} />
+              <Route path="/memories"      element={<Memories />} />
+              <Route path="/settings"      element={<Settings />} />
+            </Route>
+            {/* Full-bleed: the code graph fills the editor and the other workbench parts itself. */}
+            <Route path="/code-graph" element={<CodeGraphPage />} />
           </Route>
-          {/* A full-screen IDE workbench: it brings its own chrome instead of the dashboard layout. */}
-          <Route
-            path="/code-graph"
-            element={<Suspense fallback={<div style={{ height: '100vh', background: '#1f1f1f' }} />}><CodeGraphPage /></Suspense>}
-          />
         </Routes>
       </BrowserRouter>
     </QueryProvider>

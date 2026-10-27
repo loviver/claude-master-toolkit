@@ -1,14 +1,23 @@
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Network as NetworkIcon } from 'lucide-react';
-import { useSessionDetail, useSessionGitStats, useSessionDetailLive } from '../../../hooks/queries/useSessions';
-import { Tabs, Icon, Skeleton, EmptyState, SkeletonGrid } from '../../../components/ui';
+import { useMemo } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Code2, Network as NetworkIcon } from 'lucide-react';
+import {
+  useSessionDetail, useSessionGitStats, useSessionDetailLive, useSessionGraphLive, useSessionCodeActivity,
+} from '../../../hooks/queries/useSessions';
+import type { SessionCodeActivityDTO } from '../../../lib/types';
+import { Tabs, Icon, Skeleton, EmptyState, SkeletonGrid, Button } from '../../../components/ui';
+import { codeGraphHref } from '../code-graph-link';
 import { HeroCard } from '../HeroCard';
 import { StatsBand } from '../StatsBand';
 import { TokenTimeline } from '../TokenTimeline/TokenTimeline';
 import { ModelBreakdownTable } from '../ModelBreakdownTable/ModelBreakdownTable';
 import { GitStatsPanel } from '../GitStatsPanel/GitStatsPanel';
 import { SessionMetadata } from '../SessionMetadata/SessionMetadata';
+import { HealthStrip, ActivityPanel } from '../SessionInsights';
+import { computeSessionInsights } from '../session-insights';
 import { SessionGraph } from '../../session-graph/SessionGraph';
+import { SessionsSideBar } from '../../sessions/SessionsSideBar';
+import { WorkbenchSlot } from '../../../shell/slots';
 import styles from './SessionDetail.module.css';
 
 interface SectionProps {
@@ -29,10 +38,45 @@ function Section({ title, aside, children }: SectionProps) {
   );
 }
 
+/** Opens the code graph on the session's project, spotlighting the files it touched. */
+function ReviewInCodeGraph({ activity }: { activity: SessionCodeActivityDTO }) {
+  const navigate = useNavigate();
+  const { indexed, projectPath, sessionId, files } = activity;
+  const hint = !indexed
+    ? `Project not indexed: run ctk index build in ${projectPath}`
+    : `Review ${files.length} touched file${files.length === 1 ? '' : 's'} in the code graph`;
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={!indexed || files.length === 0}
+      title={hint}
+      onClick={() => navigate(codeGraphHref({ project: projectPath, session: sessionId }))}
+    >
+      <Icon icon={Code2} size="sm" /> Review in Code Graph
+    </Button>
+  );
+}
+
+/** The detail fills the editor; recent sessions stay one click away under the navigation. */
 export function SessionDetail() {
+  const { id } = useParams<{ id: string }>();
+  return (
+    <>
+      <WorkbenchSlot name="sideBarSection"><SessionsSideBar activeId={id} /></WorkbenchSlot>
+      <SessionDetailContent />
+    </>
+  );
+}
+
+function SessionDetailContent() {
   const { id } = useParams<{ id: string }>();
   const { data: session, isLoading } = useSessionDetail(id);
   const { data: gitStats } = useSessionGitStats(id);
+  const { data: activity } = useSessionCodeActivity(id);
+  // Same query the Turn Graph uses, so the per-turn enrichment is fetched once.
+  const { data: graph } = useSessionGraphLive(id);
+  const insights = useMemo(() => (graph ? computeSessionInsights(graph.nodes) : null), [graph]);
   useSessionDetailLive(id);
 
   if (isLoading) {
@@ -58,9 +102,21 @@ export function SessionDetail() {
       <HeroCard session={session} />
       <StatsBand session={session} />
 
-      {gitStats && (
-        <Section title="Code Changes">
-          <GitStatsPanel stats={gitStats} />
+      {insights && (
+        <Section title="Health">
+          <HealthStrip insights={insights} />
+        </Section>
+      )}
+
+      {(gitStats || activity) && (
+        <Section title="Code Changes" aside={activity && <ReviewInCodeGraph activity={activity} />}>
+          {gitStats && <GitStatsPanel stats={gitStats} />}
+        </Section>
+      )}
+
+      {insights && (
+        <Section title="Activity">
+          <ActivityPanel insights={insights} />
         </Section>
       )}
 

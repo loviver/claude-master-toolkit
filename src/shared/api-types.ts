@@ -158,6 +158,19 @@ export interface TurnPairDTO {
   };
 }
 
+// ── Session code activity (which project files an agent touched, per turn) ──
+
+import type { FileActivity } from './sessions/file-activity.js';
+export type { FileOp, FileTurnActivity as FileTurnActivityDTO, FileActivity as FileActivityDTO } from './sessions/file-activity.js';
+
+export interface SessionCodeActivityDTO {
+  sessionId: string;
+  projectPath: string;
+  /** The project is in the code index: the session can be reviewed in the code graph. */
+  indexed: boolean;
+  files: FileActivity[];
+}
+
 // ── Code graph (AST index rendered as a navigable graph) ──
 
 /** Granularity of the code graph: directories, files, or individual symbols. */
@@ -382,6 +395,18 @@ export interface CodeGraphDiffDTO {
   status: 'added' | 'deleted' | 'modified';
   binary: boolean;
   hunks: CodeGraphDiffHunkDTO[];
+  /** Blocks of `+` lines credited to the agent turn that wrote them (best effort, may be empty). */
+  provenance: CodeGraphProvenanceDTO[];
+}
+
+/** An agent turn that wrote a block of added lines: new-side `[start, end]`, inclusive. */
+export interface CodeGraphProvenanceDTO {
+  start: number;
+  end: number;
+  sessionId: string;
+  eventId: number;
+  timestamp: number;
+  tool: string;
 }
 
 /** An indexed file's text as it is on disk now (may be newer than the index). */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CodeGraphChangeDTO, CodeGraphChangedFileDTO } from '../../../lib/types';
-import { activeChange, changesTree, formatSpans, impactBadge } from '../changes-model';
+import { activeChange, changesTree, formatSpans, impactBadge, restrictToFiles } from '../changes-model';
 
 function change(file: string, symbol: string, startLine: number, callers: string[] = []): CodeGraphChangeDTO {
   return {
@@ -70,5 +70,19 @@ describe('activeChange', () => {
   it('is null when nothing viewed is in the diff', () => {
     expect(activeChange(tree, 'other.ts', 'other.ts::x')).toBeNull();
     expect(activeChange(tree, null, null)).toBeNull();
+  });
+});
+
+describe('restrictToFiles', () => {
+  it('keeps only the diff of the given files (a session\'s), changes and files alike', () => {
+    const out = restrictToFiles([change('a.ts', 'f', 1), change('b.ts', 'g', 3)], [file('a.ts'), file('b.ts')], new Set(['b.ts', 'c.ts']));
+    expect(out.files.map((f) => f.file)).toEqual(['b.ts']);
+    expect(out.changes.map((c) => c.id)).toEqual(['b.ts::g']);
+  });
+
+  it('keeps the whole diff when no restriction is given', () => {
+    const out = restrictToFiles([change('a.ts', 'f', 1)], [file('a.ts')], null);
+    expect(out.files).toHaveLength(1);
+    expect(out.changes).toHaveLength(1);
   });
 });

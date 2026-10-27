@@ -115,6 +115,25 @@ export function fileNodeIds(
     .map((n) => n.id);
 }
 
+/** Every node the view draws for the session's files: the review's seeds. */
+export function sessionNodeIds(
+  level: CodeGraphLevel,
+  files: readonly string[],
+  nodes: ReadonlyArray<{ id: string; file?: string | null; rank: number }>,
+): Set<string> {
+  return new Set(files.flatMap((file) => fileNodeIds(level, file, nodes)));
+}
+
+/**
+ * The session activity behind a node: its own file, or for a module the files directly in it
+ * (the module a file belongs to is its directory, as `nodeIdForFile` draws it).
+ */
+export function activityOf<T extends { file: string }>(files: readonly T[], node: { id: string; file: string | null }): T[] {
+  return node.file !== null
+    ? files.filter((f) => f.file === node.file)
+    : files.filter((f) => nodeIdForFile('module', f.file) === node.id);
+}
+
 /** Whether a changed line span overlaps a 1-based line. */
 export function lineChanged(line: number, ranges: ReadonlyArray<readonly [number, number]>): boolean {
   return ranges.some(([start, end]) => line >= start && line <= end);

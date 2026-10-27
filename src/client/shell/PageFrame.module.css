@@ -1,0 +1,20 @@
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  /* The workbench chrome is not selectable; page content (ids, costs, paths) must be. */
+  user-select: text;
+  line-height: var(--leading-normal);
+}
+
+.page {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: var(--space-4);
+  }
+}

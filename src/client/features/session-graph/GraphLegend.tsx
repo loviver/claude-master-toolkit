@@ -10,7 +10,7 @@ const ROLE_COLORS: Array<{ role: string; color: string }> = [
 ];
 
 export function GraphLegend() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className={styles.legend} aria-label="Graph legend">

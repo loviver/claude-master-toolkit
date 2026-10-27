@@ -153,3 +153,78 @@
   color: var(--vscode-descriptionForeground);
   white-space: nowrap;
 }
+
+/* Word-level marks inside a changed line: VSCode's inserted/removed text backgrounds. */
+.diffWordAdd {
+  background: var(--vscode-diffEditor-insertedTextBackground, rgba(156, 204, 44, 0.35));
+  border-radius: 2px;
+}
+
+.diffWordDel {
+  background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.4));
+  border-radius: 2px;
+}
+
+/* Changed symbols named in a hunk header. */
+.diffSymbol {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  font-style: normal;
+}
+
+.diffSymbolName {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.diffSymbolName:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.diffBreaking {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--vscode-editorWarning-foreground);
+}
+
+/* Lines an agent wrote: a sparkle-coloured edge, and a chip on the block's first line. */
+.diffAiLine {
+  box-shadow: inset 2px 0 0 var(--vscode-charts-purple, #b180d7);
+}
+
+.diffAi {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 16px;
+  padding: 0 6px;
+  border: 1px solid var(--vscode-charts-purple, #b180d7);
+  border-radius: 9px;
+  background: none;
+  color: var(--vscode-charts-purple, #b180d7);
+  font-family: var(--vscode-font-family);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.diffAi:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.diffAiMeta {
+  color: var(--vscode-charts-purple, #b180d7);
+}

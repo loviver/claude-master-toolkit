@@ -393,13 +393,19 @@ export function nodeVal(node: CodeGraphNodeDTO, t = node.rank): number {
 
 /** What node size can encode. `rank` is centrality; the rest come off the index and git. */
 export type SizeMetric = 'rank' | 'churn' | 'callers' | 'loc';
-export type ColorMode = 'kind' | SizeMetric;
+/** `ai`: how much the loaded session read and changed a node's code. */
+export type ColorMode = 'kind' | SizeMetric | 'ai';
 
 export const SIZE_METRICS: readonly SizeMetric[] = ['rank', 'churn', 'callers', 'loc'];
 export const COLOR_MODES: readonly ColorMode[] = ['kind', ...SIZE_METRICS];
 
+/** The color cycle; AI activity only means something with a session loaded. */
+export function colorModes(withSession: boolean): readonly ColorMode[] {
+  return withSession ? [...COLOR_MODES, 'ai'] : COLOR_MODES;
+}
+
 export const METRIC_LABELS: Record<ColorMode, string> = {
-  kind: 'Kind', rank: 'Centrality', churn: 'Churn (90d commits)', callers: 'Callers', loc: 'Lines',
+  kind: 'Kind', rank: 'Centrality', churn: 'Churn (90d commits)', callers: 'Callers', loc: 'Lines', ai: 'AI activity',
 };
 
 export function parseSizeMetric(raw: string | null): SizeMetric {
@@ -407,7 +413,7 @@ export function parseSizeMetric(raw: string | null): SizeMetric {
 }
 
 export function parseColorMode(raw: string | null): ColorMode {
-  return COLOR_MODES.includes(raw as ColorMode) ? (raw as ColorMode) : 'kind';
+  return colorModes(true).includes(raw as ColorMode) ? (raw as ColorMode) : 'kind';
 }
 
 /** 0..1 against the biggest node; sqrt so one giant does not flatten everything else. */
@@ -417,8 +423,29 @@ export function metricScale(nodes: CodeGraphNodeDTO[], metric: SizeMetric): (n: 
   return top > 0 ? (n) => Math.sqrt(n[metric]) / top : () => 0;
 }
 
-export function colorScale(nodes: CodeGraphNodeDTO[], mode: ColorMode): ((n: CodeGraphNodeDTO) => number) | null {
-  return mode === 'kind' ? null : metricScale(nodes, mode);
+/** A node's share of the session heat: its own file, or the files directly in a module. */
+function nodeHeat(heat: ReadonlyMap<string, number>, byModule: ReadonlyMap<string, number>, n: CodeGraphNodeDTO): number {
+  return n.file !== null ? heat.get(n.file) ?? 0 : byModule.get(n.id) ?? 0;
+}
+
+function aiScale(nodes: CodeGraphNodeDTO[], heat: ReadonlyMap<string, number>): (n: CodeGraphNodeDTO) => number {
+  const byModule = new Map<string, number>();
+  for (const [file, h] of heat) {
+    const cut = file.lastIndexOf('/');
+    const dir = cut < 0 ? '.' : file.slice(0, cut);
+    byModule.set(dir, (byModule.get(dir) ?? 0) + h);
+  }
+  const top = Math.sqrt(Math.max(0, ...nodes.map((n) => nodeHeat(heat, byModule, n))));
+  return top > 0 ? (n) => Math.sqrt(nodeHeat(heat, byModule, n)) / top : () => 0;
+}
+
+export function colorScale(
+  nodes: CodeGraphNodeDTO[],
+  mode: ColorMode,
+  heat: ReadonlyMap<string, number> = new Map(),
+): ((n: CodeGraphNodeDTO) => number) | null {
+  if (mode === 'kind') return null;
+  return mode === 'ai' ? aiScale(nodes, heat) : metricScale(nodes, mode);
 }
 
 /**

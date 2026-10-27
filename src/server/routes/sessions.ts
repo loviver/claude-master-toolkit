@@ -5,11 +5,14 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { syncFile, syncSession } from '../parser/index.js';
 import { getGitStats } from '../lib/git-stats.js';
-import { getDb } from '../../shared/db/db.js';
+import { getDb, getSqlite } from '../../shared/db/db.js';
+import { projectIndexed } from '../../shared/indexer/queries.js';
+import { aggregateActivity, touchesFromSnapshots, touchesFromToolCall, type TurnMeta } from '../../shared/sessions/file-activity.js';
 import { sessions, tokenEvents, turnContent, turnHooks, turnFileChanges, turnToolCalls } from '../../shared/db/schema.js';
 import { resolveModelKey } from '../../shared/pricing.js';
 import { sessionBus, type SessionBusEvent } from '../events/bus.js';
 import type {
+  SessionCodeActivityDTO,
   SessionGraphDTO,
   SessionGraphNodeDTO,
   TurnContentDTO,
@@ -563,6 +566,44 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
     if (!session) return reply.status(404).send({ error: 'Session not found' });
 
     return reply.send(getGitStats(session.id, session.projectPath, session.startedAt, session.lastActiveAt));
+  });
+
+  // ── Code activity: project files the session read or changed, for the code graph review ──
+  app.get<{ Params: { id: string } }>('/sessions/:id/code-activity', async (req, reply) => {
+    const db = getDb();
+    const session = db.select().from(sessions).where(eq(sessions.id, req.params.id)).get();
+    if (!session) return reply.status(404).send({ error: 'Session not found' });
+
+    const meta = new Map<number, TurnMeta>();
+    for (const row of db.all<{ id: number; timestamp: number; cost_usd: number | null; errors: number }>(sql`
+      SELECT te.id, te.timestamp, te.cost_usd,
+        (SELECT COUNT(*) FROM turn_tool_calls tt WHERE tt.event_id = te.id AND tt.result_is_error = 1) AS errors
+      FROM token_events te
+      WHERE te.session_id = ${session.id}
+    `)) {
+      meta.set(row.id, { timestamp: row.timestamp, costUsd: row.cost_usd ?? 0, toolErrors: row.errors });
+    }
+
+    const touches = [
+      ...db.all<{ event_id: number; tool_name: string; input_json: string | null }>(sql`
+        SELECT tt.event_id, tt.tool_name, tt.input_json
+        FROM turn_tool_calls tt
+        JOIN token_events te ON te.id = tt.event_id
+        WHERE te.session_id = ${session.id}
+      `).flatMap((r) => touchesFromToolCall(r.event_id, r.tool_name, r.input_json)),
+      ...touchesFromSnapshots(db.all<{ eventId: number | null; filePath: string }>(sql`
+        SELECT event_id AS eventId, file_path AS filePath FROM turn_file_changes
+        WHERE session_id = ${session.id}
+      `)),
+    ];
+
+    const body: SessionCodeActivityDTO = {
+      sessionId: session.id,
+      projectPath: session.projectPath,
+      indexed: projectIndexed(getSqlite(), session.projectPath),
+      files: aggregateActivity(session.projectPath, touches, meta),
+    };
+    return reply.send(body);
   });
 
   // ── Manual sync trigger (called from hooks after each turn) ──

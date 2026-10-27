@@ -27,7 +27,8 @@
   background: var(--vscode-list-hoverBackground);
 }
 
-.row[aria-current='true'] {
+.row[aria-current='true'],
+.row[aria-current='page'] {
   background: var(--vscode-list-inactiveSelectionBackground);
 }
 

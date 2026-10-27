@@ -2,7 +2,7 @@ import codiconHref from '@vscode/codicons/dist/codicon.css?url';
 
 // vscode-icon looks up this exact id to load the font inside its shadow root, and the
 // @font-face it declares also serves the plain `.codicon` spans below. Load it once,
-// before any icon connects (this module only ships in the lazy code-graph chunk).
+// before any icon connects (the app shell imports this module, so it runs at startup).
 const STYLESHEET_ID = 'vscode-codicon-stylesheet';
 if (typeof document !== 'undefined' && !document.getElementById(STYLESHEET_ID)) {
   const link = document.createElement('link');

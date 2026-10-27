@@ -4,7 +4,7 @@ import { fetchApi, toQueryString } from './api';
 import { useSessionStream, useDebouncedInvalidator } from '../useSessionStream';
 import type { FilterState } from '../../lib/filters';
 import type {
-  SessionSummary, SessionDetail, GitStats, SessionGraphDTO, TurnContentDTO, TurnPairDTO,
+  SessionSummary, SessionDetail, GitStats, SessionGraphDTO, TurnContentDTO, TurnPairDTO, SessionCodeActivityDTO,
 } from '../../lib/types';
 
 export function useSessions(filters?: Partial<FilterState> & { q?: string; limit?: number; offset?: number }) {
@@ -34,6 +34,15 @@ export function useSessionGitStats(id: string | undefined) {
   return useQuery({
     queryKey: ['sessions', id, 'git-stats'],
     queryFn: () => fetchApi<GitStats>(`/sessions/${id}/git-stats`),
+    enabled: !!id,
+  });
+}
+
+/** Project files the session read or changed; also tells whether the code graph can show them. */
+export function useSessionCodeActivity(id: string | undefined) {
+  return useQuery({
+    queryKey: ['sessions', id, 'code-activity'],
+    queryFn: () => fetchApi<SessionCodeActivityDTO>(`/sessions/${id}/code-activity`),
     enabled: !!id,
   });
 }
