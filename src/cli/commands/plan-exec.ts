@@ -2,6 +2,8 @@ import { readFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { createPlan, getPlan, listPlans, deletePlan, createExecution, getExecution, updateExecution } from '../../shared/plans/crud.js';
 import { PlanExecutor } from '../../shared/plans/executor.js';
+import { ClaudeCliAgentBridge } from '../../shared/plans/agent-bridge.js';
+import { spawnShell } from '../../shared/plans/runners.js';
 import { output, outputError } from '../../shared/output.js';
 import type { Plan, PlanDefinition } from '../../shared/types/plan.js';
 
@@ -75,7 +77,7 @@ export function planDeleteCommand(planId: string): void {
   }
 }
 
-export async function planExecCommand(planId: string): Promise<void> {
+export async function planExecCommand(planId: string, opts: { live?: boolean } = {}): Promise<void> {
   try {
     const plan = getPlan(planId);
     if (!plan) {
@@ -87,11 +89,18 @@ export async function planExecCommand(planId: string): Promise<void> {
     createExecution(planId, execId);
 
     const executor = new PlanExecutor(planId, plan.definition, {
+      ...(opts.live
+        ? {
+            agentBridge: new ClaudeCliAgentBridge(),
+            shellRunner: spawnShell,
+            defaultCwd: plan.projectPath ?? process.cwd(),
+          }
+        : {}),
       onProgress: (msg) => output(`  ${msg}`),
       onError: (nodeId, err) => outputError(`  Node ${nodeId}: ${err.message}`),
     });
 
-    output(`Executing plan: ${plan.name}`);
+    output(`Executing plan: ${plan.name} (${opts.live ? 'live' : 'dry-run'})`);
     const finalState = await executor.execute();
     updateExecution(execId, finalState);
 

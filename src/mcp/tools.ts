@@ -385,9 +385,17 @@ export function registerTools(server: McpServer): void {
     {
       description:
         'Execute a workflow plan. Returns executionId immediately — poll wf_status for progress. ' +
-        'Agent nodes are queued; task nodes run their command.',
+        'Default is a DRY RUN: agent and bash nodes are only labeled status "dry-run" and nothing is launched. ' +
+        'Pass live=true to really run them: agent nodes as headless `claude -p` (needs config.prompt; ' +
+        'optional config.cwd, config.permissionMode, config.toolWhitelist, node timeout) and bash nodes via ' +
+        'config.command. Working dir defaults to the plan project_path. task/skill/read/edit nodes are ' +
+        'always bookkeeping only.',
       inputSchema: {
         plan_id: z.string(),
+        live: z
+          .boolean()
+          .optional()
+          .describe('Really run agent and bash nodes. Default false (dry run).'),
       },
     },
     async (args) => (await loadWf()).wf_execute(args),

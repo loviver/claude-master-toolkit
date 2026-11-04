@@ -119,6 +119,12 @@ describe('mcp/workflow-tools', () => {
     expect(exec.state).toBe('running');
   });
 
+  it('wf_execute reports dry-run mode unless live is requested', async () => {
+    const created = parse(wfHandlers.wf_create({ name: 'test', definition: SIMPLE_PLAN }));
+    const exec = parse(await wfHandlers.wf_execute({ plan_id: created.id }));
+    expect(exec.mode).toBe('dry-run');
+  });
+
   it('wf_execute errors for unknown plan', async () => {
     const r = await wfHandlers.wf_execute({ plan_id: 'no-such-id' }) as McpResult;
     expect(r.isError).toBe(true);

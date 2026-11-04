@@ -5,6 +5,10 @@ import Rust from 'tree-sitter-rust';
 import { createHash } from 'crypto';
 import { relative } from 'path';
 import type { LanguageIndexer, IndexedSymbol } from './indexer-interface.js';
+import { buildPythonResolver, type PythonResolver } from './python-resolver.js';
+
+/** node-tree-sitter's `parse(string)` reads through a 32 KB buffer and throws "Invalid argument" past it. */
+const MIN_PARSE_BUFFER = 32 * 1024;
 
 type Lang = 'python' | 'go' | 'rust';
 
@@ -143,6 +147,50 @@ function extractDeps(node: Parser.SyntaxNode, callTypes: Set<string>): string[] 
   return Array.from(deps).slice(0, 30);
 }
 
+function pythonResolver(projectPath: string, relFile: string, root: Parser.SyntaxNode): PythonResolver {
+  const topLevel = new Set<string>();
+  const members = new Map<string, Set<string>>();
+  for (const n of root.namedChildren) {
+    const def = n.type === 'decorated_definition' ? n.childForFieldName('definition') : n;
+    if (!def || (def.type !== 'function_definition' && def.type !== 'class_definition')) continue;
+    const name = namedChild(def, 'name')?.text;
+    if (!name) continue;
+    topLevel.add(name);
+    if (def.type === 'class_definition') {
+      const ms = new Set<string>();
+      for (const c of namedChild(def, 'body')?.namedChildren ?? []) {
+        const m = c.type === 'decorated_definition' ? c.childForFieldName('definition') : c;
+        const mName = m?.type === 'function_definition' ? namedChild(m, 'name')?.text : null;
+        if (mName) ms.add(mName);
+      }
+      members.set(name, ms);
+    }
+  }
+  return buildPythonResolver(projectPath, relFile, root, topLevel, members);
+}
+
+function pythonDeps(node: Parser.SyntaxNode, py: PythonResolver, cls: string | null): string[] {
+  const deps = new Set<string>();
+  const walk = (n: Parser.SyntaxNode) => {
+    if (n.type === 'call') {
+      const fn = namedChild(n, 'function') ?? n.firstNamedChild;
+      const id = fn ? py.resolveCall(fn.text, cls) : null;
+      if (id) deps.add(id);
+    }
+    for (const c of n.namedChildren) walk(c);
+  };
+  walk(node);
+  return Array.from(deps).slice(0, 30);
+}
+
+function pythonHeritage(node: Parser.SyntaxNode, py: PythonResolver): string[] {
+  const bases = namedChild(node, 'superclasses')?.namedChildren ?? [];
+  return bases.flatMap((b) => {
+    const id = py.resolveType(b.text);
+    return id ? [id] : [];
+  });
+}
+
 export class TreeSitterIndexer implements LanguageIndexer {
   canHandle(file: string): boolean {
     return detectLang(file) !== null;
@@ -152,12 +200,15 @@ export class TreeSitterIndexer implements LanguageIndexer {
     const lang = detectLang(absPath);
     if (!lang) return [];
     const spec = SPECS[lang];
-    const tree = spec.parser.parse(content);
+    const tree = spec.parser.parse(content, undefined, {
+      bufferSize: Math.max(MIN_PARSE_BUFFER, content.length * 2),
+    });
 
     const relFile = relative(projectPath, absPath);
     const out: IndexedSymbol[] = [];
+    const py = lang === 'python' ? pythonResolver(projectPath, relFile, tree.rootNode) : null;
 
-    const pushSymbol = (node: Parser.SyntaxNode, name: string, kind: string, bareName?: string) => {
+    const pushSymbol = (node: Parser.SyntaxNode, name: string, kind: string, bareName?: string, cls?: string) => {
       const text = node.text;
       out.push({
         projectPath,
@@ -168,8 +219,9 @@ export class TreeSitterIndexer implements LanguageIndexer {
         startLine: node.startPosition.row + 1,
         endLine: node.endPosition.row + 1,
         exported: spec.isExported(node, bareName ?? name),
-        deps: extractDeps(node, spec.callNodeTypes),
+        deps: py ? pythonDeps(node, py, cls ?? null) : extractDeps(node, spec.callNodeTypes),
         refs: [],
+        ...(py && node.type === 'class_definition' && { heritage: pythonHeritage(node, py) }),
         tokensEstimate: estimateTokens(text),
         contentHash: hashContent(text),
       });
@@ -189,7 +241,7 @@ export class TreeSitterIndexer implements LanguageIndexer {
               for (const child of body.namedChildren) {
                 if (child.type === 'function_definition') {
                   const mName = namedChild(child, 'name')?.text;
-                  if (mName) pushSymbol(child, `${name}.${mName}`, 'method', mName);
+                  if (mName) pushSymbol(child, `${name}.${mName}`, 'method', mName, name);
                 }
               }
             }

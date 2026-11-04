@@ -9,10 +9,17 @@ import {
   NullAgentBridge,
   type AgentBridge,
 } from './agent-bridge.js';
+import type { ShellRunner } from './runners.js';
 
 export interface ExecutorContext {
   onProgress?: (msg: string) => void;
   onError?: (nodeId: string, err: Error) => void;
+  /**
+   * Fired after every node transition (running / done / failed) so callers can
+   * persist partial progress instead of only the final state. Errors thrown by
+   * the callback are swallowed: persistence must never break execution.
+   */
+  onStateChange?: (state: PlanExecutionState) => void;
   getOutput?: (nodeId: string) => unknown;
   /**
    * Optional live-definition fetcher. When provided, executor re-reads
@@ -21,6 +28,10 @@ export interface ExecutorContext {
    */
   getLiveDefinition?: () => PlanDefinition;
   agentBridge?: AgentBridge;
+  /** When set, bash nodes really run; otherwise they are labeled dry-run. */
+  shellRunner?: ShellRunner;
+  /** Working directory for bash/agent nodes that do not set their own `cwd`. */
+  defaultCwd?: string;
 }
 
 export class PlanExecutor {
@@ -187,6 +198,8 @@ export class PlanExecutor {
       model?: 'opus' | 'sonnet' | 'haiku' | 'inherit';
       toolWhitelist?: string[];
       run_in_background?: boolean;
+      cwd?: string;
+      permissionMode?: string;
     };
     const prompt = config.prompt ?? config.agentPrompt;
     if (!prompt) throw new Error(`Agent ${node.id} missing 'prompt' config`);
@@ -197,6 +210,9 @@ export class PlanExecutor {
       model: config.model,
       toolWhitelist: config.toolWhitelist,
       run_in_background: config.run_in_background,
+      cwd: config.cwd ?? this.ctx.defaultCwd,
+      timeoutMs: node.timeout,
+      permissionMode: config.permissionMode,
       execution_id: this.state.id,
       plan_id: this.planId,
       current_node_id: node.id,
@@ -219,12 +235,32 @@ export class PlanExecutor {
   }
 
   private async _executeBash(node: PlanNode): Promise<void> {
-    const config = node.config as { command?: string };
+    const config = node.config as { command?: string; cwd?: string };
     if (!config.command) throw new Error(`Bash ${node.id} missing 'command' config`);
-    // Real shell spawning deferred — bridge pattern like agent bridge. For now log.
-    this.ctx.onProgress?.(`  Bash: ${config.command}`);
     const s = this.state.nodeStates.get(node.id)!;
-    s.output = { command: config.command, status: 'queued' };
+    if (!this.ctx.shellRunner) {
+      this.ctx.onProgress?.(`  Bash (dry-run): ${config.command}`);
+      s.output = { command: config.command, status: 'dry-run' };
+      return;
+    }
+    this.ctx.onProgress?.(`  Bash: ${config.command}`);
+    const res = await this.ctx.shellRunner(config.command, {
+      cwd: config.cwd ?? this.ctx.defaultCwd,
+      timeoutMs: node.timeout,
+    });
+    s.output = {
+      command: config.command,
+      status: res.exitCode === 0 ? 'executed' : 'failed',
+      exitCode: res.exitCode,
+      stdout: res.stdout.slice(-2000),
+      stderr: res.stderr.slice(-2000),
+    };
+    if (res.exitCode === null) throw new Error(`Bash ${node.id} timed out and was killed`);
+    if (res.exitCode !== 0) {
+      throw new Error(
+        `Bash ${node.id} failed with exit code ${res.exitCode}: ${res.stderr.trim().slice(-500)}`,
+      );
+    }
   }
 
   private async _executeSkill(node: PlanNode): Promise<void> {
@@ -268,6 +304,11 @@ export class PlanExecutor {
 
   private _emitTimeline(nodeId: string, status: string): void {
     this.state.timeline.push({ nodeId, at: Date.now(), status });
+    try {
+      this.ctx.onStateChange?.(this.state);
+    } catch {
+      // progress persistence is best-effort
+    }
   }
 
   getState(): PlanExecutionState {

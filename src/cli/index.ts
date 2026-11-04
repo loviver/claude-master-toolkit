@@ -566,7 +566,8 @@ wf
 
 wf
   .command("exec <plan-id>")
-  .description("Execute a plan")
+  .description("Execute a plan (dry run unless --live)")
+  .option("--live", "Really run agent (claude -p) and bash nodes")
   .action(planExecCommand);
 
 wf

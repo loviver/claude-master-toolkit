@@ -11,6 +11,8 @@ import {
   getMutationLog,
 } from '../shared/plans/crud.js';
 import { PlanExecutor } from '../shared/plans/executor.js';
+import { ClaudeCliAgentBridge } from '../shared/plans/agent-bridge.js';
+import { spawnShell } from '../shared/plans/runners.js';
 import { applyMutation, MutationError } from '../shared/plans/mutate.js';
 import type { MutationOp, PlanDefinition } from '../shared/types/plan.js';
 
@@ -170,7 +172,7 @@ export const wfHandlers = {
     }
   },
 
-  async wf_execute(args: { plan_id: string }): Promise<McpContent> {
+  async wf_execute(args: { plan_id: string; live?: boolean }): Promise<McpContent> {
     try {
       const plan = getPlan(args.plan_id);
       if (!plan) return err(`Plan ${args.plan_id} not found`);
@@ -178,9 +180,18 @@ export const wfHandlers = {
       const execId = randomUUID();
       createExecution(args.plan_id, execId);
 
+      const live = args.live === true;
       const executor = new PlanExecutor(args.plan_id, plan.definition, {
+        ...(live
+          ? {
+              agentBridge: new ClaudeCliAgentBridge(),
+              shellRunner: spawnShell,
+              defaultCwd: plan.projectPath ?? process.cwd(),
+            }
+          : {}),
         onProgress: (msg) => process.stderr.write(`  [wf] ${msg}\n`),
         onError: (nodeId, e) => process.stderr.write(`  [wf] ${nodeId}: ${e.message}\n`),
+        onStateChange: (state) => updateExecution(execId, state),
         getLiveDefinition: () => {
           const live = getPlan(args.plan_id);
           return live ? live.definition : plan.definition;
@@ -193,7 +204,12 @@ export const wfHandlers = {
         updateExecution(execId, state);
       });
 
-      return ok({ execution_id: execId, state: 'running', plan_id: args.plan_id });
+      return ok({
+        execution_id: execId,
+        state: 'running',
+        plan_id: args.plan_id,
+        mode: live ? 'live' : 'dry-run',
+      });
     } catch (e) {
       return err(String(e));
     }

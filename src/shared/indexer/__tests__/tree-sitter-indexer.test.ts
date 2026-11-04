@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { TreeSitterIndexer } from '../tree-sitter-indexer.js';
 
 const PY = `
@@ -94,6 +97,82 @@ describe('TreeSitterIndexer', () => {
   it('captures deps approximately', () => {
     const syms = idx.extractFromFile('/proj', '/proj/sample.py', PY);
     const pub = syms.find((s) => s.symbol === 'public_fn')!;
-    expect(pub.deps).toContain('helper');
+    expect(pub.deps).toContain('sample.py::helper');
+  });
+
+  it('parses Python files larger than the 32KB tree-sitter default buffer', () => {
+    const filler = Array.from({ length: 2500 }, (_, i) => `def fn_${i}(a, b):\n    return a + b\n`).join('\n');
+    expect(filler.length).toBeGreaterThan(70_000);
+    const syms = idx.extractFromFile('/proj', '/proj/big.py', filler);
+    expect(syms.length).toBe(2500);
+    expect(syms.some((s) => s.symbol === 'fn_2499')).toBe(true);
+  });
+});
+
+describe('TreeSitterIndexer — Python import resolution', () => {
+  const idx = new TreeSitterIndexer();
+  let root: string;
+  const put = (rel: string, body: string) => {
+    mkdirSync(join(root, rel, '..'), { recursive: true });
+    writeFileSync(join(root, rel), body);
+  };
+  const extract = (rel: string, body: string) => idx.extractFromFile(root, join(root, rel), body);
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), 'ctk-py-'));
+    put('src/__init__.py', '');
+    put('src/database/__init__.py', '');
+    put('src/database/models.py', 'class Order:\n    pass\n');
+    put('src/shipment/__init__.py', '');
+    put('src/shipment/repository.py', 'class Repo:\n    def get(self):\n        pass\n\ndef load():\n    pass\n');
+    put('src/presettlement/__init__.py', '');
+    put('src/presettlement/schemas.py', 'class Schema:\n    pass\n');
+    put('src/presettlement/service.py', '');
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  it('resolves `from pkg.mod import X` calls to file::symbol', () => {
+    const syms = extract('src/presettlement/service.py',
+      'from src.shipment.repository import load, Repo\n\ndef run():\n    load()\n    Repo.get()\n');
+    const run = syms.find((s) => s.symbol === 'run')!;
+    expect(run.deps).toContain('src/shipment/repository.py::load');
+    expect(run.deps).toContain('src/shipment/repository.py::Repo.get');
+  });
+
+  it('resolves relative imports (. and ..)', () => {
+    const syms = extract('src/presettlement/service.py',
+      'from .schemas import Schema\nfrom ..database.models import Order\n\ndef run():\n    Schema()\n    Order()\n');
+    const run = syms.find((s) => s.symbol === 'run')!;
+    expect(run.deps).toContain('src/presettlement/schemas.py::Schema');
+    expect(run.deps).toContain('src/database/models.py::Order');
+  });
+
+  it('resolves module aliases: import a.b as m; m.f()', () => {
+    const syms = extract('src/presettlement/service.py',
+      'import src.shipment.repository as repo\nfrom src.database import models\n\ndef run():\n    repo.load()\n    models.Order()\n');
+    const run = syms.find((s) => s.symbol === 'run')!;
+    expect(run.deps).toContain('src/shipment/repository.py::load');
+    expect(run.deps).toContain('src/database/models.py::Order');
+  });
+
+  it('qualifies same-file calls and self.method calls', () => {
+    const syms = extract('src/presettlement/service.py',
+      'def helper():\n    pass\n\nclass Svc:\n    def a(self):\n        self.b()\n        helper()\n    def b(self):\n        pass\n');
+    const a = syms.find((s) => s.symbol === 'Svc.a')!;
+    expect(a.deps).toContain('src/presettlement/service.py::Svc.b');
+    expect(a.deps).toContain('src/presettlement/service.py::helper');
+  });
+
+  it('drops builtins and third-party calls instead of leaving bare ids', () => {
+    const syms = extract('src/presettlement/service.py',
+      'import requests\n\ndef run():\n    len([])\n    requests.get("x")\n');
+    const run = syms.find((s) => s.symbol === 'run')!;
+    expect(run.deps).toEqual([]);
+  });
+
+  it('records resolved base classes as heritage', () => {
+    const syms = extract('src/presettlement/service.py',
+      'from .schemas import Schema\n\nclass Child(Schema):\n    pass\n');
+    expect(syms.find((s) => s.symbol === 'Child')!.heritage).toEqual(['src/presettlement/schemas.py::Schema']);
   });
 });
