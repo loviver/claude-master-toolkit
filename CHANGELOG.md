@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+### Fixed
+- Python files larger than 32 KB failed to index with `Invalid argument` (node-tree-sitter's default parse buffer). The parse buffer now scales with the file, so big `models.py` / service modules are indexed.
+- Python call edges were bare names the symbol graph dropped, so the code graph had 0 links and thousands of unresolved refs. Imports are now resolved to `file::symbol`: absolute (from the project root or `src/`), relative, module aliases, `from pkg import module`, `self.method()`, same-file calls and base classes (heritage). Builtins and third-party calls are omitted instead of left as unresolved ids. Re-exports through `__init__.py` and star imports are not followed.
+
 ## 0.6.0
 
 ### Added
