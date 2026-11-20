@@ -43,8 +43,11 @@ ctk_lib_session_file() {
   if [[ -n "$session_id" && -f "$proj_dir/$session_id.jsonl" ]]; then
     echo "$proj_dir/$session_id.jsonl"
   else
+    # Single awk pass that consumes ALL input: `sort | head -1` closed the pipe
+    # early and, under callers' `set -o pipefail`, the SIGPIPE (141) killed the
+    # hook silently once there were enough transcripts.
     find "$proj_dir" -maxdepth 1 -name '*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-      | sort -rn | head -1 | awk '{print $2}'
+      | awk '$1 > max { max = $1; path = $2 } END { print path }'
   fi
 }
 
