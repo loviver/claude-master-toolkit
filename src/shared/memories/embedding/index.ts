@@ -162,6 +162,7 @@ export interface CandidateFilter {
   scope?: MemoryScope;
   projectPath?: string;
   sessionId?: string;
+  ticket?: string;
 }
 
 export interface Candidate {
@@ -177,6 +178,7 @@ export function loadCandidateVectors(db: Database.Database, filter: CandidateFil
   if (filter.scope) { parts.push('m.scope = ?'); args.push(filter.scope); }
   if (filter.projectPath) { parts.push('m.project_path = ?'); args.push(filter.projectPath); }
   if (filter.sessionId) { parts.push('m.session_id = ?'); args.push(filter.sessionId); }
+  if (filter.ticket) { parts.push('m.ticket = ?'); args.push(filter.ticket); }
   const where = parts.length ? `WHERE ${parts.join(' AND ')}` : '';
 
   const rows = db

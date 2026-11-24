@@ -52,6 +52,7 @@ export function recall(db: Database.Database, input: RecallInput): RecallRow[] {
   if (input.scope) { whereParts.push('m.scope = ?'); args.push(input.scope); }
   if (input.projectPath) { whereParts.push('m.project_path = ?'); args.push(input.projectPath); }
   if (input.sessionId) { whereParts.push('m.session_id = ?'); args.push(input.sessionId); }
+  if (input.ticket) { whereParts.push('m.ticket = ?'); args.push(input.ticket); }
 
   let results: RecallRow[] = [];
   if (q.length > 0) {
@@ -69,6 +70,14 @@ export function recall(db: Database.Database, input: RecallInput): RecallRow[] {
     } catch {
       results = [];
     }
+  } else if (input.ticket) {
+    const sql = `
+      SELECT m.*, 0 AS rank FROM memories_v2 m
+      WHERE ${whereParts.join(' AND ')}
+      ORDER BY COALESCE(m.updated_at, m.created_at) DESC
+      LIMIT ?
+    `;
+    results = db.prepare(sql).all(...args, limit) as RecallRow[];
   }
 
   const now = Date.now();

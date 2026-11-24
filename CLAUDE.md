@@ -27,7 +27,7 @@ npm run test:watch        # watch mode
 
 # Database
 npm run db:generate       # drizzle-kit generate migrations
-npm run db:migrate        # run migrations (tsx src/server/db/migrate.ts)
+npm run db:migrate        # run migrations (tsx src/shared/db/migrate.ts)
 
 # Install/uninstall into ~/.claude/
 ./install.sh              # builds, migrates, symlinks into ~/.claude/, adds ctk to PATH
@@ -39,13 +39,13 @@ npm run db:migrate        # run migrations (tsx src/server/db/migrate.ts)
 Three build targets sharing `src/shared/`:
 
 - **CLI** (`src/cli/`) — Commander-based, compiled via `tsconfig.cli.json` → `dist/cli/`. Binary entry: `dist/cli/index.js` (exposed as `ctk`). Commands in `src/cli/commands/` (cost, dashboard, find, git, model, slice, test, tokens).
-- **Server** (`src/server/`) — Fastify on port 3100, compiled via `tsconfig.server.json`. Routes in `src/server/routes/` (health, memories, sessions, stats). DB is SQLite via Drizzle ORM (`src/server/db/`).
+- **Server** (`src/server/`) — Fastify on port 3100, compiled via `tsconfig.server.json`. Routes in `src/server/routes/` (health, memories, sessions, stats). DB is SQLite via Drizzle ORM (`src/shared/db/`).
 - **Client** (`src/client/`) — React SPA built by Vite from `src/client/` → `dist/public/`. Vite root is `src/client/`, proxies `/api` to server in dev. Path alias: `@client` → `src/client/`.
 - **Shared** (`src/shared/`) — JSONL parser, pricing table, types, output helpers. Included in both CLI and server builds.
 
 ### Database
 
-SQLite via `better-sqlite3` + Drizzle ORM. Schema in `src/server/db/schema.ts`. Tables: `sessions`, `token_events`, `memories`, `sync_state`. The server parses Claude Code JSONL session files and syncs them incrementally (tracked by `sync_state.last_byte_offset`).
+SQLite via `better-sqlite3` + Drizzle ORM. Schema in `src/shared/db/schema.ts`. Tables: `sessions`, `token_events`, `memories_v2`, `sync_state`. The server parses Claude Code JSONL session files and syncs them incrementally (tracked by `sync_state.last_byte_offset`).
 
 ### Claude Code Integration Layer
 

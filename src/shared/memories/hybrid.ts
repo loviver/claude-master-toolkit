@@ -32,7 +32,7 @@ export async function recallHybrid(
   const limit = input.limit ?? 20;
 
   const ftsRows = recall(db, input);
-  if (mode === 'keyword' || !opts.embedder) return ftsRows;
+  if (mode === 'keyword' || !opts.embedder || !input.query.trim()) return ftsRows;
 
   let vecRanked: Array<{ row: MemoryRow; sim: number }> = [];
   try {

@@ -197,7 +197,9 @@ export function registerTools(server: McpServer): void {
   // ─── Pandorica: persistent memory vault (core mem_* verbs; the rest live in `ctk mem`) ───
 
   const MemoryTypeSchema = z.enum(['decision', 'bugfix', 'architecture', 'pattern', 'preference', 'reference', 'note', 'session_summary']);
+  // `team` is read-only here: it is assigned by `ctk mem pull` after a reviewed promotion.
   const MemoryScopeSchema = z.enum(['project', 'personal']);
+  const RecallScopeSchema = z.enum(['project', 'personal', 'team']);
 
   server.registerTool(
     'mem_save',
@@ -216,6 +218,7 @@ export function registerTools(server: McpServer): void {
         scope: MemoryScopeSchema.optional(),
         project_path: z.string().optional(),
         session_id: z.string().optional(),
+        ticket: z.string().optional().describe('Ticket id (e.g. DEV-123). Default: taken from the git branch'),
       },
     },
     async (args) => handlers.mem_save(args),
@@ -227,10 +230,14 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
       description: 'Pandorica — search memories (full-text + semantic). Search BEFORE re-investigating something.',
       inputSchema: {
-        query: z.string(),
+        query: z.string().optional().describe('Required unless `ticket` is given'),
         limit: z.number().int().positive().optional(),
         type: MemoryTypeSchema.optional(),
-        scope: MemoryScopeSchema.optional(),
+        scope: RecallScopeSchema.optional(),
+        ticket: z
+          .string()
+          .optional()
+          .describe('Ticket id, or "current" for the git branch. Searches every project'),
         project_path: z.string().optional(),
       },
     },

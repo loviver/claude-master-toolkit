@@ -30,13 +30,16 @@ export type MemSaveOpts = Pick<
   'title' | 'what' | 'why' | 'where' | 'learned' | 'topicKey' | 'scope' | 'projectPath' | 'sessionId'
 > &
   ContentSource & {
+    ticket?: string;
     /** Validated at runtime against VALID_TYPES (kept as plain string for Commander). */
     type?: string;
   };
 
 // ── `mem recall <query>` ──
 
-export type MemRecallOpts = Omit<RecallInput, 'query' | 'limit'> & {
+export type MemRecallOpts = Omit<RecallInput, 'query' | 'limit' | 'ticket'> & {
+  /** `true` when --ticket is passed without a value: use the current branch. */
+  ticket?: string | true;
   /** Commander passes --limit as a string; parsed to number in the command. */
   limit?: string;
 };
@@ -73,4 +76,11 @@ export type MemExportOpts = MemStatsOpts & { out?: string };
 export interface MemImportOpts {
   file?: string;
   stdin?: boolean;
+}
+
+// ── Team vault ──
+
+export interface MemPromoteOpts {
+  /** Ticket for memories saved without one. */
+  ticket?: string;
 }

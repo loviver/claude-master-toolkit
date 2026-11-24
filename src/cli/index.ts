@@ -49,6 +49,7 @@ import {
   memExportCommand,
   memImportCommand,
 } from "./commands/mem.js";
+import { memTeamCommand, memPromoteCommand, memPullCommand } from "./commands/team.js";
 import {
   benchTaskAddCommand,
   benchTaskListCommand,
@@ -448,18 +449,36 @@ mem
   .option("--stdin", "Read body from stdin")
   .option("--scope <scope>", "project|personal", "project")
   .option("--topic-key <key>", "Stable key for upsert")
+  .option("--ticket <id>", "Ticket id (default: taken from the git branch)")
   .option("--project-path <path>", "Override project path (default: cwd)")
   .option("--session-id <id>", "Attach to a session")
   .action(memSaveCommand);
 
 mem
-  .command("recall <query>")
+  .command("recall [query]")
   .description("Hybrid recall: FTS5/BM25 keyword + semantic vectors (RRF-fused)")
   .option("--limit <n>", "Max results (default 20)")
   .option("--type <type>", "Filter by type")
   .option("--scope <scope>", "Filter by scope")
   .option("--project-path <path>", "Filter by project path")
+  .option("--ticket [id]", "Memories of a ticket, across projects (no id: current branch)")
   .action(memRecallCommand);
+
+mem
+  .command("team [repo]")
+  .description("Show or set the team knowledge repo (local clone or git URL)")
+  .action(memTeamCommand);
+
+mem
+  .command("promote <ids...>")
+  .description("Scan memories for secrets and open a PR to the team knowledge repo")
+  .option("--ticket <id>", "Ticket for memories saved without one")
+  .action(memPromoteCommand);
+
+mem
+  .command("pull")
+  .description("Import reviewed team memories")
+  .action(memPullCommand);
 
 mem
   .command("reindex")

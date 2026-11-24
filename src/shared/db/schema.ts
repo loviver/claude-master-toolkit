@@ -192,10 +192,17 @@ export const memoriesV2 = sqliteTable('memories_v2', {
   accessedAt: integer('accessed_at'),
 
   // Legacy-preserving columns (REST API compatibility)
-  scope: text('scope').notNull().default('project'),  // project | personal
+  scope: text('scope').notNull().default('project'),  // project | personal | team
   projectPath: text('project_path'),
   description: text('description'),
   filePath: text('file_path'),
+
+  // Team vault (see memory-columns.ts)
+  ticket: text('ticket'),
+  author: text('author'),
+  commitSha: text('commit_sha'),
+  gitBranch: text('git_branch'),
+  teamSyncedAt: integer('team_synced_at'),
 });
 
 export const memorySearches = sqliteTable('memory_searches', {

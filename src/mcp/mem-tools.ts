@@ -25,6 +25,7 @@ import { getCachedEmbedder, embedMemoryBestEffort } from '../shared/memories/emb
 import { embedTimeoutMs } from '../shared/memories/embedding/timeout.js';
 import { randomUUID } from 'crypto';
 import { currentSessionId } from '../shared/agents/resolve.js';
+import { captureContext, currentBranch, ticketFromBranch } from '../shared/team/ticket.js';
 
 function jsonResult(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
@@ -77,12 +78,17 @@ interface SaveArgs {
   cost_usd?: number;
   description?: string;
   file_path?: string;
+  ticket?: string;
 }
 
 export const memHandlers = {
   mem_save(args: SaveArgs) {
     return withDbAsync(async (db) => {
+      const projectPath = args.project_path ?? PROJECT_PATH();
+      const origin = captureContext(projectPath);
       const row = save(db, {
+        ...origin,
+        ticket: args.ticket ?? origin.ticket,
         title: args.title,
         type: args.type,
         what: args.what,
@@ -91,7 +97,7 @@ export const memHandlers = {
         learned: args.learned,
         topicKey: args.topic_key,
         scope: args.scope,
-        projectPath: args.project_path ?? PROJECT_PATH(),
+        projectPath,
         sessionId: args.session_id ?? currentSessionId(),
         model: args.model,
         phase: args.phase,
@@ -107,6 +113,7 @@ export const memHandlers = {
         saved: true,
         id: row.id,
         topic_key: row.topic_key,
+        ticket: row.ticket,
         updated: row.created_at !== row.updated_at,
       });
     });
@@ -151,23 +158,36 @@ export const memHandlers = {
   },
 
   mem_recall(args: {
-    query: string;
+    query?: string;
+    ticket?: string;
     limit?: number;
     type?: MemoryType;
     scope?: MemoryScope;
     project_path?: string;
     session_id?: string;
   }) {
+    const ticket =
+      args.ticket === 'current'
+        ? ticketFromBranch(currentBranch(args.project_path ?? PROJECT_PATH()))
+        : args.ticket;
+    if (args.ticket && !ticket) {
+      return Promise.resolve(errorResult('mem_recall: the current git branch has no ticket id'));
+    }
+    if (!args.query && !ticket) {
+      return Promise.resolve(errorResult('mem_recall: provide a query or a ticket'));
+    }
     return withDbAsync(async (db) => {
       const embedder = await getCachedEmbedder(db, { timeoutMs: embedTimeoutMs() });
       const results = await recallHybrid(
         db,
         {
-          query: args.query,
+          query: args.query ?? '',
+          ticket: ticket ?? undefined,
           limit: args.limit,
           type: args.type,
           scope: args.scope,
-          projectPath: args.project_path,
+          // A ticket spans repos and team memories have no local path.
+          projectPath: ticket ? undefined : args.project_path,
           sessionId: args.session_id,
         },
         { embedder },
@@ -179,6 +199,9 @@ export const memHandlers = {
           title: r.title,
           type: r.type,
           topic_key: r.topic_key,
+          ticket: r.ticket,
+          scope: r.scope,
+          author: r.author,
           rank: r.rank,
           updated_at: r.updated_at,
           preview: (r.what ?? '').slice(0, 240),
