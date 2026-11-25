@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { openSqlite } from '../db/open.js';
 import { ctkPaths } from '../paths/ctk-home.js';
 import { migrate } from '../db/migrate.js';
+import { ensureMemoryColumns } from '../db/memory-columns.js';
 
 // v2: dep/caller edges are file-qualified (`file::symbol`). Bumping wipes any
 // v1 index (bare-name edges) so it rebuilds in the new collision-proof format.
@@ -62,6 +63,8 @@ export function openDb(): Database.Database {
     migrate();
     db = openSqlite(ctkPaths.db());
   }
+
+  ensureMemoryColumns(db);
 
   // Several ctk builds share this DB (long-lived MCP servers outlive a rebuild). Only an
   // older index is rebuilt: a stale process wiping a newer one makes builds erase each other.

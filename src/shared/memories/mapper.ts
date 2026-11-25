@@ -23,6 +23,7 @@ import type { MemoryRow, MemoryScope, MemoryType, SaveInput, UpdateInput } from 
  *   id, session_id, title, type, what, why, where_, learned, topic_key,
  *   model, phase, tokens_input, tokens_output, cache_hit_pct, cost_usd,
  *   scope, project_path, description, file_path,
+ *   ticket, author, commit_sha, git_branch,
  *   created_at, updated_at
  */
 export function toInsertBindings(input: SaveInput, id: string, now: number): unknown[] {
@@ -48,6 +49,10 @@ export function toInsertBindings(input: SaveInput, id: string, now: number): unk
     input.projectPath ?? null,
     input.description ?? null,
     input.filePath ?? null,
+    input.ticket ?? null,
+    input.author ?? null,
+    input.commitSha ?? null,
+    input.gitBranch ?? null,
     now,
     now,
   ];
@@ -60,6 +65,7 @@ export function toInsertBindings(input: SaveInput, id: string, now: number): unk
  *   project_path, session_id,
  *   model, phase, tokens_input, tokens_output, cache_hit_pct, cost_usd,
  *   description, file_path,
+ *   ticket, author, commit_sha, git_branch,
  *   updated_at, id
  */
 export function toUpsertBindings(input: SaveInput, existing: MemoryRow, now: number): unknown[] {
@@ -81,6 +87,10 @@ export function toUpsertBindings(input: SaveInput, existing: MemoryRow, now: num
     input.costUsd ?? existing.cost_usd,
     input.description ?? existing.description,
     input.filePath ?? existing.file_path,
+    input.ticket ?? existing.ticket,
+    input.author ?? existing.author,
+    input.commitSha ?? existing.commit_sha,
+    input.gitBranch ?? existing.git_branch,
     now,
     existing.id,
   ];

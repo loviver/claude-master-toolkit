@@ -65,8 +65,9 @@ export function importVault(db: Database.Database, dump: VaultDump): { imported:
        model, phase, tokens_input, tokens_output, cache_hit_pct, cost_usd,
        access_count, cost_saved_usd,
        scope, project_path, description, file_path,
-       created_at, updated_at, accessed_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       created_at, updated_at, accessed_at,
+       ticket, author, commit_sha, git_branch, team_synced_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const m of dump.memories) {
     const info = insert.run(
@@ -75,6 +76,8 @@ export function importVault(db: Database.Database, dump: VaultDump): { imported:
       m.access_count, m.cost_saved_usd,
       m.scope, m.project_path, m.description, m.file_path,
       m.created_at, m.updated_at, m.accessed_at,
+      // Dumps from older versions lack these.
+      m.ticket ?? null, m.author ?? null, m.commit_sha ?? null, m.git_branch ?? null, m.team_synced_at ?? null,
     );
     if (info.changes > 0) imported++; else skipped++;
   }

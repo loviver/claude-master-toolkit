@@ -28,6 +28,7 @@ export function save(db: Database.Database, input: SaveInput): MemoryRow {
              model = ?, phase = ?, tokens_input = ?, tokens_output = ?,
              cache_hit_pct = ?, cost_usd = ?,
              description = ?, file_path = ?,
+             ticket = ?, author = ?, commit_sha = ?, git_branch = ?,
              updated_at = ?
          WHERE id = ?`,
       ).run(...toUpsertBindings(input, existing, now));
@@ -41,8 +42,9 @@ export function save(db: Database.Database, input: SaveInput): MemoryRow {
        id, session_id, title, type, what, why, where_, learned, topic_key,
        model, phase, tokens_input, tokens_output, cache_hit_pct, cost_usd,
        scope, project_path, description, file_path,
+       ticket, author, commit_sha, git_branch,
        created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(...toInsertBindings(input, id, now));
   return rowById(db, id)!;
 }

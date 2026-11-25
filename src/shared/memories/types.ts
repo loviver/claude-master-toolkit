@@ -10,7 +10,8 @@ export type MemoryType =
   | 'note'
   | 'session_summary';
 
-export type MemoryScope = 'project' | 'personal';
+/** `team` rows only arrive through `ctk mem pull`, after a reviewed promotion. */
+export type MemoryScope = 'project' | 'personal' | 'team';
 
 // ── Database row shape ──
 
@@ -39,6 +40,11 @@ export interface MemoryRow {
   project_path: string | null;
   description: string | null;
   file_path: string | null;
+  ticket: string | null;
+  author: string | null;
+  commit_sha: string | null;
+  git_branch: string | null;
+  team_synced_at: number | null;
 }
 
 // ── CRUD input shapes ──
@@ -62,6 +68,10 @@ export interface SaveInput {
   costUsd?: number;
   description?: string;
   filePath?: string;
+  ticket?: string | null;
+  author?: string | null;
+  commitSha?: string | null;
+  gitBranch?: string | null;
 }
 
 export interface UpdateInput {
@@ -87,7 +97,9 @@ export interface UpdateInput {
 // ── Search input/output shapes ──
 
 export interface RecallInput {
+  /** May be empty when `ticket` is set: lists that ticket's memories. */
   query: string;
+  ticket?: string;
   limit?: number;
   type?: MemoryType;
   scope?: MemoryScope;

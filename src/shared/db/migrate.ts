@@ -1,6 +1,7 @@
 import { openSqlite } from './open.js';
 import { ctkPaths } from '../paths/ctk-home.js';
 import { BENCH_SCHEMA_SQL } from '../../shared/bench/schema-sql.js';
+import { ensureMemoryColumns } from './memory-columns.js';
 
 function resolveDbPath(): string {
   return ctkPaths.db();
@@ -356,6 +357,7 @@ export function migrate(): void {
       VALUES (new.rowid, new.title, new.what, new.why, new.where_, new.learned);
     END;
   `);
+  ensureMemoryColumns(db);
 
   // v11: Pandorica hybrid recall — dense embeddings sidecar (brute-force JS cosine).
   // One vector per memory; populated on write + `ctk mem reindex`. FK cascade keeps it

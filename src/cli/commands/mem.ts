@@ -22,6 +22,7 @@ import {
   TRANSFORMERS_SPEC,
 } from '../../shared/memories/embedding/transformers-ext.js';
 import { ctkPaths } from '../../shared/paths/ctk-home.js';
+import { captureContext, currentBranch, ticketFromBranch } from '../../shared/team/ticket.js';
 import type {
   ContentSource,
   MemSaveOpts,
@@ -73,8 +74,16 @@ export function memSaveCommand(opts: MemSaveOpts): void {
   }
   const what = opts.what ?? (opts.content || opts.file || opts.stdin ? readContent(opts) : undefined);
 
+  if (opts.scope && !['project', 'personal'].includes(opts.scope)) {
+    outputError('mem save: --scope must be project or personal (team comes from `ctk mem promote`)');
+  }
+  const projectPath = opts.projectPath ?? process.cwd();
+  const origin = captureContext(projectPath);
+
   withDb((db) => {
     const row = save(db, {
+      ...origin,
+      ticket: opts.ticket ?? origin.ticket,
       title: opts.title!,
       type,
       what,
@@ -83,26 +92,33 @@ export function memSaveCommand(opts: MemSaveOpts): void {
       learned: opts.learned,
       topicKey: opts.topicKey,
       scope: opts.scope,
-      projectPath: opts.projectPath ?? process.cwd(),
+      projectPath,
       sessionId: opts.sessionId,
     });
-    output({ saved: true, id: row.id, topic_key: row.topic_key });
+    output({ saved: true, id: row.id, topic_key: row.topic_key, ticket: row.ticket });
   });
   process.exit(0);
 }
 
-export async function memRecallCommand(query: string, opts: MemRecallOpts): Promise<void> {
+export async function memRecallCommand(query: string | undefined, opts: MemRecallOpts): Promise<void> {
+  const ticket =
+    opts.ticket === true
+      ? ticketFromBranch(currentBranch(opts.projectPath ?? process.cwd()))
+      : opts.ticket;
+  if (opts.ticket && !ticket) outputError('mem recall: the current git branch has no ticket id');
+  if (!query && !ticket) outputError('mem recall: provide a query or --ticket');
   await withDbAsync(async (db) => {
     // Recall never downloads and is time-bounded: a stalled embedder degrades to keyword-only.
     const embedder = await getCachedEmbedder(db, { timeoutMs: embedTimeoutMs() });
     const rows = await recallHybrid(
       db,
       {
-        query,
+        query: query ?? '',
+        ticket: ticket || undefined,
         limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
         type: opts.type,
         scope: opts.scope,
-        projectPath: opts.projectPath,
+        projectPath: ticket ? undefined : opts.projectPath,
       },
       { embedder },
     );
@@ -113,6 +129,9 @@ export async function memRecallCommand(query: string, opts: MemRecallOpts): Prom
         title: r.title,
         type: r.type,
         topic_key: r.topic_key,
+        ticket: r.ticket,
+        scope: r.scope,
+        author: r.author,
         rank: r.rank,
         preview: (r.what ?? '').slice(0, 200),
       })),

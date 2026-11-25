@@ -4,6 +4,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { migrate } from '../../shared/db/migrate.js';
 import { memHandlers } from '../mem-tools.js';
+import { makeRepo } from '../../shared/team/__tests__/helpers.js';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
@@ -43,6 +44,24 @@ describe('mcp/mem-tools', () => {
     expect(got.title).toBe('hello');
     expect(got.what).toBe('world');
     expect(got.access_count).toBe(1);
+  });
+
+  it('mem_save links the current branch ticket and mem_recall resolves "current"', async () => {
+    const repo = makeRepo(mkdtempSync(join(tmpDir, 'repo-')), 'feat/DEV-42-x');
+    const saved = parse(await memHandlers.mem_save({ title: 'linked', what: 'beta', project_path: repo }));
+    expect(saved.ticket).toBe('DEV-42');
+    await memHandlers.mem_save({ title: 'unlinked', what: 'beta', project_path: tmpDir });
+
+    const r = parse(await memHandlers.mem_recall({ ticket: 'current', project_path: repo }));
+    expect(r.results.map((x: any) => x.title)).toEqual(['linked']);
+    expect(r.results[0]).toMatchObject({ ticket: 'DEV-42', scope: 'project', author: 'dev@example.com' });
+  });
+
+  it('mem_recall needs a query or a ticket', async () => {
+    const r = (await memHandlers.mem_recall({})) as McpResult;
+    expect(r.isError).toBe(true);
+    const none = (await memHandlers.mem_recall({ ticket: 'current', project_path: tmpDir })) as McpResult;
+    expect(none.isError).toBe(true);
   });
 
   it('mem_update modifies a row', async () => {

@@ -146,6 +146,7 @@ All commands accept `--json` for machine‑readable output.
 | `ctk mem get <id>`                    | Full untruncated memory.                                  |
 | `ctk mem delete <id>`                 | Delete a memory.                                          |
 | `ctk mem summary`                     | Persist a session summary.                                |
+| `ctk mem team` / `promote` / `pull`   | Share reviewed memories with your team (see below).       |
 | `ctk mem stats` / `export` / `import` | ROI and counts / dump and restore the vault.              |
 
 #### Hybrid recall (v0.2.0)
@@ -202,6 +203,24 @@ The index schema moved to **v5**. The first time 0.4.0 opens the database it cle
 | `ctk dashboard --no-open` | Don't auto‑open the browser.                    |
 
 ---
+
+## Team vault
+
+The local vault stays the source of truth for reads. Only the memories you promote leave your machine, and the team sees them after a reviewed PR.
+
+```bash
+ctk mem team git@github.com:<org>/<knowledge-repo>.git   # once (or set CTK_TEAM_REPO to a local clone)
+ctk mem recall --ticket                                  # memories for the current branch's ticket
+ctk mem promote <id> [<id>...]                           # secret scan, branch, PR (needs `gh`)
+ctk mem pull                                             # import what was merged, as scope `team`
+```
+
+- One file per memory: `memories/<project>/<ticket | _no-ticket>/<id>.json`.
+- Only memories from projects of an allowed owner can be promoted. By default that is the owner of the knowledge repo; override it with `ctk-team.json` at its root: `{"allowedOwners": ["my-org"]}`.
+- Costs, tokens, session ids and local paths are never exported; your home directory is rewritten to `~`.
+- The scan blocks known token formats, private keys, URL credentials, secret assignments and free-mail addresses. It cannot recognise everything (customer names, phone numbers, unknown token formats): **the PR review is the real control**. A leaked secret must be rotated, since git keeps history.
+- `pull` keeps local edits that are newer than the team version. Deleting a file in the knowledge repo does not delete copies already pulled (`ctk mem delete <id>`).
+- Pulled memories join semantic recall after `ctk mem reindex`; keyword recall finds them immediately.
 
 ## Cost accuracy
 
