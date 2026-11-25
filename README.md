@@ -216,6 +216,7 @@ ctk mem pull                                             # import what was merge
 ```
 
 - One file per memory: `memories/<project>/<ticket | _no-ticket>/<id>.json`.
+- Only memories from projects of an allowed owner can be promoted. By default that is the owner of the knowledge repo; override it with `ctk-team.json` at its root: `{"allowedOwners": ["my-org"]}`.
 - Costs, tokens, session ids and local paths are never exported; your home directory is rewritten to `~`.
 - The scan blocks known token formats, private keys, URL credentials, secret assignments and free-mail addresses. It cannot recognise everything (customer names, phone numbers, unknown token formats): **the PR review is the real control**. A leaked secret must be rotated, since git keeps history.
 - `pull` keeps local edits that are newer than the team version. Deleting a file in the knowledge repo does not delete copies already pulled (`ctk mem delete <id>`).

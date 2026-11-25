@@ -4,6 +4,7 @@
 
 ### Added
 - Team vault: share reviewed memories through a git knowledge repo. `ctk mem team <repo>` configures it, `ctk mem promote <id...>` scans for secrets and opens a PR, `ctk mem pull` imports what was merged as scope `team`.
+- `promote` only accepts memories from projects whose git owner the team vault allows (`ctk-team.json`, default: the knowledge repo owner).
 - Memories record `ticket`, `author`, `commit_sha` and `git_branch`. The ticket is taken from the branch name (`[A-Z]{2,6}-[0-9]+`).
 - `ctk mem recall --ticket [id]` and MCP `mem_recall({ ticket })` search a ticket across projects. MCP `mem_save` accepts `ticket`.
 

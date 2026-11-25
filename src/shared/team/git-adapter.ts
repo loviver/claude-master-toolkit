@@ -7,8 +7,13 @@ import { randomBytes } from 'crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join } from 'path';
+import { z } from 'zod';
+import { originUrl, ownerFromRemote } from './ownership.js';
 import { memoryPath, parseTeamMemory, type TeamMemory } from './format.js';
 import type { Proposal, Snapshot, SyncPort } from './sync-port.js';
+
+const CONFIG = 'ctk-team.json';
+const ConfigSchema = z.object({ allowedOwners: z.array(z.string().min(1)).min(1) });
 
 export interface PrRequest {
   branch: string;
@@ -82,6 +87,22 @@ export function createGitAdapter(opts: { repoPath: string; openPr?: OpenPr }): S
   };
 
   return {
+    allowedOwners(): string[] | null {
+      const ref = `origin/${syncBase()}`;
+      // Read from the reviewed base branch, so changing the policy needs a PR.
+      if (git(['ls-tree', '--name-only', ref, '--', CONFIG]).trim() === '') {
+        const url = originUrl(opts.repoPath);
+        const own = url ? ownerFromRemote(url) : null;
+        return own ? [own] : null;
+      }
+      try {
+        const config = ConfigSchema.parse(JSON.parse(git(['show', `${ref}:${CONFIG}`])));
+        return config.allowedOwners.map((o) => o.toLowerCase());
+      } catch (e) {
+        throw new Error(`team repo: invalid ${CONFIG}: ${(e as Error).message}`);
+      }
+    },
+
     propose(memories: TeamMemory[]): Proposal {
       const base = syncBase();
       const label = memories.find((m) => m.ticket)?.ticket ?? new Date().toISOString().slice(0, 10);

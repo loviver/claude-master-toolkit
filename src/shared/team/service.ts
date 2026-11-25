@@ -5,6 +5,7 @@ import { rowById } from '../memories/crud.js';
 import { readGitProvenance } from '../bench/provenance.js';
 import { readSetting, writeSetting } from './config.js';
 import { projectSlug, toTeamMemory, type TeamMemory } from './format.js';
+import { projectOwner } from './ownership.js';
 import { scanFields } from './privacy.js';
 import type { Proposal, SyncPort } from './sync-port.js';
 
@@ -19,11 +20,21 @@ export interface PromoteInput {
 
 export function promote(db: Database.Database, port: SyncPort, input: PromoteInput): Proposal {
   const blocked: string[] = [];
+  const owners = port.allowedOwners();
   const memories = input.ids.map((id) => {
     const row = rowById(db, id);
     if (!row) throw new Error(`memory '${id}' not found`);
     if (row.type === 'session_summary') {
       throw new Error(`memory '${id}' is a session_summary; only curated memories can be shared`);
+    }
+    if (owners) {
+      const owner = projectOwner(row.project_path);
+      if (!owner || !owners.includes(owner)) {
+        throw new Error(
+          `memory '${id}' comes from ${owner ? `'${owner}'` : 'a project without a hosted origin'}; ` +
+            `this team vault only accepts projects of: ${owners.join(', ')}`,
+        );
+      }
     }
     const memory = toTeamMemory(row, {
       project: projectSlug(row.project_path),

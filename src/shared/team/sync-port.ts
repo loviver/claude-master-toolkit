@@ -15,6 +15,8 @@ export interface Snapshot {
 }
 
 export interface SyncPort {
+  /** Project owners allowed to feed this vault; null when it sets no restriction. */
+  allowedOwners(): string[] | null;
   /** Publishes memories for review. Nothing reaches the team until the review is accepted. */
   propose(memories: TeamMemory[]): Proposal;
   /** Accepted memories, or null when nothing changed since `cursor`. */
