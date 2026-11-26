@@ -188,6 +188,10 @@ export function registerTools(server: McpServer): void {
         'public API, spread, churn) — not guessed. Consult BEFORE deciding to work inline vs delegate.',
       inputSchema: {
         base: z.string().optional().describe('Base ref to diff against (default: origin HEAD or main)'),
+        committed: z
+          .boolean()
+          .optional()
+          .describe('Measure committed changes only (default: also uncommitted edits and untracked files)'),
         cwd: cwdParam,
       },
     },

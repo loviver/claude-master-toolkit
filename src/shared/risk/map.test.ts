@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { rangesOverlap, mapTouchedSymbols } from './map.js';
+import { rangesOverlap, mapTouchedSymbols, isProjectIndexed } from './map.js';
 import type { TouchedRange } from './diff.js';
 
 describe('rangesOverlap — inclusive on both edges', () => {
@@ -76,5 +76,10 @@ describe('mapTouchedSymbols — range overlap against the symbols table', () => 
 
   it('returns nothing for a range in a file with no indexed symbols', () => {
     expect(mapTouchedSymbols(db, PROJ, [range('src/ghost.ts', 1, 100)])).toEqual([]);
+  });
+
+  it('isProjectIndexed tells an indexed project from one never indexed', () => {
+    expect(isProjectIndexed(db, PROJ)).toBe(true);
+    expect(isProjectIndexed(db, '/never-indexed')).toBe(false);
   });
 });

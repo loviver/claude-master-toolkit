@@ -1,9 +1,11 @@
 import { output, outputError, isJsonMode } from '../../shared/output.js';
 import { assessRisk } from '../../shared/risk/index.js';
-import { formatRationale } from '../../shared/risk/format.js';
+import { formatRationale, riskNotes } from '../../shared/risk/format.js';
 
 interface RiskOptions {
   base?: string;
+  /** Measure committed changes only (default: committed + uncommitted + untracked). */
+  committed?: boolean;
 }
 
 /**
@@ -13,14 +15,17 @@ interface RiskOptions {
  */
 export function riskCommand(opts: RiskOptions = {}): void {
   try {
-    const assessment = assessRisk({ base: opts.base });
+    const assessment = assessRisk({ base: opts.base, worktree: !opts.committed });
 
     if (isJsonMode()) {
       output(assessment);
       return;
     }
 
-    const { signals, score, base, touched } = assessment;
+    const { signals, score, base, touched, ranges } = assessment;
+    const notes = riskNotes(assessment);
+    const files = new Set(ranges.map((r) => r.file)).size;
+    const churn = ranges.reduce((sum, r) => sum + r.added, 0);
     const sig = [
       `blastRadius=${signals.blastRadius}`,
       `maxSymbolCallers=${signals.maxSymbolCallers}`,
@@ -32,8 +37,10 @@ export function riskCommand(opts: RiskOptions = {}): void {
 
     const lines = [
       `Risk: ${score.tier}  (score ${score.score.toFixed(2)})  vs ${base}`,
+      `Scope: ${assessment.worktree ? 'working tree' : 'committed'}  (${files} file(s), +${churn} line(s))`,
       `Signals: ${sig}`,
       `Touched: ${touched.length} symbol(s)`,
+      ...notes.map((n) => `Note: ${n}`),
       'Rationale:',
       ...formatRationale(score.rationale).map((r) => `  - ${r}`),
     ];

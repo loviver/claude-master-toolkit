@@ -164,6 +164,7 @@ program
     "Advisory ODD risk score of the current branch (DIRECT|GUARDED|DELEGATE)",
   )
   .option("--base <ref>", "Base ref to diff against (default: origin HEAD or main)")
+  .option("--committed", "Measure committed changes only (default also counts uncommitted and untracked files)")
   .action(riskCommand);
 
 program

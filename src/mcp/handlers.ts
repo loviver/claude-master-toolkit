@@ -7,6 +7,7 @@ import { resolveModel } from "../shared/models/router.js";
 import { openDb } from "../shared/indexer/db-raw.js";
 import { ctkPaths } from "../shared/paths/ctk-home.js";
 import { assessRisk } from "../shared/risk/index.js";
+import { riskNotes } from "../shared/risk/format.js";
 import { memHandlers } from "./mem-tools.js";
 import {
   findSymbol,
@@ -229,9 +230,11 @@ const rawHandlers = {
     return withDb((db) => jsonResult(briefValidate(db, args.id)));
   },
 
-  ctk_risk(args: { base?: string; cwd?: string }) {
+  ctk_risk(args: { base?: string; committed?: boolean; cwd?: string }) {
     try {
-      return jsonResult(assessRisk({ base: args.base, cwd: PROJECT_PATH(args.cwd) }));
+      const cwd = PROJECT_PATH(args.cwd);
+      const assessment = assessRisk({ base: args.base, cwd, worktree: !args.committed });
+      return jsonResult({ ...assessment, notes: riskNotes(assessment) });
     } catch (err) {
       return errorResult(`ctk_risk failed: ${(err as Error).message}`);
     }

@@ -70,10 +70,10 @@ Full rules and templates live in the `pandorica-protocol` skill if you ever need
 Dimension work by **measured risk**, not file count. Before deciding to delegate (or before starting a multi-file change), consult the risk tier:
 
 ```bash
-ctk risk            # tier + score + rationale of the current branch vs base
+ctk risk            # tier + score + rationale of the current branch vs base (includes uncommitted + untracked; --committed for commits only)
 ```
 
-or the MCP tool `ctk_risk({ base?, cwd? })`. Risk is **measured** off the AST index (blast radius, public API, spread, churn) + prior bug findings — not guessed.
+or the MCP tool `ctk_risk({ base?, committed?, cwd? })`. Risk is **measured** off the AST index (blast radius, public API, spread, churn) + prior bug findings — not guessed.
 
 Tier → flow (the human leads; this is a SUGGESTION):
 
@@ -83,7 +83,7 @@ Tier → flow (the human leads; this is a SUGGESTION):
 
 Hard floors override the score: a single symbol with >15 callers floors GUARDED, >50 floors DELEGATE; a prior bug on touched code escalates one tier.
 
-**ADVISORY, not enforced.** ODD never auto-routes — it surfaces a tier and its rationale so YOU choose the proportional flow. Requires a built index (`ctk index build`); if the index/git is unavailable it stays silent rather than guessing. `/delegate` runs this as its first pre-flight gate.
+**ADVISORY, not enforced.** ODD never auto-routes — it surfaces a tier and its rationale so YOU choose the proportional flow. Requires a built index (`ctk index build`): on a project that was never indexed, or a diff that maps to no symbols, it prints a `Note:` saying only diff size was measured — read that before trusting a DIRECT. `/delegate` runs this as its first pre-flight gate.
 
 ## Model Selection Layer
 

@@ -27,6 +27,11 @@ interface SymbolRow {
   deps: string | null;
 }
 
+/** Whether the index holds at least one symbol for the project (never-indexed projects hold none). */
+export function isProjectIndexed(db: Database.Database, projectPath: string): boolean {
+  return db.prepare('SELECT 1 FROM symbols WHERE project_path = ? LIMIT 1').get(projectPath) !== undefined;
+}
+
 /**
  * Map touched ranges to the symbols they overlap, using the AST `symbols` table.
  * The `db` is injected (callers open/close it) so this stays a thin, testable

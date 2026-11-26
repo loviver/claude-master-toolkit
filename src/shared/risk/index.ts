@@ -5,7 +5,7 @@ import { recallFindings } from '../indexer/queries.js';
 import { scoreRisk } from './score.js';
 import { DEFAULT_RISK_CONFIG, validateConfig } from './config.js';
 import { getTouchedRanges, resolveBaseBranch } from './diff.js';
-import { mapTouchedSymbols, type TouchedSymbol } from './map.js';
+import { isProjectIndexed, mapTouchedSymbols, type TouchedSymbol } from './map.js';
 import { qualifyId } from '../indexer/ids.js';
 import type { RiskConfig, RiskScore, RiskSignals } from './types.js';
 import type { TouchedRange } from './diff.js';
@@ -102,12 +102,19 @@ export interface AssessRiskOpts {
   base?: string;
   cwd?: string;
   config?: RiskConfig;
-  /** Include uncommitted edits (see `getTouchedRanges`). */
+  /**
+   * Include uncommitted edits and untracked files (see `getTouchedRanges`).
+   * Default `true`: risk is read before committing. `false` = committed only.
+   */
   worktree?: boolean;
 }
 
 export interface RiskAssessment {
   base: string;
+  /** Whether uncommitted edits were measured (`false` = committed only). */
+  worktree: boolean;
+  /** Whether the AST index holds any symbol for this project (else only diff size counts). */
+  indexed: boolean;
   signals: RiskSignals;
   score: RiskScore;
   touched: TouchedSymbol[];
@@ -125,13 +132,16 @@ export function assessRisk(opts: AssessRiskOpts = {}): RiskAssessment {
   const base = opts.base ?? resolveBaseBranch(cwd);
   const config = opts.config ?? loadRiskConfig(cwd);
 
-  const ranges = getTouchedRanges({ base, cwd, worktree: opts.worktree });
+  const worktree = opts.worktree ?? true;
+  const ranges = getTouchedRanges({ base, cwd, worktree });
 
   const db = openDb();
   let touched: TouchedSymbol[];
+  let indexed: boolean;
   let priorBugs: number;
   try {
     touched = mapTouchedSymbols(db, cwd, ranges);
+    indexed = isProjectIndexed(db, cwd);
     const bugFindings = recallFindings(db, { type: 'bug' });
     priorBugs = countPriorBugs(bugFindings, touched);
   } finally {
@@ -141,5 +151,5 @@ export function assessRisk(opts: AssessRiskOpts = {}): RiskAssessment {
   const signals = buildSignals(touched, ranges, priorBugs);
   const score = scoreRisk(signals, config);
 
-  return { base, signals, score, touched, ranges };
+  return { base, worktree, indexed, signals, score, touched, ranges };
 }
