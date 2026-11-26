@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `ctk risk` and MCP `ctk_risk` measure the working tree by default: uncommitted edits and untracked (not ignored) files count, since risk is read before committing. `--committed` (MCP `committed: true`) keeps the old commits-only read.
+
+### Fixed
+- `ctk risk` printed `DIRECT (score 0.00)` with nothing touched when the changes were not committed yet or the project was never indexed, which read as a real measurement. It now prints the scope and the files and lines measured, plus a `Note:` when the diff is empty, when the project has no index, or when changed source files map to no indexed symbol (stale index). MCP results carry the same `notes`.
+
 ## 0.7.0
 
 ### Added

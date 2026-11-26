@@ -1,4 +1,6 @@
 import { execFileSync } from 'child_process';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * A contiguous block of new-file lines the diff added or touched, attributed to
@@ -48,6 +50,28 @@ export function parseUnifiedDiff(text: string): TouchedRange[] {
   }
 
   return ranges;
+}
+
+/**
+ * Untracked files as whole-file touches: `git diff` never lists them, so a
+ * branch of brand-new files would otherwise read as an empty change. Pure.
+ */
+export function untrackedRanges(files: Array<{ file: string; lines: number }>): TouchedRange[] {
+  return files
+    .filter(({ lines }) => lines > 0)
+    .map(({ file, lines }) => ({ file, start: 1, end: lines, added: lines, removed: 0 }));
+}
+
+/** Line count of a text file; 0 for binary or unreadable files (they hold no symbols). */
+function countLines(path: string): number {
+  try {
+    const text = readFileSync(path, 'utf-8');
+    if (text.includes('\0')) return 0;
+    const lines = text.split('\n').length;
+    return text.endsWith('\n') ? lines - 1 : lines;
+  } catch {
+    return 0;
+  }
 }
 
 /** One line of a reviewable hunk; `old`/`new` are its line number on each side, null where it has none. */
@@ -141,7 +165,8 @@ export interface TouchedRangesOpts {
  * Thin git adapter: `git diff --unified=0 <base>...HEAD` → touched ranges.
  * The three-dot form diffs from the merge-base, matching `ctk git-changed`.
  * With `worktree`, `--merge-base <base>` diffs that same merge-base against the
- * working tree instead, so edits not yet committed show up too.
+ * working tree instead, so edits not yet committed show up too, and untracked
+ * (not ignored) files count as wholly added.
  */
 export function getTouchedRanges(opts: TouchedRangesOpts = {}): TouchedRange[] {
   const cwd = opts.cwd ?? process.cwd();
@@ -153,7 +178,14 @@ export function getTouchedRanges(opts: TouchedRangesOpts = {}): TouchedRange[] {
     cwd,
     maxBuffer: 50 * 1024 * 1024,
   });
-  return parseUnifiedDiff(diff);
+  const ranges = parseUnifiedDiff(diff);
+  if (!opts.worktree) return ranges;
+
+  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard'])
+    .split('\n')
+    .filter(Boolean)
+    .map((file) => ({ file, lines: countLines(join(cwd, file)) }));
+  return [...ranges, ...untrackedRanges(untracked)];
 }
 
 /** `<base>...HEAD`, or the merge-base vs the working tree with `worktree` — same ranges as getTouchedRanges. */

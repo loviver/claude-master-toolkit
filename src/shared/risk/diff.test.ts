@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { parseFileDiff, parseNameStatus, parseUnifiedDiff } from './diff.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import {
+  getTouchedRanges,
+  parseFileDiff,
+  parseNameStatus,
+  parseUnifiedDiff,
+  untrackedRanges,
+} from './diff.js';
 
 describe('parseUnifiedDiff — hunk headers to touched ranges', () => {
   it('a single hunk with 3 added lines → one range on the + side', () => {
@@ -202,5 +212,49 @@ describe('parseNameStatus — git status per changed file', () => {
       ['src/b.ts', 'added'],
       ['src/t.ts', 'modified'],
     ]));
+  });
+});
+
+describe('untrackedRanges — new files git diff does not see', () => {
+  it('a new file touches every line, all of them added', () => {
+    expect(untrackedRanges([{ file: 'src/new.ts', lines: 12 }])).toEqual([
+      { file: 'src/new.ts', start: 1, end: 12, added: 12, removed: 0 },
+    ]);
+  });
+
+  it('an empty new file contributes nothing', () => {
+    expect(untrackedRanges([{ file: 'src/empty.ts', lines: 0 }])).toEqual([]);
+  });
+});
+
+describe('getTouchedRanges — git adapter', () => {
+  let repo: string;
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+
+  beforeEach(() => {
+    repo = mkdtempSync(join(tmpdir(), 'ctk-risk-diff-'));
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+    writeFileSync(join(repo, 'a.ts'), 'export const a = 1;\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'feature');
+    writeFileSync(join(repo, 'a.ts'), 'export const a = 2;\n');
+    writeFileSync(join(repo, 'b.ts'), 'export const b = 1;\nexport const c = 2;\n');
+  });
+
+  afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+  it('worktree counts uncommitted edits and untracked files', () => {
+    const files = getTouchedRanges({ base: 'main', cwd: repo, worktree: true }).map((r) => [r.file, r.added]);
+    expect(files).toEqual([
+      ['a.ts', 1],
+      ['b.ts', 2],
+    ]);
+  });
+
+  it('committed-only ignores both', () => {
+    expect(getTouchedRanges({ base: 'main', cwd: repo })).toEqual([]);
   });
 });
