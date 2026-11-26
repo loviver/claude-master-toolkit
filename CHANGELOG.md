@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 ### Changed
 - `ctk risk` and MCP `ctk_risk` measure the working tree by default: uncommitted edits and untracked (not ignored) files count, since risk is read before committing. `--committed` (MCP `committed: true`) keeps the old commits-only read.
